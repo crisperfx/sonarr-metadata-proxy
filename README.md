@@ -1,3 +1,5 @@
+<img width="1172" height="764" alt="image" src="https://github.com/user-attachments/assets/529787c7-3703-44bf-a076-c2a1daee2a20" />
+
 # Sonarr Metadata Proxy
 
 Sidecar die een **ongewijzigde Sonarr** van metadata uit **TMDB** voorziet door transparant
