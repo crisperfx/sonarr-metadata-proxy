@@ -6,6 +6,7 @@ public interface ITmdbApi
 {
     Task<List<TmdbTvSearchResult>> SearchTvAsync(string query, CancellationToken cancellationToken);
     Task<List<TmdbTvSearchResult>> FindByImdbAsync(string imdbId, CancellationToken cancellationToken);
+    Task<List<TmdbTvSearchResult>> FindByTvdbAsync(int tvdbId, CancellationToken cancellationToken);
     Task<TmdbTvDetails> GetTvDetailsAsync(int tmdbId, CancellationToken cancellationToken);
     Task<List<TmdbEpisode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, CancellationToken cancellationToken);
 }

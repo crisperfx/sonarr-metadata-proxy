@@ -6,7 +6,7 @@ namespace Sonarr.MetadataProxy.Reverse;
 
 public interface ITvdbToTmdbResolver
 {
-    Task<int?> ResolveTmdbIdAsync(int tvdbId, CancellationToken cancellationToken);
+    Task<int?> ResolveTmdbIdAsync(int tvdbId, string? title, int? year, CancellationToken cancellationToken);
 }
 
 public sealed class WikidataTvdbResolver : ITvdbToTmdbResolver
@@ -27,7 +27,7 @@ public sealed class WikidataTvdbResolver : ITvdbToTmdbResolver
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/0.1 (metadata mapping lookups)");
     }
 
-    public async Task<int?> ResolveTmdbIdAsync(int tvdbId, CancellationToken cancellationToken)
+    public async Task<int?> ResolveTmdbIdAsync(int tvdbId, string? title, int? year, CancellationToken cancellationToken)
     {
         if (_cache.TryGetValue(tvdbId, out var cached))
         {

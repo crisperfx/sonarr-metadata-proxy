@@ -91,6 +91,7 @@ bestaande Sonarr: open de configuratie en voeg de velden hieronder toe.
 |---|---|
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
+| Environment variable (optioneel) | `OVERRIDES_API_URL` = `https://proxy.crisperfx.myds.me` — alleen achter reverse proxy |
 
 Netwerk & DNS (belangrijk): Sonarr moet `skyhook.sonarr.tv` bij de proxy laten
 landen (poort 443 in Docker).
@@ -123,6 +124,30 @@ landen (poort 443 in Docker).
 - Gebruik exact dezelfde map/volume → mappings en CA blijven bewaard;
 - het IP kan dan veranderen → werk de hosts-entry bij Sonarr bij (of herstart beide
   zonder opnieuw op te bouwen).
+
+### Achter een HTTPS reverse proxy (bijv. Synology DSM)
+
+Open je Sonarr als `https://serie.crisperfx.myds.me` in plaats van `http://<ip>:8989`,
+dan werkt de "Metadata-bron"-dropdown niet zomaar met `CORS_ALLOWED_ORIGINS` alleen.
+De dropdown-JS praat standaard tegen `http://<host>:9697`, en dat wordt achter HTTPS
+geblokkeerd (mixed content) én poort 9697 wordt door de reverse proxy nooit doorgezet.
+
+Zet daarom de beheer-API óók achter de reverse proxy:
+
+1. **Nieuwe reverse-proxy-regel** in DSM → Login Portal → Advanced → Reverse Proxy:
+   - `https://proxy.crisperfx.myds.me` → `http://<metadata-proxy-ip>:9697`
+   - Gebruik een ándere subdomeinnaam; DSM kan geen twee backends op één hostname.
+2. **`OVERRIDES_API_URL`** zet je nú op de **Sonarr**-container (env):
+   - `OVERRIDES_API_URL=https://proxy.crisperfx.myds.me`
+   - De init-hook (`init/50-sonarr-override-ui.sh`) stopt dit in de UI-JS; Sonarr
+     recreëren om de patch opnieuw te laten draaien.
+3. **`CORS_ALLOWED_ORIGINS`** op de proxy-container blijft de **browser-origin van
+   Sonarr**, dus:
+   - `CORS_ALLOWED_ORIGINS=https://serie.crisperfx.myds.me`
+4. Test: seriepagina → dropdown → **TMDB** → **Refresh & Scan**.
+
+Zonder `OVERRIDES_API_URL` valt de JS terug op `http://<host>:9697` (LAN/port-forward);
+dat blijft dus gewoon werken voor lokaal gebruik.
 
 ### Losse/draaiende Sonarr gebruiken
 

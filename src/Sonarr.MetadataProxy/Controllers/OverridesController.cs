@@ -28,7 +28,7 @@ public sealed class OverridesController : ControllerBase
 
     public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId);
 
-    public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId);
+    public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId, string? Title, int? Year);
 
     [HttpGet]
     public IActionResult List()
@@ -57,7 +57,8 @@ public sealed class OverridesController : ControllerBase
         }
         else if (request.Source == MappingStore.SourceTmdb)
         {
-            var resolved = await _tvdbToTmdb.ResolveTmdbIdAsync(request.TvdbId, CancellationToken.None);
+            var resolved = await _tvdbToTmdb.ResolveTmdbIdAsync(
+                request.TvdbId, request.Title, request.Year, CancellationToken.None);
             if (resolved is > 0)
             {
                 _mapping.RegisterSeries(request.TvdbId, resolved.Value);
@@ -65,9 +66,9 @@ public sealed class OverridesController : ControllerBase
             else
             {
                 _logger.LogWarning(
-                    "Override source tmdb requested for TVDB id {TvdbId} but no TMDB mapping is known yet. "
+                    "Override source tmdb requested for TVDB id {TvdbId} (title: '{Title}') but no TMDB mapping is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId);
+                    request.TvdbId, request.Title);
             }
         }
 

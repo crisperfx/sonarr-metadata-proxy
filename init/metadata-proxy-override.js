@@ -2,6 +2,7 @@
   'use strict';
 
   var PROXY_PORT = 9697;
+  var OVERRIDES_API_URL = '__OVERRIDES_API_URL__';
   var LS_KEY = 'sonarrMetadataOverride.apiKey';
   var PANEL_ID = 'metadata-override-ui';
   var POLL_MS = 2000;
@@ -52,7 +53,11 @@
   }
 
   function proxyUrl() {
-    return 'http://' + window.location.hostname + ':' + PROXY_PORT + '/api/overrides';
+    var origin = OVERRIDES_API_URL;
+    if (!origin || origin === '__OVERRIDES_API_URL__') {
+      origin = 'http://' + window.location.hostname + ':' + PROXY_PORT;
+    }
+    return origin.replace(/\/+$/, '') + '/api/overrides';
   }
 
   function baseCss() {
@@ -137,8 +142,16 @@
 
     select.addEventListener('change', function () {
       saveOverride(series.tvdbId, select.value)
-        .then(function () {
-          setStatus('Opgeslagen (' + (select.value || 'automatisch') + '). Doe nu Refresh & Scan.', '#fbbf24');
+        .then(function (dto) {
+          if (dto && dto.source === 'tmdb') {
+            if (dto.tmdbId) {
+              setStatus('Opgeslagen: TMDB (id ' + dto.tmdbId + '). Doe nu Refresh & Scan.', '#4ade80');
+            } else {
+              setStatus('Opgeslagen, maar geen TMDB-id gevonden — valt terug op TVDB.', '#fbbf24');
+            }
+          } else {
+            setStatus('Opgeslagen (' + (select.value || 'automatisch') + '). Doe nu Refresh & Scan.', '#fbbf24');
+          }
         })
         .catch(function (err) {
           setStatus('Fout: ' + err.message, '#f87171');
@@ -156,13 +169,23 @@
       url += '/' + tvdbId;
     } else {
       options.headers = { 'Content-Type': 'application/json' };
-      options.body = JSON.stringify({ tvdbId: tvdbId, source: source });
+      var year = series && series.year;
+      if (!year && series && series.firstAired) {
+        year = parseInt(String(series.firstAired).slice(0, 4), 10);
+      }
+      options.body = JSON.stringify({
+        tvdbId: tvdbId,
+        source: source,
+        title: series ? series.title : undefined,
+        year: year || undefined
+      });
     }
 
     return fetch(url, options).then(function (response) {
       if (!response.ok && response.status !== 204) {
         throw new Error('HTTP ' + response.status);
       }
+      return response.status === 204 ? null : response.json();
     });
   }
 

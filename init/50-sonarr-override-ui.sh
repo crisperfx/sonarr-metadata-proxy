@@ -56,6 +56,18 @@ if [ -f "${SRC}" ]; then
   else
     echo "[sonarr-metadata-proxy] No Sonarr API key found in ${SONARR_CONFIG}; key panel stays in UI."
   fi
+
+  # Optional: reverse-proxy setup. When Sonarr is reached from a browser through
+  # an HTTPS reverse proxy (e.g. Synology), the legacy fallback "http://<host>:9697"
+  # is blocked as mixed content and never reaches the proxy. OVERRIDES_API_URL makes
+  # the picker call the reverse-proxied management API instead; combine it with
+  # CORS_ALLOWED_ORIGINS=<Sonarr browser origin> on the proxy container.
+  if [ -n "${OVERRIDES_API_URL:-}" ]; then
+    sed -i "s|__OVERRIDES_API_URL__|${OVERRIDES_API_URL}|g" "${UI_DIR}/metadata-proxy-override.js"
+    echo "[sonarr-metadata-proxy] Override UI points at ${OVERRIDES_API_URL} for the overrides API."
+  else
+    echo "[sonarr-metadata-proxy] OVERRIDES_API_URL unset; override UI falls back to http://<host>:9697 (LAN/port-forward only)."
+  fi
 else
   echo "[sonarr-metadata-proxy] ${SRC} not found; skipping script copy."
 fi

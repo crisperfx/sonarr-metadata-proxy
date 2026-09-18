@@ -68,6 +68,17 @@ public sealed class TmdbClient : ITmdbApi
         return response.TvResults;
     }
 
+    public async Task<List<TmdbTvSearchResult>> FindByTvdbAsync(int tvdbId, CancellationToken cancellationToken)
+    {
+        ThrowIfUnauthorized();
+
+        var parameters = "language=" + Uri.EscapeDataString(_options.TmdBLanguage) +
+                         "&external_source=tvdb_id";
+
+        var response = await GetAsync<TmdbFindResponse>($"find/{tvdbId}?{parameters}", cancellationToken).ConfigureAwait(false);
+        return response.TvResults;
+    }
+
     public async Task<TmdbTvDetails> GetTvDetailsAsync(int tmdbId, CancellationToken cancellationToken)
     {
         ThrowIfUnauthorized();

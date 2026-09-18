@@ -140,7 +140,7 @@ public sealed class MetadataRequestHandler
             tmdbId = _mapping.TryResolveSeriesTmdb(tvdbId);
             if (!tmdbId.HasValue)
             {
-                tmdbId = await _tvdbToTmdb.ResolveTmdbIdAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+                tmdbId = await _tvdbToTmdb.ResolveTmdbIdAsync(tvdbId, null, null, cancellationToken).ConfigureAwait(false);
             }
         }
 

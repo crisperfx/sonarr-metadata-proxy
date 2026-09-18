@@ -41,7 +41,8 @@ var certificateProvider = new CertificateProvider(options, loggerFactory.CreateL
 builder.Services.AddSingleton(certificateProvider);
 
 builder.Services.AddSingleton<MappingStore>();
-builder.Services.AddSingleton<ITvdbToTmdbResolver, WikidataTvdbResolver>();
+builder.Services.AddSingleton<WikidataTvdbResolver>();
+builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();
 builder.Services.AddSingleton<ITmdbApi, TmdbClient>();
 builder.Services.AddSingleton<TmdbMetadataProvider>();
 builder.Services.AddSingleton<IMetadataProvider>(

@@ -53,7 +53,7 @@ public sealed class FakeTvdbResolver : ITvdbToTmdbResolver
     public Dictionary<int, int> Map { get; set; } = new();
     public int CallCount { get; private set; }
 
-    public Task<int?> ResolveTmdbIdAsync(int tvdbId, CancellationToken cancellationToken)
+    public Task<int?> ResolveTmdbIdAsync(int tvdbId, string? title, int? year, CancellationToken cancellationToken)
     {
         CallCount++;
         return Task.FromResult(Map.TryGetValue(tvdbId, out var tmdbId) ? tmdbId : (int?)null);
