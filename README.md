@@ -200,14 +200,14 @@ Requirements: Docker with Compose v2, a TMDB API key (free):
 <https://www.themoviedb.org/settings/api>.
 
 ```bash
-git clone https://github.com/USERNAME/sonarr-metadata-proxy.git
+git clone https://github.com/crisperfx/sonarr-metadata-proxy.git
 cd sonarr-metadata-proxy
 cp .env.example .env
 # edit .env: set TMDB_API_KEY=..., CORS_ALLOWED_ORIGINS = the origin of your Sonarr tab
 docker compose up -d
 ```
 
-The compose file pulls the prebuilt image `ghcr.io/USERNAME/sonarr-metadata-proxy:latest`;
+The compose file pulls the prebuilt image `ghcr.io/crisperfx/sonarr-metadata-proxy:latest`;
 replace `USERNAME` with the GitHub account that owns the repository. To build locally
 instead of pulling, comment out the `image:` line and uncomment the `build: .` line in
 `docker-compose.yml`.
@@ -264,7 +264,7 @@ services:
       - arrnet                                       # add
 
   sonarr-metadata-proxy:
-    image: ghcr.io/USERNAME/sonarr-metadata-proxy:latest
+    image: ghcr.io/crisperfx/sonarr-metadata-proxy:latest
     environment:
       METADATA_SOURCE: tmdb
       TMDB_API_KEY: ${TMDB_API_KEY}

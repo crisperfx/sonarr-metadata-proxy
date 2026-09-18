@@ -11,7 +11,7 @@
 #
 # When you build locally, replace the image line with: "build: ."
 # When you use the prebuilt image, replace USERNAME with the GitHub account
-# owning the repository (image: ghcr.io/USERNAME/sonarr-metadata-proxy:latest).
+# owning the repository (image: ghcr.io/crisperfx/sonarr-metadata-proxy:latest).
 
 services:
   sonarr:
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
 
   sonarr-metadata-proxy:
-    image: ghcr.io/USERNAME/sonarr-metadata-proxy:latest
+    image: ghcr.io/crisperfx/sonarr-metadata-proxy:latest
     # build: .   # uncomment to build locally instead of pulling the prebuilt image
     container_name: sonarr-metadata-proxy
     environment:
