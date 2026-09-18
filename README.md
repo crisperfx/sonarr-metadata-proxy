@@ -72,7 +72,7 @@ Stop de container, open daarna de configuratie en vul het volgende in:
 | Naam | `sonarr-metadata-proxy` |
 | Port mapping (optioneel) | `9697:9697` — alleen als je `/info` buiten Docker wilt bereiken |
 | Environment variable | `TMDB_API_KEY` = `<jouw key>` |
-| Environment variable (optioneel) | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — nodig voor de dropdown |
+| Environment variable | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — proxy etc. mogelijk, scheiden met een "," |
 | Volume (host-map → container) | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
 | Extra capability | `NET_BIND_SERVICE` — nodig om poort 443 te binden |
 
