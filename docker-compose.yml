@@ -24,7 +24,7 @@ services:
       # Optional, behind an HTTPS reverse proxy (e.g. Synology): point the override
       # dropdown at the proxied management API and white-list the Sonarr browser
       # origin in CORS_ALLOWED_ORIGINS on the proxy. Example:
-      # - OVERRIDES_API_URL=https://proxy.crisperfx.myds.me
+      # - OVERRIDES_API_URL=https://proxy.example.com
     volumes:
       - ./sonarr-data/config:/config
       - ./tv:/tv

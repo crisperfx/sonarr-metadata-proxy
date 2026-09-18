@@ -19,10 +19,10 @@ public class ProxyOptionsTests
     {
         var options = ProxyOptions.FromConfiguration(BuildConfig(new Dictionary<string, string?>
         {
-            ["CORS_ALLOWED_ORIGINS"] = "http://192.168.0.142:8989, https://sonarr.local:8989"
+            ["CORS_ALLOWED_ORIGINS"] = "http://192.168.1.42:8989, https://sonarr.local:8989"
         }));
 
-        Assert.Equal(new[] { "http://192.168.0.142:8989", "https://sonarr.local:8989" }, options.CorsAllowedOrigins);
+        Assert.Equal(new[] { "http://192.168.1.42:8989", "https://sonarr.local:8989" }, options.CorsAllowedOrigins);
     }
 
     [Fact]

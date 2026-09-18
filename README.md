@@ -92,7 +92,7 @@ open its configuration and add the fields below.
 |---|---|
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
-| Environment variable (optional) | `OVERRIDES_API_URL` = `https://your-proxy.com` — only behind a reverse proxy |
+| Environment variable (optional) | `OVERRIDES_API_URL` = `https://proxy.example.com` — only behind a reverse proxy |
 
 Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the proxy
 (port 443 in Docker).
@@ -127,7 +127,7 @@ Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the prox
 
 ### Behind an HTTPS reverse proxy (e.g. Synology DSM)
 
-If you open Sonarr as `https://serie.crisperfx.myds.me` instead of `http://<ip>:8989`, the
+If you open Sonarr as `https://sonarr.example.com` instead of `http://<ip>:8989`, the
 "Metadata source" dropdown does not work with `CORS_ALLOWED_ORIGINS` alone. The dropdown JS
 talks to `http://<host>:9697` by default, which is blocked behind HTTPS (mixed content) and
 port 9697 is never forwarded by the reverse proxy.
@@ -135,14 +135,14 @@ port 9697 is never forwarded by the reverse proxy.
 So put the management API behind the reverse proxy too:
 
 1. **New reverse proxy rule** in DSM → Login Portal → Advanced → Reverse Proxy:
-   - `https://proxy.crisperfx.myds.me` → `http://<metadata-proxy-ip>:9697`
+   - `https://proxy.example.com` → `http://<metadata-proxy-ip>:9697`
    - Use a *different* subdomain; DSM cannot route two backends on one hostname.
 2. **`OVERRIDES_API_URL`** goes on the **Sonarr** container (env):
-   - `OVERRIDES_API_URL=https://proxy.crisperfx.myds.me`
+   - `OVERRIDES_API_URL=https://proxy.example.com`
    - The init hook (`init/50-sonarr-override-ui.sh`) embeds this into the UI JS; recreate
      Sonarr so the patch runs again.
 3. **`CORS_ALLOWED_ORIGINS`** on the proxy container stays the **browser origin of Sonarr**:
-   - `CORS_ALLOWED_ORIGINS=https://serie.crisperfx.myds.me`
+   - `CORS_ALLOWED_ORIGINS=https://sonarr.example.com`
 4. Test: series page → dropdown → **TMDB** → **Refresh & Scan**.
 
 Without `OVERRIDES_API_URL` the JS falls back to `http://<host>:9697` (LAN/port-forward);
