@@ -1,0 +1,27 @@
+{
+  "tvdbId": 81189,
+  "tmdbId": 1396,
+  "imdbId": "tt0903747",
+  "title": "Breaking Bad",
+  "overview": "Mild-mannered high school chemistry teacher Walter White thinks his life can't get much worse...",
+  "firstAired": "2008-01-20",
+  "lastAired": "2013-09-29",
+  "status": "ended",
+  "runtime": 47,
+  "network": "AMC",
+  "slug": "breaking-bad",
+  "contentRating": "TV-MA",
+  "originalLanguage": "en",
+  "rating": { "value": 8.9, "count": 12345 },
+  "genres": [ "Drama", "Crime" ],
+  "seasons": [
+    { "seasonNumber": 1, "images": [] },
+    { "seasonNumber": 2, "images": [] }
+  ],
+  "alternativeTitles": [],
+  "actors": [],
+  "images": [],
+  "malIds": [],
+  "aniListIds": [],
+  "episodes": []
+}

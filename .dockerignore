@@ -1,0 +1,11 @@
+bin/
+obj/
+.git/
+.vs/
+*.user
+*.suo
+.env
+data/
+sonarr-data/
+certs/
+*.log

@@ -1,0 +1,2 @@
+# Shell scripts are mounted into LinuxServer containers and must stay LF
+*.sh text eol=lf

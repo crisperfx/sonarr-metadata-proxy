@@ -1,0 +1,55 @@
+{
+  "tvdbId": 1000001396,
+  "tmdbId": 1396,
+  "imdbId": "tt0903747",
+  "title": "Breaking Bad",
+  "overview": "Mild-mannered high school chemistry teacher Walter White thinks his life can't get much worse...",
+  "firstAired": "2008-01-20",
+  "lastAired": "2013-09-29",
+  "status": "ended",
+  "runtime": 47,
+  "network": "AMC",
+  "slug": "breaking-bad",
+  "contentRating": "TV-MA",
+  "originalLanguage": "en",
+  "rating": { "value": 8.9, "count": 12345 },
+  "genres": [ "Drama", "Crime" ],
+  "seasons": [
+    { "seasonNumber": 1, "images": [] },
+    { "seasonNumber": 2, "images": [] }
+  ],
+  "alternativeTitles": [],
+  "actors": [],
+  "images": [],
+  "malIds": [],
+  "aniListIds": [],
+  "episodes": [
+    {
+      "tvdbId": 180000001,
+      "title": "Pilot",
+      "overview": "Diagnosed with terminal lung cancer, a chemistry teacher teams up with his former student to manufacture and sell the world's best quality crystal meth.",
+      "seasonNumber": 1,
+      "episodeNumber": 1,
+      "airDate": "2008-01-20",
+      "rating": { "value": 8.9, "count": 4367 }
+    },
+    {
+      "tvdbId": 180000002,
+      "title": "Cat's in the Bag...",
+      "overview": "The newly-formed partnership takes a step up in the drug trade...",
+      "seasonNumber": 1,
+      "episodeNumber": 2,
+      "airDate": "2008-01-27",
+      "rating": { "value": 8.8, "count": 3895 }
+    },
+    {
+      "tvdbId": 180000101,
+      "title": "Seven Thirty-Seven",
+      "overview": "Concern over loose ends becomes the prime focus as Walt and Jesse cope with the aftermath of their actions.",
+      "seasonNumber": 2,
+      "episodeNumber": 1,
+      "airDate": "2009-03-08",
+      "rating": { "value": 9.0, "count": 4210 }
+    }
+  ]
+}

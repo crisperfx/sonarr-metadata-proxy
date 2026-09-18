@@ -1,0 +1,160 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Sonarr.MetadataProxy.Mapping;
+using Sonarr.MetadataProxy.Options;
+using Xunit;
+
+namespace Sonarr.MetadataProxy.Tests;
+
+public class MappingStoreTests : IDisposable
+{
+    private readonly string _dataDir;
+
+    public MappingStoreTests()
+    {
+        _dataDir = Path.Combine(Path.GetTempPath(), "metadataproxy-tests", Guid.NewGuid().ToString("N"));
+    }
+
+    [Fact]
+    public void RegisterSeries_StoresRealTvdbToTmdbMapping()
+    {
+        var store = CreateStore();
+
+        store.RegisterSeries(81189, 1396);
+
+        Assert.Equal(1396, store.TryResolveSeriesTmdb(81189));
+    }
+
+    [Fact]
+    public void RegisterSeries_IgnoresSyntheticTvdbIds()
+    {
+        var store = CreateStore();
+        var synthetic = SyntheticIds.SeriesId(1396);
+
+        store.RegisterSeries(synthetic, 1396);
+
+        Assert.Null(store.TryResolveSeriesTmdb(synthetic));
+    }
+
+    [Fact]
+    public void EpisodeTvdbId_IsStableForSameEpisode()
+    {
+        var store = CreateStore();
+        var seriesId = SyntheticIds.SeriesId(1396);
+
+        var first = store.EpisodeTvdbId(seriesId, 1, 1);
+        var second = store.EpisodeTvdbId(seriesId, 1, 1);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void EpisodeTvdbId_IsUniqueAcrossEpisodes()
+    {
+        var store = CreateStore();
+        var seriesId = SyntheticIds.SeriesId(1396);
+
+        var id1 = store.EpisodeTvdbId(seriesId, 1, 1);
+        var id2 = store.EpisodeTvdbId(seriesId, 1, 2);
+        var id3 = store.EpisodeTvdbId(seriesId, 2, 1);
+
+        Assert.NotEqual(id1, id2);
+        Assert.NotEqual(id1, id3);
+        Assert.NotEqual(id2, id3);
+    }
+
+    [Fact]
+    public void Mappings_PersistAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        var store1 = CreateStore(dir);
+        var seriesId = SyntheticIds.SeriesId(1396);
+        store1.RegisterSeries(81189, 1396);
+        var episodeId = store1.EpisodeTvdbId(seriesId, 1, 1);
+
+        var store2 = CreateStore(dir);
+
+        Assert.Equal(1396, store2.TryResolveSeriesTmdb(81189));
+        Assert.Equal(episodeId, store2.EpisodeTvdbId(seriesId, 1, 1));
+    }
+
+    [Fact]
+    public void MissingMapping_ReturnsNull()
+    {
+        var store = CreateStore();
+
+        Assert.Null(store.TryResolveSeriesTmdb(999999));
+    }
+
+    [Fact]
+    public void Override_NullByDefault()
+    {
+        var store = CreateStore();
+
+        Assert.Null(store.GetOverride(81189));
+    }
+
+    [Theory]
+    [InlineData(MappingStore.SourceTmdb)]
+    [InlineData(MappingStore.SourceTvdb)]
+    public void Override_SetStoresSource(string source)
+    {
+        var store = CreateStore();
+
+        store.SetOverride(81189, source);
+
+        Assert.Equal(source, store.GetOverride(81189));
+    }
+
+    [Fact]
+    public void Override_RejectsSyntheticIds()
+    {
+        var store = CreateStore();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => store.SetOverride(SyntheticIds.SeriesId(1396), MappingStore.SourceTvdb));
+    }
+
+    [Fact]
+    public void Override_Removed_ReturnsNull()
+    {
+        var store = CreateStore();
+        store.SetOverride(81189, MappingStore.SourceTvdb);
+
+        var removed = store.RemoveOverride(81189);
+
+        Assert.True(removed);
+        Assert.Null(store.GetOverride(81189));
+    }
+
+    [Fact]
+    public void Override_PersistsAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        var store1 = CreateStore(dir);
+        store1.SetOverride(81189, MappingStore.SourceTvdb);
+
+        var store2 = CreateStore(dir);
+
+        Assert.Equal(MappingStore.SourceTvdb, store2.GetOverride(81189));
+    }
+
+    private MappingStore CreateStore(string? dir = null)
+    {
+        var dataDir = dir ?? _dataDir;
+        return new MappingStore(new ProxyOptions { DataDir = dataDir }, NullLogger<MappingStore>.Instance);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (Directory.Exists(_dataDir))
+            {
+                Directory.Delete(_dataDir, true);
+            }
+        }
+        catch
+        {
+        }
+    }
+}
