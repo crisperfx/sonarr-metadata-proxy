@@ -18,7 +18,22 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
-ENV DATA_DIR=/app/data
+# Pre-filled defaults so container UIs (Dockhand/Portainer) show working values right away.
+# Users only need to override TMDB_API_KEY (or TMDB_API_TOKEN) and CORS_ALLOWED_ORIGINS.
+ENV METADATA_SOURCE=tmdb \
+    TMDB_API_KEY= \
+    TMDB_API_TOKEN= \
+    TMDb_LANGUAGE=en-US \
+    ENABLE_TVDB_FALLBACK=true \
+    PORT=9697 \
+    LOG_LEVEL=Information \
+    SKIP_TLS=false \
+    SKYHOOK_BASE_URL=https://skyhook.sonarr.tv \
+    SKYHOOK_RESOLVER_URL=https://cloudflare-dns.com/dns-query \
+    CACHE_TTL_MINUTES=1440 \
+    SEARCH_RESULT_LIMIT=10 \
+    CORS_ALLOWED_ORIGINS= \
+    DATA_DIR=/app/data
 
 EXPOSE 443 9697
 
