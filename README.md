@@ -89,12 +89,8 @@ bestaande Sonarr: open de configuratie en voeg de velden hieronder toe.
 
 | Veld | Waarde |
 |---|---|
-| Port mapping | `8989:8989` (TCP) |
-| Environment variables | `PUID` = `<jouw uid>`, `PGID` = `<jouw gid>`, `TZ` = `Europe/Amsterdam` |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
-| Volume | `/volume3/docker/config/sonarr` → `/config` |
-| Volume | media-maps naar keuze (`/tv`, `/downloads`, …) |
 
 Netwerk & DNS (belangrijk): Sonarr moet `skyhook.sonarr.tv` bij de proxy laten
 landen (poort 443 in Docker).
