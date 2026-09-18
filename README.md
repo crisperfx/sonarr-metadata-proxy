@@ -92,7 +92,7 @@ open its configuration and add the fields below.
 |---|---|
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
-| Environment variable (optional) | `OVERRIDES_API_URL` = `https://proxy.crisperfx.myds.me` — only behind a reverse proxy |
+| Environment variable (optional) | `OVERRIDES_API_URL` = `https://your-proxy.com` — only behind a reverse proxy |
 
 Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the proxy
 (port 443 in Docker).
