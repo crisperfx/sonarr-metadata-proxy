@@ -42,45 +42,91 @@ docker compose up -d
   dat Sonarr automatisch installeert.
 - Open Sonarr → **Add Series** → zoeken → toevoegen. Alles komt uit TMDB.
 
-### Dockhand / Portainer (image pullen)
+### Dockhand / Portainer (image pullen) — stap voor stap
 
-Pul de image `crisperfx/sonarr-metadata-proxy:latest`. De UI toont de omgevingsvariabelen
-niet vooraf ingevuld (dat doen Docker-UIs zoals Dockhand niet), maar dat is niks aan de
-hand: **alle defaults zitten al in de image**. Je hoeft lokaal ook niets te downloaden —
-de Sonarr-injectiebestanden zitten in de image en worden bij de eerste start in het
-data-volume gelegd.
+Voor wie alleen een image wil pullen, geen repo/downloads. De UI toont env/ports niet
+vooraf ingevuld (zo werken Docker-UIs als Dockhand), maar dat is niet erg: **alle defaults
+zitten al in de image**, en de Sonarr-injectiebestanden zitten óók in de image — bij de
+eerste start legt de proxy ze in z'n data-map.
 
-**1. Proxy-container**:
+**Stap 0 — Vooraf (eenmalig)**
+
+- TMDB API-key: <https://www.themoviedb.org/settings/api>
+- Maak een map op je data-volume waar de proxy zijn gegevens bewaart, bijvoorbeeld:
+  `/volume3/docker/config/sonarr-metadata-proxy`
+  (Dit ís "het volume": Sonarr bindt straks dezelfde map.)
+
+**Stap 1 — Nieuwe container `sonarr-metadata-proxy`**
+
+- Image: `crisperfx/sonarr-metadata-proxy:latest`
+- **Start de container eerst helemaal blanco** en wacht tot hij UP is. Bij de eerste start
+  draait de image met de ingebakken defaults en worden de injectiebestanden + de CA in de
+  map gelegd.
+
+**Stap 2 — Proxy stoppen en dan pas invullen**
+
+Stop de container, open daarna de configuratie en vul het volgende in:
 
 | Veld | Waarde |
 |---|---|
-| Image | `crisperfx/sonarr-metadata-proxy:latest` |
-| Environment variable | `TMDB_API_KEY` = jouw key |
-| Environment variable (optioneel) | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` (nodig voor de dropdown) |
-| Port mapping (optioneel) | `9697:9697` (alleen voor `/info` beheer buiten de stack) |
-| Volume | nieuw named volume (bijv. `sonarr-metadata-proxy`) → `/app/data` |
-| Extra socket-capability | `NET_BIND_SERVICE` (nodig om poort 443 te binden) |
+| Naam | `sonarr-metadata-proxy` |
+| Port mapping (optioneel) | `9697:9697` — alleen als je `/info` buiten Docker wilt bereiken |
+| Environment variable | `TMDB_API_KEY` = `<jouw key>` |
+| Environment variable (optioneel) | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — nodig voor de dropdown |
+| Volume (host-map → container) | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
+| Extra capability | `NET_BIND_SERVICE` — nodig om poort 443 te binden |
 
-Start de proxy één keer: daarna liggen in het volume onder andere
-`01-install-ca.sh`, `50-sonarr-override-ui.sh` en `metadata-proxy-override.js`.
+> Gebruik je liever een named volume in plaats van een host-map? Maak er dan één aan
+> (bijv. `sonarr-metadata-proxy`) en gebruik datzelfde volume bij beide containers.
 
-**2. Sonarr-container**: maak een normale Sonarr aan (`lscr.io/linuxserver/sonarr:latest`)
-en hang **datzelfde named volume** er twee keer in (read-only):
+Na (opnieuw) starten ligt in die map onder andere: `01-install-ca.sh`,
+`50-sonarr-override-ui.sh`, `metadata-proxy-override.js` en `certs/ca.crt`.
+
+**Stap 3 — Sonarr aanpassen (nieuw óf bestaand)**
+
+Voor een nieuwe Sonarr gebruik je gewoon `lscr.io/linuxserver/sonarr:latest`. Bij een
+bestaande Sonarr: open de configuratie en voeg de velden hieronder toe.
 
 | Veld | Waarde |
 |---|---|
 | Port mapping | `8989:8989` (TCP) |
-| Environment variables | `PUID`, `PGID`, `TZ` (jouw gebruiker/tijdzone) |
-| Hosts entry (Advanced options) | `skyhook.sonarr.tv` → `<IP van proxy-container>` op hetzelfde netwerk |
-| Volume | `<proxy-volume>` → `/shared` (read-only) |
-| Volume | `<proxy-volume>` → `/custom-cont-init.d` (read-only) |
-| Volume | `/config`, media-maps naar keuze |
-| Network | zelfde netwerk als de proxy-container |
+| Environment variables | `PUID` = `<jouw uid>`, `PGID` = `<jouw gid>`, `TZ` = `Europe/Amsterdam` |
+| Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
+| Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
+| Volume | `/volume3/docker/config/sonarr` → `/config` |
+| Volume | media-maps naar keuze (`/tv`, `/downloads`, …) |
 
-De hooks worden bij elke Sonarr-start gedraaid; de CA wordt geïnstalleerd en
-`index.html` krijgt de dropdown-script. Op de **allereerste** start is `config.xml` in
-Sonarr nog niet aangemaakt, dus wordt de Sonarr API-key nog niet ingebakken — **start de
-Sonarr-container daarna één keer extra op** en de dropdown vraagt geen key meer.
+Netwerk & DNS (belangrijk): Sonarr moet `skyhook.sonarr.tv` bij de proxy laten
+landen (poort 443 in Docker).
+
+- Zet beide containers op **hetzelfde netwerk**. Een apart netwerk is niet nodig: de
+  standaard **bridge** werkt prima, containers bereiken elkaar dan via hun IP.
+- Geef Sonarr daarvoor een **hosts-entry**: key `skyhook.sonarr.tv`, value = het IP van de
+  `sonarr-metadata-proxy`-container (staat in de containerdetails van stap 1; dat IP blijft
+  gelijk zolang die container niet opnieuw wordt aangemaakt).
+- Liever een vast netwerk? Maak er dan één aan en zet beide containers erop — het IP blijft
+  dan ook stabiel.
+
+**Stap 4 — Beide herstarten (in deze volgorde)**
+
+1. Start/herstart de proxy (`sonarr-metadata-proxy`) en wacht tot hij helemaal UP is;
+2. Start Sonarr — hij installeert bij de start de CA en patcht zijn eigen web-UI
+   (logregel `[sonarr-metadata-proxy] index.html patched...`);
+3. **Herstart Sonarr daarna nog één keer** — nu bestaat `config.xml`, dus wordt je Sonarr
+   API-key in de dropdown gestopt en verschijnt er nooit een key-prompt.
+
+**Stap 5 — Testen**
+
+- Sonarr-log: `[sonarr-metadata-proxy] Installing proxied CA for skyhook.sonarr.tv`
+  en `index.html patched with override UI script`.
+- Sonarr openen (poort `8989`) → **Add Series** → zoeken → resultaten uit TMDB.
+- Seriepagina openen → "Metadata-bron"-dropdown → **TMDB** kiezen → **Refresh & Scan**.
+
+**Stap 6 — Als je de proxy ooit opnieuw aanmaakt**
+
+- Gebruik exact dezelfde map/volume → mappings en CA blijven bewaard;
+- het IP kan dan veranderen → werk de hosts-entry bij Sonarr bij (of herstart beide
+  zonder opnieuw op te bouwen).
 
 ### Losse/draaiende Sonarr gebruiken
 
