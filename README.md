@@ -2,222 +2,218 @@
 
 # Sonarr Metadata Proxy
 
-Sidecar die een **ongewijzigde Sonarr** van metadata uit **TMDB** voorziet door transparant
-Sonarrs metadata-aanvragen (`skyhook.sonarr.tv` / TVDB) te ondervangen en terug te
-vertalen naar het exacte JSON-contract dat Sonarr verwacht. Geen fork, geen patched
-Sonarr, geen lokale .NET SDK nodig — draait als prebuilt Docker-image.
+A sidecar that feeds an **unmodified Sonarr** with metadata from **TMDB** by transparently
+intercepting Sonarr's metadata requests (`skyhook.sonarr.tv` / TVDB) and translating them
+back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no local
+.NET SDK required — runs as a prebuilt Docker image.
 
-## Werkende functies
+## Working features
 
-- Sonarr zoeken + toevoegen + refreshen volledig via **TMDB** (series, seizoenen, episodes).
-- Correcte **airdates** (`airDateUtc`) uit TMDB in Sonarr.
-- Afbeeldingen, acteurs, ratings, genres, netwerk, status uit TMDB.
-- **Per-serie bronkeuze TMDB/TVDB**: dropdown in elke Sonarr-seriepagina (de zgn.
-  "Metadata-bron") óf via een kleine REST-API (`/api/overrides`).
-- **Automatische TVDB↔TMDB-mapping** (TMDB `external_ids` + Wikidata reverse lookup),
-  persistent opgeslagen zodat refreshes stabiele ids teruggeven.
-- Series zonder TVDB-mapping krijgen een **stabiel synthetisch TVDB-id**.
-- **TVDB-fallback** wanneer een serie niet te mappen is of de bron faalt.
-- Prebuilt image op **Docker Hub** en **GHCR** (spiegel) voor `linux/amd64` en `linux/arm64`;
-  CI draait de test-suite en publiceert een image bij elke `v*`-tag.
+- Sonarr search + add + refresh fully via **TMDB** (series, seasons, episodes).
+- Correct **airdates** (`airDateUtc`) from TMDB into Sonarr.
+- Images, actors, ratings, genres, network, status from TMDB.
+- **Per-series TMDB/TVDB source selection**: a dropdown on every Sonarr series page
+  (the "Metadata source" picker) or via a small REST API (`/api/overrides`).
+- **Automatic TVDB↔TMDB mapping** (TMDB `external_ids` + Wikidata reverse lookup),
+  persisted so refreshes return stable ids.
+- Series without a TVDB mapping get a **stable synthetic TVDB id**.
+- **TVDB fallback** when a series cannot be mapped or the source fails.
+- Prebuilt image on **Docker Hub** and **GHCR** (mirror) for `linux/amd64` and `linux/arm64`;
+  CI runs the test suite and publishes an image on every `v*` tag.
 
-## Vereisten
+## Requirements
 
-- Docker met Compose v2.
-- Gratis TMDB API-key: <https://www.themoviedb.org/settings/api>.
+- Docker with Compose v2.
+- A free TMDB API key: <https://www.themoviedb.org/settings/api>.
 
-## Installatie (docker compose)
+## Installation (docker compose)
 
 ```bash
 git clone https://github.com/crisperfx/sonarr-metadata-proxy.git
 cd sonarr-metadata-proxy
 cp .env.example .env
-# .env openen: alleen TMDB_API_KEY en CORS_ALLOWED_ORIGINS invullen
+# open .env: only TMDB_API_KEY and CORS_ALLOWED_ORIGINS need your own values
 docker compose up -d
 ```
 
-- De compose gebruikt `crisperfx/sonarr-metadata-proxy` (Docker Hub). Gebruik je liever de
-  GHCR-spiegel, vervang dan de image door `ghcr.io/crisperfx/sonarr-metadata-proxy`, of
-  comment `image:` uit en activeer `build: .` om lokaal te bouwen.
-- De compose start een schone Sonarr (poort `8989`) plus de proxy (poort `9697`). De
-  proxy antwoordt op `skyhook.sonarr.tv` (netwerk-alias) en regelt zelf een CA-certificaat
-  dat Sonarr automatisch installeert.
-- Open Sonarr → **Add Series** → zoeken → toevoegen. Alles komt uit TMDB.
+- The compose file uses `crisperfx/sonarr-metadata-proxy` (Docker Hub). Prefer the GHCR
+  mirror? Replace the image with `ghcr.io/crisperfx/sonarr-metadata-proxy`, or comment out
+  `image:` and enable `build: .` to build locally.
+- The compose starts a clean Sonarr (port `8989`) plus the proxy (port `9697`). The proxy
+  answers on `skyhook.sonarr.tv` (network alias) and manages its own CA certificate that
+  Sonarr installs automatically.
+- Open Sonarr → **Add Series** → search → add. Everything comes from TMDB.
 
-### Dockhand / Portainer (image pullen) — stap voor stap
+### Dockhand / Portainer (image pull) — step by step
 
-Voor wie alleen een image wil pullen, geen repo/downloads. De UI toont env/ports niet
-vooraf ingevuld (zo werken Docker-UIs als Dockhand), maar dat is niet erg: **alle defaults
-zitten al in de image**, en de Sonarr-injectiebestanden zitten óók in de image — bij de
-eerste start legt de proxy ze in z'n data-map.
+For those who only want to pull the image, no repo/downloads involved. Docker UIs such as
+Dockhand do not show env/ports pre-filled, but that is fine: **all defaults are already in
+the image**, and the Sonarr injection files are in the image too — the proxy drops them
+into its data directory on first start.
 
-**Stap 0 — Vooraf (eenmalig)**
+**Step 0 — Beforehand (one-time)**
 
-- TMDB API-key: <https://www.themoviedb.org/settings/api>
-- Maak een map op je data-volume waar de proxy zijn gegevens bewaart, bijvoorbeeld:
+- TMDB API key: <https://www.themoviedb.org/settings/api>
+- Create a folder on your data volume where the proxy keeps its data, for example:
   `/volume3/docker/config/sonarr-metadata-proxy`
-  (Dit ís "het volume": Sonarr bindt straks dezelfde map.)
+  (This *is* "the volume": Sonarr will bind the same folder.)
 
-**Stap 1 — Nieuwe container `sonarr-metadata-proxy`**
+**Step 1 — Create the `sonarr-metadata-proxy` container**
 
 - Image: `crisperfx/sonarr-metadata-proxy:latest`
-- **Start de container eerst helemaal blanco** en wacht tot hij UP is. Bij de eerste start
-  draait de image met de ingebakken defaults en worden de injectiebestanden + de CA in de
-  map gelegd.
+- **Start the container completely blank first** and wait until it is UP. On first start the
+  image runs with its baked-in defaults and places the injection files + the CA in the folder.
 
-**Stap 2 — Proxy stoppen en dan pas invullen**
+**Step 2 — Stop the proxy, then fill in the settings**
 
-Stop de container, open daarna de configuratie en vul het volgende in:
+Stop the container, then open its configuration and fill in the following:
 
-| Veld | Waarde |
+| Field | Value |
 |---|---|
-| Naam | `sonarr-metadata-proxy` |
-| Port mapping (optioneel) | `9697:9697` — alleen als je `/info` buiten Docker wilt bereiken |
-| Environment variable | `TMDB_API_KEY` = `<jouw key>` |
-| Environment variable | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — proxy etc. mogelijk, scheiden met een "," |
-| Volume (host-map → container) | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
-| Extra capability | `NET_BIND_SERVICE` — nodig om poort 443 te binden |
+| Name | `sonarr-metadata-proxy` |
+| Port mapping (optional) | `9697:9697` — only if you want `/info` reachable outside Docker |
+| Environment variable | `TMDB_API_KEY` = `<your key>` |
+| Environment variable | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — multiple allowed, separate with "," |
+| Volume (host path → container) | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
+| Extra capability | `NET_BIND_SERVICE` — required to bind port 443 |
 
-> Gebruik je liever een named volume in plaats van een host-map? Maak er dan één aan
-> (bijv. `sonarr-metadata-proxy`) en gebruik datzelfde volume bij beide containers.
+> Prefer a named volume instead of a host path? Create one (e.g. `sonarr-metadata-proxy`)
+> and use the same volume on both containers.
 
-Na (opnieuw) starten ligt in die map onder andere: `01-install-ca.sh`,
-`50-sonarr-override-ui.sh`, `metadata-proxy-override.js` en `certs/ca.crt`.
+After (re)starting, that folder contains among others: `01-install-ca.sh`,
+`50-sonarr-override-ui.sh`, `metadata-proxy-override.js` and `certs/ca.crt`.
 
-**Stap 3 — Sonarr aanpassen (nieuw óf bestaand)**
+**Step 3 — Configure Sonarr (new or existing)**
 
-Voor een nieuwe Sonarr gebruik je gewoon `lscr.io/linuxserver/sonarr:latest`. Bij een
-bestaande Sonarr: open de configuratie en voeg de velden hieronder toe.
+For a new Sonarr just use `lscr.io/linuxserver/sonarr:latest`. For an existing Sonarr:
+open its configuration and add the fields below.
 
-| Veld | Waarde |
+| Field | Value |
 |---|---|
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
-| Environment variable (optioneel) | `OVERRIDES_API_URL` = `https://proxy.crisperfx.myds.me` — alleen achter reverse proxy |
+| Environment variable (optional) | `OVERRIDES_API_URL` = `https://proxy.crisperfx.myds.me` — only behind a reverse proxy |
 
-Netwerk & DNS (belangrijk): Sonarr moet `skyhook.sonarr.tv` bij de proxy laten
-landen (poort 443 in Docker).
+Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the proxy
+(port 443 in Docker).
 
-- Zet beide containers op **hetzelfde netwerk**. Een apart netwerk is niet nodig: de
-  standaard **bridge** werkt prima, containers bereiken elkaar dan via hun IP.
-- Geef Sonarr daarvoor een **hosts-entry**: key `skyhook.sonarr.tv`, value = het IP van de
-  `sonarr-metadata-proxy`-container (staat in de containerdetails van stap 1; dat IP blijft
-  gelijk zolang die container niet opnieuw wordt aangemaakt).
-- Liever een vast netwerk? Maak er dan één aan en zet beide containers erop — het IP blijft
-  dan ook stabiel.
+- Put both containers on **the same network**. A separate network is not required: the
+  default **bridge** works fine; containers reach each other via their IP.
+- Give Sonarr a **hosts entry** for that: key `skyhook.sonarr.tv`, value = the IP of the
+  `sonarr-metadata-proxy` container (shown in the container details of step 1; that IP stays
+  the same as long as that container is not recreated).
+- Prefer a fixed network? Create one and put both containers on it — the IP stays stable too.
 
-**Stap 4 — Beide herstarten (in deze volgorde)**
+**Step 4 — Restart both (in this order)**
 
-1. Start/herstart de proxy (`sonarr-metadata-proxy`) en wacht tot hij helemaal UP is;
-2. Start Sonarr — hij installeert bij de start de CA en patcht zijn eigen web-UI
-   (logregel `[sonarr-metadata-proxy] index.html patched...`);
-3. **Herstart Sonarr daarna nog één keer** — nu bestaat `config.xml`, dus wordt je Sonarr
-   API-key in de dropdown gestopt en verschijnt er nooit een key-prompt.
+1. Start/restart the proxy (`sonarr-metadata-proxy`) and wait until it is fully UP;
+2. Start Sonarr — on startup it installs the CA and patches its own web UI
+   (log line `[sonarr-metadata-proxy] index.html patched...`);
+3. **Restart Sonarr once more** — now `config.xml` exists, so your Sonarr API key is
+   embedded in the dropdown and there will never be a key prompt.
 
-**Stap 5 — Testen**
+**Step 5 — Testing**
 
-- Sonarr-log: `[sonarr-metadata-proxy] Installing proxied CA for skyhook.sonarr.tv`
-  en `index.html patched with override UI script`.
-- Sonarr openen (poort `8989`) → **Add Series** → zoeken → resultaten uit TMDB.
-- Seriepagina openen → "Metadata-bron"-dropdown → **TMDB** kiezen → **Refresh & Scan**.
+- Sonarr log: `[sonarr-metadata-proxy] Installing proxied CA for skyhook.sonarr.tv`
+  and `index.html patched with override UI script`.
+- Open Sonarr (port `8989`) → **Add Series** → search → results from TMDB.
+- Open a series page → "Metadata source" dropdown → choose **TMDB** → **Refresh & Scan**.
 
-**Stap 6 — Als je de proxy ooit opnieuw aanmaakt**
+**Step 6 — If you ever recreate the proxy**
 
-- Gebruik exact dezelfde map/volume → mappings en CA blijven bewaard;
-- het IP kan dan veranderen → werk de hosts-entry bij Sonarr bij (of herstart beide
-  zonder opnieuw op te bouwen).
+- Use exactly the same folder/volume → mappings and CA stay preserved;
+- the IP may change then → update the Sonarr hosts entry (or restart both without
+  recreating).
 
-### Achter een HTTPS reverse proxy (bijv. Synology DSM)
+### Behind an HTTPS reverse proxy (e.g. Synology DSM)
 
-Open je Sonarr als `https://serie.crisperfx.myds.me` in plaats van `http://<ip>:8989`,
-dan werkt de "Metadata-bron"-dropdown niet zomaar met `CORS_ALLOWED_ORIGINS` alleen.
-De dropdown-JS praat standaard tegen `http://<host>:9697`, en dat wordt achter HTTPS
-geblokkeerd (mixed content) én poort 9697 wordt door de reverse proxy nooit doorgezet.
+If you open Sonarr as `https://serie.crisperfx.myds.me` instead of `http://<ip>:8989`, the
+"Metadata source" dropdown does not work with `CORS_ALLOWED_ORIGINS` alone. The dropdown JS
+talks to `http://<host>:9697` by default, which is blocked behind HTTPS (mixed content) and
+port 9697 is never forwarded by the reverse proxy.
 
-Zet daarom de beheer-API óók achter de reverse proxy:
+So put the management API behind the reverse proxy too:
 
-1. **Nieuwe reverse-proxy-regel** in DSM → Login Portal → Advanced → Reverse Proxy:
+1. **New reverse proxy rule** in DSM → Login Portal → Advanced → Reverse Proxy:
    - `https://proxy.crisperfx.myds.me` → `http://<metadata-proxy-ip>:9697`
-   - Gebruik een ándere subdomeinnaam; DSM kan geen twee backends op één hostname.
-2. **`OVERRIDES_API_URL`** zet je nú op de **Sonarr**-container (env):
+   - Use a *different* subdomain; DSM cannot route two backends on one hostname.
+2. **`OVERRIDES_API_URL`** goes on the **Sonarr** container (env):
    - `OVERRIDES_API_URL=https://proxy.crisperfx.myds.me`
-   - De init-hook (`init/50-sonarr-override-ui.sh`) stopt dit in de UI-JS; Sonarr
-     recreëren om de patch opnieuw te laten draaien.
-3. **`CORS_ALLOWED_ORIGINS`** op de proxy-container blijft de **browser-origin van
-   Sonarr**, dus:
+   - The init hook (`init/50-sonarr-override-ui.sh`) embeds this into the UI JS; recreate
+     Sonarr so the patch runs again.
+3. **`CORS_ALLOWED_ORIGINS`** on the proxy container stays the **browser origin of Sonarr**:
    - `CORS_ALLOWED_ORIGINS=https://serie.crisperfx.myds.me`
-4. Test: seriepagina → dropdown → **TMDB** → **Refresh & Scan**.
+4. Test: series page → dropdown → **TMDB** → **Refresh & Scan**.
 
-Zonder `OVERRIDES_API_URL` valt de JS terug op `http://<host>:9697` (LAN/port-forward);
-dat blijft dus gewoon werken voor lokaal gebruik.
+Without `OVERRIDES_API_URL` the JS falls back to `http://<host>:9697` (LAN/port-forward);
+that keeps working for local use.
 
-### Losse/draaiende Sonarr gebruiken
+### Using a standalone/existing Sonarr
 
-Voeg aan je bestaande Sonarr-service drie dingen toe: de `certs`-volume, de
-`init/01-install-ca.sh`-mount naar `/custom-cont-init.d/`, en het alias-netwerk. Zie de
-`sonarr:` service in `docker-compose.yml` als voorbeeld. Verder niets aan Sonarr wijzigen.
+Add three things to your existing Sonarr service: the `certs` volume, the
+`init/01-install-ca.sh` mount into `/custom-cont-init.d/`, and the alias network. Use the
+`sonarr:` service in `docker-compose.yml` as an example. Nothing else in Sonarr changes.
 
-## Per-serie bronkeuze ("Metadata-bron")
+## Per-series source selection ("Metadata source")
 
-Op elke seriepagina staat nu een dropdown: **Automatisch / TMDB / TVDB**.
+Every series page now has a dropdown: **Automatic / TMDB / TVDB**.
 
-- Automatisch = de standaardbron uit `METADATA_SOURCE`.
-- TMDB = deze serie altijd uit TMDB servers.
-- TVDB = deze serie altijd via de echte SkyHook/TVDB.
+- Automatic = the default source from `METADATA_SOURCE`.
+- TMDB = always use TMDB servers for this series.
+- TVDB = always use the real SkyHook/TVDB for this series.
 
-Na een keuze: **Refresh & Scan** op de serie in Sonarr. Overrides worden in
-`mappings.json` bewaard. De eerste keer wordt naar je Sonarr API-key gevraagd
-(Settings → General); die wordt automatisch uit `/config/config.xml` gelezen zodra
-`init/50-sonarr-override-ui.sh` draait, dus meestal is er geen prompt.
+After choosing: **Refresh & Scan** on the series in Sonarr. Overrides are stored in
+`mappings.json`. The first time you will be asked for your Sonarr API key
+(Settings → General); it is read automatically from `/config/config.xml` once
+`init/50-sonarr-override-ui.sh` runs, so usually there is no prompt.
 
-## Environment variabelen
+## Environment variables
 
-| Variabele | Default | Omschrijving |
+| Variable | Default | Description |
 |---|---|---|
-| `METADATA_SOURCE` | `tmdb` | Hoofdbron: `tmdb` of `tvdb` (alleen passthrough). |
-| `TMDB_API_KEY` | – | TMDB v3 API-key (verplicht voor TMDB). |
-| `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternatief voor de key. |
-| `TMDb_LANGUAGE` | `en-US` | Taal voor TMDB-aanvragen. |
-| `ENABLE_TVDB_FALLBACK` | `true` | Bij mapping-fout/bron-faal doorvallen naar echte TVDB. |
-| `PORT` | `9697` | HTTP-poort voor beheer/health; de SkyHook/TLS-luisteraar zit altijd op `443`. |
-| `SKIP_TLS` | `false` | `true` = TLS/443 uit (alleen voor dev, niet met Sonarr). |
-| `SKYHOOK_BASE_URL` | `https://skyhook.sonarr.tv` | Echte SkyHook voor de TVDB-fallback. |
-| `SKYHOOK_RESOLVER_URL` | `https://cloudflare-dns.com/dns-query` | DNS-over-HTTPS voor de fallback-host. |
-| `CORS_ALLOWED_ORIGINS` | leeg | Browser-origins die `/api/overrides` mogen aanroepen (nodig voor de dropdown). Meerdere met komma's, `*` = alles. |
-| `DATA_DIR` | `/app/data` | Map voor mappings + CA/certificaten (volume in Docker). |
+| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb` or `tvdb` (passthrough only). |
+| `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
+| `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key. |
+| `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
+| `ENABLE_TVDB_FALLBACK` | `true` | Fall back to the real TVDB on mapping/source failure. |
+| `PORT` | `9697` | HTTP port for management/health; the SkyHook/TLS listener is always on `443`. |
+| `SKIP_TLS` | `false` | `true` = TLS/443 disabled (dev only, not with Sonarr). |
+| `SKYHOOK_BASE_URL` | `https://skyhook.sonarr.tv` | Real SkyHook used for the TVDB fallback. |
+| `SKYHOOK_RESOLVER_URL` | `https://cloudflare-dns.com/dns-query` | DNS-over-HTTPS for the fallback host. |
+| `CORS_ALLOWED_ORIGINS` | empty | Browser origins allowed to call `/api/overrides` (needed for the dropdown). Multiple with commas, `*` = all. |
+| `DATA_DIR` | `/app/data` | Directory for mappings + CA/certificates (volume in Docker). |
 
-Deze waarden zet je in `.env`, of als environment op de container / in je eigen compose.
+Set these in `.env`, or as environment on the container / in your own compose.
 
-## Beheer-API
+## Management API
 
 ```bash
 curl -X POST http://127.0.0.1:9697/api/overrides \
   -H 'Content-Type: application/json' \
   -d '{"tvdbId": 81189, "source": "tmdb", "tmdbId": 1396}'
 
-curl http://127.0.0.1:9697/api/overrides          # lijst van overrides
+curl http://127.0.0.1:9697/api/overrides          # list overrides
 curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 ```
 
-`tmdbId` is optioneel; zonder wordt de mapping automatisch opgezocht.
+`tmdbId` is optional; without it the mapping is looked up automatically.
 
-## Builden / publiceren (voor maintainer)
+## Build / publish (for maintainers)
 
 ```bash
-git tag v0.2.2 && git push origin v0.2.2   # trekt CI: tests + publish naar Docker Hub en GHCR (amd64+arm64)
+git tag v0.2.2 && git push origin v0.2.2   # triggers CI: tests + publish to Docker Hub and GHCR (amd64+arm64)
 ```
 
-De workflow pusht naar `crisperfx/sonarr-metadata-proxy` (Docker Hub) en
-`ghcr.io/<owner>/sonarr-metadata-proxy` (GHCR). Zet daarvoor in de repo
-(Settings → Secrets) de secrets `DOCKERHUB_USERNAME` en `DOCKERHUB_TOKEN` (Personal
-Access Token met Read/Write op het Docker Hub repo); GHCR werkt met de standaard
-`GITHUB_TOKEN` en hoeft niet ingesteld te worden. Zonder `DOCKERHUB_*`-secrets mislukt
-alleen de Docker Hub push, de GHCR-push slaagt gewoon.
+The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
+`ghcr.io/<owner>/sonarr-metadata-proxy` (GHCR). For that, set the `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` secrets in the repo (Settings → Secrets) (Personal Access Token with
+Read/Write on the Docker Hub repo); GHCR works with the standard `GITHUB_TOKEN` and needs no
+setup. Without `DOCKERHUB_*` secrets only the Docker Hub push fails, the GHCR push succeeds.
 
-Lokaal testen: `dotnet test` of via Docker: `docker compose build sonarr-metadata-proxy`.
+Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadata-proxy`.
 
-## Limitaties
+## Limitations
 
-- `anilist:`/`mal:` zoektermen vallen nog door naar TVDB.
-- Episodes van series zonder TVDB-mapping krijgen proxy-lokale (stabiele) episode-ids.
-- TMDB heeft geen uitzendtijd, dus `timeOfDay` ontbreekt.
+- `anilist:`/`mal:` search terms still pass through to TVDB.
+- Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
+- TMDB has no air time, so `timeOfDay` is missing.

@@ -30,8 +30,8 @@
   function setApiKey() {
     var key = window
       .prompt(
-        'Metadata-bron: geef je Sonarr API-key (Settings → General → API Key). ' +
-          'Deze wordt alleen in je browser opgeslagen (localStorage).'
+        'Metadata source: enter your Sonarr API key (Settings → General → API Key). ' +
+          'It is only stored in your browser (localStorage).'
       )
       .trim();
     if (key) {
@@ -86,18 +86,18 @@
 
     var txt = document.createElement('div');
     txt.style.cssText = 'font-weight:600;margin-bottom:8px;';
-    txt.textContent = 'Metadata-bron';
+    txt.textContent = 'Metadata source';
     root.appendChild(txt);
 
     var hint = document.createElement('div');
     hint.style.cssText = 'font-size:11px;color:#94a3b8;margin-bottom:8px;';
-    hint.textContent = message || 'Eerst je Sonarr API-key invoeren (Settings → General → API Key).';
+    hint.textContent = message || 'Enter your Sonarr API key first (Settings → General → API Key).';
     root.appendChild(hint);
 
     var btn = document.createElement('button');
     btn.style.cssText =
       'padding:4px 10px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;';
-    btn.textContent = 'API-key invoeren';
+    btn.textContent = 'Enter API key';
     btn.addEventListener('click', function () {
       if (setApiKey()) {
         root.remove();
@@ -116,15 +116,15 @@
 
     var title = document.createElement('div');
     title.style.cssText = 'font-weight:600;margin-bottom:6px;';
-    title.textContent = 'Metadata-bron: ' + (series.title || series.tvdbId);
+    title.textContent = 'Metadata source: ' + (series.title || series.tvdbId);
     root.appendChild(title);
 
     var select = document.createElement('select');
     select.style.cssText = 'width:100%;padding:4px;margin-bottom:6px;';
     [
-      { value: '', label: 'Automatisch (actieve bron)' },
-      { value: 'tmdb', label: 'TMDB (TMDB-volgorde)' },
-      { value: 'tvdb', label: 'TVDB (TVDB-volgorde)' }
+      { value: '', label: 'Automatic (active source)' },
+      { value: 'tmdb', label: 'TMDB (TMDB order)' },
+      { value: 'tvdb', label: 'TVDB (TVDB order)' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -145,16 +145,16 @@
         .then(function (dto) {
           if (dto && dto.source === 'tmdb') {
             if (dto.tmdbId) {
-              setStatus('Opgeslagen: TMDB (id ' + dto.tmdbId + '). Doe nu Refresh & Scan.', '#4ade80');
+              setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
             } else {
-              setStatus('Opgeslagen, maar geen TMDB-id gevonden — valt terug op TVDB.', '#fbbf24');
+              setStatus('Saved, but no TMDB id found — falling back to TVDB.', '#fbbf24');
             }
           } else {
-            setStatus('Opgeslagen (' + (select.value || 'automatisch') + '). Doe nu Refresh & Scan.', '#fbbf24');
+            setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', '#fbbf24');
           }
         })
         .catch(function (err) {
-          setStatus('Fout: ' + err.message, '#f87171');
+          setStatus('Error: ' + err.message, '#f87171');
         });
     });
 
@@ -247,7 +247,7 @@
     }
 
     function fail() {
-      throw new Error('Serie niet gevonden via "' + slug + '" (controleer je API-key en of de serie bestaat).');
+      throw new Error('Series not found via "' + slug + '" (check your API key and that the series exists).');
     }
 
     return getSeriesList(key).then(function (list) {
@@ -305,7 +305,7 @@
     findSeries(getApiKey(), ident)
       .then(function (data) {
         if (!data || !data.tvdbId) {
-          throw new Error('Geen tvdbId ontvangen van Sonarr');
+          throw new Error('No tvdbId received from Sonarr');
         }
         series = data;
         var select = buildPickerPanel();
@@ -323,7 +323,7 @@
           })
           .catch(function (err) {
             setStatus(
-              'overrides-API niet bereikbaar (CORS/firewall 9697): ' + err.message,
+              'overrides API unreachable (CORS/firewall 9697): ' + err.message,
               '#f87171'
             );
           });
@@ -331,7 +331,7 @@
       .catch(function (err) {
         console.debug('[metadata-proxy-override]', err);
         el = null;
-        buildKeyPanel('Fout: ' + err.message);
+        buildKeyPanel('Error: ' + err.message);
       });
   }
 
