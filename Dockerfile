@@ -18,6 +18,12 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
+# Sonarr-side injection files (CA hook, override-UI hook and JS). Copied into
+# DATA_DIR on first start so a pulling user needs no local files at all.
+COPY entrypoint.sh /app/entrypoint.sh
+COPY init/ /app/init/
+RUN chmod +x /app/entrypoint.sh /app/init/*.sh
+
 # Pre-filled defaults so container UIs (Dockhand/Portainer) show working values right away.
 # Users only need to override TMDB_API_KEY (or TMDB_API_TOKEN) and CORS_ALLOWED_ORIGINS.
 ENV METADATA_SOURCE=tmdb \
@@ -37,4 +43,4 @@ ENV METADATA_SOURCE=tmdb \
 
 EXPOSE 443 9697
 
-ENTRYPOINT ["dotnet", "Sonarr.MetadataProxy.dll"]
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -25,11 +25,17 @@ if [ -z "${UI_DIR}" ]; then
 fi
 
 INDEX="${UI_DIR}/index.html"
-SRC="/shared/init/metadata-proxy-override.js"
-if [ ! -f "${SRC}" ]; then
-  # fallback: old layout where the JS was mounted next to this script
-  SRC="$(dirname "$0")/metadata-proxy-override.js"
-fi
+SRC=""
+for candidate in \
+  "/shared/metadata-proxy-override.js" \
+  "/shared/init/metadata-proxy-override.js" \
+  "$(dirname "$0")/metadata-proxy-override.js"
+do
+  if [ -f "${candidate}" ]; then
+    SRC="${candidate}"
+    break
+  fi
+done
 MARKER="metadata-proxy-override"
 
 if [ -f "${SRC}" ]; then
