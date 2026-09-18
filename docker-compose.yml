@@ -9,9 +9,9 @@
 #   cp .env.example .env      # set TMDB_API_KEY and CORS_ALLOWED_ORIGINS
 #   docker compose up -d
 #
-# When you build locally, replace the image line with: "build: ."
-# When you use the prebuilt image, replace USERNAME with the GitHub account
-# owning the repository (image: ghcr.io/crisperfx/sonarr-metadata-proxy:latest).
+# The image below is the Docker Hub default. Use the GHCR mirror instead by replacing
+# it with "ghcr.io/crisperfx/sonarr-metadata-proxy:latest", or uncomment "build: ."
+# to build locally.
 
 services:
   sonarr:
@@ -39,8 +39,8 @@ services:
     restart: unless-stopped
 
   sonarr-metadata-proxy:
-    image: ghcr.io/crisperfx/sonarr-metadata-proxy:latest
-    # build: .   # uncomment to build locally instead of pulling the prebuilt image
+    image: crisperfx/sonarr-metadata-proxy:latest
+    # build: .   # uncomment to build locally instead of pulling a prebuilt image
     container_name: sonarr-metadata-proxy
     environment:
       - ASPNETCORE_ENVIRONMENT=Production

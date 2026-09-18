@@ -16,8 +16,8 @@ Sonarr, geen lokale .NET SDK nodig — draait als prebuilt Docker-image.
   persistent opgeslagen zodat refreshes stabiele ids teruggeven.
 - Series zonder TVDB-mapping krijgen een **stabiel synthetisch TVDB-id**.
 - **TVDB-fallback** wanneer een serie niet te mappen is of de bron faalt.
-- Prebuilt image op GHCR voor `linux/amd64` en `linux/arm64`; CI draait de test-suite en
-  publiceert een image bij elke `v*`-tag.
+- Prebuilt image op **Docker Hub** en **GHCR** (spiegel) voor `linux/amd64` en `linux/arm64`;
+  CI draait de test-suite en publiceert een image bij elke `v*`-tag.
 
 ## Vereisten
 
@@ -34,9 +34,9 @@ cp .env.example .env
 docker compose up -d
 ```
 
-- Vervang in `docker-compose.yml` eventueel `ghcr.io/crisperfx/sonarr-metadata-proxy`
-  door jouw eigen image, of comment `image:` uit en activeer `build: .` om lokaal te
-  bouwen.
+- De compose gebruikt `crisperfx/sonarr-metadata-proxy` (Docker Hub). Gebruik je liever de
+  GHCR-spiegel, vervang dan de image door `ghcr.io/crisperfx/sonarr-metadata-proxy`, of
+  comment `image:` uit en activeer `build: .` om lokaal te bouwen.
 - De compose start een schone Sonarr (poort `8989`) plus de proxy (poort `9697`). De
   proxy antwoordt op `skyhook.sonarr.tv` (netwerk-alias) en regelt zelf een CA-certificaat
   dat Sonarr automatisch installeert.
@@ -95,8 +95,15 @@ curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 ## Builden / publiceren (voor maintainer)
 
 ```bash
-git tag v0.2.2 && git push origin v0.2.2   # trekt CI: tests + GHCR publish (amd64+arm64)
+git tag v0.2.2 && git push origin v0.2.2   # trekt CI: tests + publish naar Docker Hub en GHCR (amd64+arm64)
 ```
+
+De workflow pusht naar `crisperfx/sonarr-metadata-proxy` (Docker Hub) en
+`ghcr.io/<owner>/sonarr-metadata-proxy` (GHCR). Zet daarvoor in de repo
+(Settings → Secrets) de secrets `DOCKERHUB_USERNAME` en `DOCKERHUB_TOKEN` (Personal
+Access Token met Read/Write op het Docker Hub repo); GHCR werkt met de standaard
+`GITHUB_TOKEN` en hoeft niet ingesteld te worden. Zonder `DOCKERHUB_*`-secrets mislukt
+alleen de Docker Hub push, de GHCR-push slaagt gewoon.
 
 Lokaal testen: `dotnet test` of via Docker: `docker compose build sonarr-metadata-proxy`.
 
