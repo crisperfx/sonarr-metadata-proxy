@@ -54,7 +54,7 @@
 
   function overridesApiBase() {
     var origin = OVERRIDES_API_URL;
-    if (!origin || origin === '__OVERRIDES_API_URL__') {
+    if (!origin || origin.indexOf('http') !== 0) {
       if (window.location.protocol === 'https:') {
         return null;
       }
