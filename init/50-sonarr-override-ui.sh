@@ -72,15 +72,16 @@ else
   echo "[sonarr-metadata-proxy] ${SRC} not found; skipping script copy."
 fi
 
-if grep -q "${MARKER}" "${INDEX}" 2>/dev/null; then
-  echo "[sonarr-metadata-proxy] index.html already patched; skip."
-  exit 0
-fi
-
 if grep -q '</head>' "${INDEX}" 2>/dev/null; then
+  # Idempotent patch: drop any previous include, then add a fresh one with a
+  # cache-busting query. Sonarr serves the UI JS with cache headers, so without
+  # ?v= the browser keeps running an outdated picker after an update (shows the
+  # "overrides API unreachable" panel). Bumping the version on every start forces
+  # a re-fetch.
   sed -i '/metadata-proxy-override/d' "${INDEX}"
-  sed -i 's#</head>#<script src="/metadata-proxy-override.js"></script></head>#' "${INDEX}"
-  echo "[sonarr-metadata-proxy] index.html patched with override UI script."
+  VSTAMP="$(date +%s)"
+  sed -i "s#</head>#<script src=\"/metadata-proxy-override.js?v=${VSTAMP}\"></script></head>#" "${INDEX}"
+  echo "[sonarr-metadata-proxy] index.html patched with override UI script (cache-bust v=${VSTAMP})."
 else
   echo "[sonarr-metadata-proxy] No </head> found in ${INDEX}; skipping patch."
 fi
