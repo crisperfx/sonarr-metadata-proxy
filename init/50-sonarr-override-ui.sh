@@ -54,7 +54,11 @@ if [ -f "${SRC}" ]; then
     # Replace only the first occurrence (the var assignment); the placeholder in
     # the runtime checks stays intact so getApiKey() can detect "not embedded".
     sed -i "0,/__SONARR_API_KEY__/s/__SONARR_API_KEY__/${API_KEY}/" "${UI_DIR}/metadata-proxy-override.js"
-    echo "[sonarr-metadata-proxy] Embedded Sonarr API key into override UI script."
+    if grep -q '__SONARR_API_KEY__' "${UI_DIR}/metadata-proxy-override.js"; then
+      echo "[sonarr-metadata-proxy] WARNING: __SONARR_API_KEY__ placeholder still present; API key was not embedded."
+    else
+      echo "[sonarr-metadata-proxy] Embedded Sonarr API key into override UI script."
+    fi
   else
     echo "[sonarr-metadata-proxy] No Sonarr API key found in ${SONARR_CONFIG}; key panel stays in UI."
   fi
@@ -66,7 +70,11 @@ if [ -f "${SRC}" ]; then
   # CORS_ALLOWED_ORIGINS=<Sonarr browser origin> on the proxy container.
   if [ -n "${OVERRIDES_API_URL:-}" ]; then
     sed -i "0,/__OVERRIDES_API_URL__/s|__OVERRIDES_API_URL__|${OVERRIDES_API_URL}|" "${UI_DIR}/metadata-proxy-override.js"
-    echo "[sonarr-metadata-proxy] Override UI points at ${OVERRIDES_API_URL} for the overrides API."
+    if grep -q '__OVERRIDES_API_URL__' "${UI_DIR}/metadata-proxy-override.js"; then
+      echo "[sonarr-metadata-proxy] WARNING: __OVERRIDES_API_URL__ placeholder still present; OVERRIDES_API_URL is not reaching this script (set it on the Sonarr container, not the proxy)."
+    else
+      echo "[sonarr-metadata-proxy] Override UI points at ${OVERRIDES_API_URL} for the overrides API."
+    fi
   else
     echo "[sonarr-metadata-proxy] OVERRIDES_API_URL unset; override UI falls back to http://<host>:9697 (LAN/port-forward only)."
   fi
