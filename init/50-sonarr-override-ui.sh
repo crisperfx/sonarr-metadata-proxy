@@ -109,6 +109,7 @@ rebuild_index() {
     printf "<script>window.Sonarr = { urlBase: '__URL_BASE__' };</script>\n"
     printf '<script src="%s" data-no-hash></script>\n' "${js}"
     printf '<title>Sonarr</title>\n</head>\n<body><div id="root"></div>\n'
+    printf '<div id="portal-root"></div>\n'
     printf '<script src="/metadata-proxy-override.js?v=%s"></script>\n' "${v}"
     printf '</body></html>\n'
   } > "${tmp}"

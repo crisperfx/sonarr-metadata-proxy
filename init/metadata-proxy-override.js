@@ -522,9 +522,19 @@
     }
   }
 
+  function ensurePortalRoot() {
+    if (document.getElementById('portal-root')) {
+      return;
+    }
+    var node = document.createElement('div');
+    node.id = 'portal-root';
+    document.body.appendChild(node);
+  }
+
   var searchObserver = null;
   var refreshSearchTimer = null;
   function initSearchPickers() {
+    ensurePortalRoot();
     refreshSearchPickers();
     if (window.MutationObserver && document.body) {
       searchObserver = new MutationObserver(function () {
