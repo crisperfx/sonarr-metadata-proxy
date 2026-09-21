@@ -478,6 +478,8 @@
     row.appendChild(label);
     row.appendChild(select);
     input.parentNode.insertBefore(row, input);
+    row._mpoInput = input;
+    input._mpoRow = row;
 
     function normalize() {
       var prefix = select.value;
@@ -515,10 +517,27 @@
     input.addEventListener('input', normalize);
   }
 
+  function removeSearchRow(input) {
+    var row = input._mpoRow;
+    if (row && row.parentNode) {
+      row.parentNode.removeChild(row);
+    }
+    input._mpoRow = null;
+    input.removeAttribute('data-mpo-search');
+  }
+
   function refreshSearchPickers() {
+    var path = window.location.pathname || '';
+    if (path.indexOf('/add/new') !== 0) {
+      var inputs = document.querySelectorAll('input[data-mpo-search]');
+      for (var i = 0; i < inputs.length; i++) {
+        removeSearchRow(inputs[i]);
+      }
+      return;
+    }
     var candidates = searchInputCandidates();
-    for (var i = 0; i < candidates.length; i++) {
-      attachSearchPicker(candidates[i]);
+    for (var j = 0; j < candidates.length; j++) {
+      attachSearchPicker(candidates[j]);
     }
   }
 
@@ -561,5 +580,7 @@
   }
 
   setInterval(tick, POLL_MS);
+  setInterval(refreshSearchPickers, POLL_MS);
   tick();
+  refreshSearchPickers();
 })();
