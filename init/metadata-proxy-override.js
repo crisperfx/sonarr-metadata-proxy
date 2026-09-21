@@ -21,7 +21,7 @@
   var SERIES_CACHE_TTL_MS = 10 * 60 * 1000;
 
   function getApiKey() {
-    if (EMBEDDED_KEY && EMBEDDED_KEY !== '__SONARR_API_KEY__') {
+    if (EMBEDDED_KEY && EMBEDDED_KEY.indexOf('__SONARR_') !== 0) {
       return EMBEDDED_KEY;
     }
     return localStorage.getItem(LS_KEY);

@@ -51,9 +51,11 @@ if [ -f "${SRC}" ]; then
   fi
 
   if [ -n "${API_KEY}" ]; then
-    # Replace only the first occurrence (the var assignment); the placeholder in
-    # the runtime checks stays intact so getApiKey() can detect "not embedded".
-    sed -i "0,/__SONARR_API_KEY__/s/__SONARR_API_KEY__/${API_KEY}/" "${UI_DIR}/metadata-proxy-override.js"
+    # Busybox-safe replace of the FIRST occurrence only (no g flag, no GNU 0,
+    # addressing). The placeholder lives on exactly one line of the JS; the
+    # runtime check uses the indexOf('__SONARR_') prefix test which the pattern
+    # below does not touch, so the check stays intact no matter what.
+    sed -i "s/__SONARR_API_KEY__/${API_KEY}/" "${UI_DIR}/metadata-proxy-override.js"
     if grep -q '__SONARR_API_KEY__' "${UI_DIR}/metadata-proxy-override.js"; then
       echo "[sonarr-metadata-proxy] WARNING: __SONARR_API_KEY__ placeholder still present; API key was not embedded."
     else
@@ -69,7 +71,9 @@ if [ -f "${SRC}" ]; then
   # the picker call the reverse-proxied management API instead; combine it with
   # CORS_ALLOWED_ORIGINS=<Sonarr browser origin> on the proxy container.
   if [ -n "${OVERRIDES_API_URL:-}" ]; then
-    sed -i "0,/__OVERRIDES_API_URL__/s|__OVERRIDES_API_URL__|${OVERRIDES_API_URL}|" "${UI_DIR}/metadata-proxy-override.js"
+    # Busybox-safe; the URL check uses origin.indexOf('http'), so a plain first-
+    # occurrence replace can never corrupt the runtime logic.
+    sed -i "s|__OVERRIDES_API_URL__|${OVERRIDES_API_URL}|" "${UI_DIR}/metadata-proxy-override.js"
     if grep -q '__OVERRIDES_API_URL__' "${UI_DIR}/metadata-proxy-override.js"; then
       echo "[sonarr-metadata-proxy] WARNING: __OVERRIDES_API_URL__ placeholder still present; OVERRIDES_API_URL is not reaching this script (set it on the Sonarr container, not the proxy)."
     else
