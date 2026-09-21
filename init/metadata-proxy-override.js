@@ -52,12 +52,20 @@
     return { slug: last };
   }
 
-  function proxyUrl() {
+  function overridesApiBase() {
     var origin = OVERRIDES_API_URL;
     if (!origin || origin === '__OVERRIDES_API_URL__') {
+      if (window.location.protocol === 'https:') {
+        return null;
+      }
       origin = 'http://' + window.location.hostname + ':' + PROXY_PORT;
     }
-    return origin.replace(/\/+$/, '') + '/api/overrides';
+    return origin.replace(/\/+$/, '');
+  }
+
+  function proxyUrl() {
+    var base = overridesApiBase();
+    return base ? base + '/api/overrides' : null;
   }
 
   function baseCss() {
@@ -163,8 +171,15 @@
   }
 
   function saveOverride(tvdbId, source) {
-    var options = { method: source ? 'POST' : 'DELETE' };
     var url = proxyUrl();
+    if (!url) {
+      setStatus(
+        'HTTPS page: set OVERRIDES_API_URL on the Sonarr container to reach the overrides API.',
+        '#f87171'
+      );
+      return Promise.resolve();
+    }
+    var options = { method: source ? 'POST' : 'DELETE' };
     if (!source) {
       url += '/' + tvdbId;
     } else {
@@ -311,7 +326,16 @@
         var select = buildPickerPanel();
         el = document.getElementById(PANEL_ID);
 
-        fetch(proxyUrl())
+        var url = proxyUrl();
+        if (!url) {
+          setStatus(
+            'HTTPS page: set OVERRIDES_API_URL on the Sonarr container to reach the overrides API.',
+            '#fbbf24'
+          );
+          return;
+        }
+
+        fetch(url)
           .then(function (proxyResponse) {
             if (!proxyResponse.ok) {
               throw new Error('HTTP ' + proxyResponse.status);
