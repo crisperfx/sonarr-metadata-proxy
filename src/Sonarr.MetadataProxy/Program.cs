@@ -114,6 +114,16 @@ app.MapGet("/info", () => Results.Ok(new
     tvdbFallback = options.EnableTvdbFallback,
     version = "0.2.2"
 }));
+app.MapGet("/", () => Results.Text(
+    "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sonarr Metadata Proxy</title></head>" +
+    "<body style=\"font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#0f172a\">" +
+    "<h1>Sonarr Metadata Proxy</h1><p>This endpoint serves the Sonarr metadata replacement. " +
+    "There is nothing to see here.</p><ul>" +
+    "<li><a href=\"/health\">/health</a></li>" +
+    "<li><a href=\"/info\">/info</a></li>" +
+    "<li><a href=\"/api/overrides\">/api/overrides</a></li>" +
+    "</ul></body></html>",
+    "text/html; charset=utf-8"));
 
 if (options.CorsAllowedOrigins.Count > 0)
 {
