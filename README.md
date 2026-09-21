@@ -38,7 +38,8 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
   real TVDB when a series cannot be mapped).
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
-  the Sonarr web UI (per-series TMDB/TVDB picker).
+  the Sonarr web UI (per-series TMDB/TVDB picker) and a **Search via** provider picker
+  (TMDB only / TVDB) into the Add New search box.
 
 ---
 
@@ -89,7 +90,9 @@ The complete stack (this is the whole `docker-compose.yml`):
 # This wires an UNMODIFIED stock Sonarr to the proxy:
 #   - the proxy answers skyhook.sonarr.tv (network alias) and serves TMDB metadata,
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
-#   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI.
+#   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
+#   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI
+#     plus a "Search via" provider picker (TMDB only / TVDB) into the add-series search.
 #
 # Usage:
 #   cp .env.example .env      # set TMDB_API_KEY (and CORS_ALLOWED_ORIGINS if needed)
@@ -172,7 +175,7 @@ networks:
 | `skyhook.sonarr.tv` network alias on the proxy | Sonarr's metadata requests land on the proxy, not the internet. |
 | the two `init/*.sh` mounts + `certs` volume on Sonarr | The hooks trust the proxy's certificate and inject the picker. |
 | `cap_add: NET_BIND_SERVICE` on the proxy | Lets the proxy bind port 443 (SkyHook) inside the container. |
-| `certs` + `proxy-data` volumes | Persist the CA + your `mappings.json` overrides. |
+| `certs` + `proxy-data` volumes | Persist the CA + your `mappings/` overrides. |
 
 ---
 
@@ -226,7 +229,7 @@ Put both containers on the same network and give Sonarr a **hosts entry**:
 is not recreated). On a shared custom network the IP stays stable too.
 
 > Do **not** mount the whole folder onto `/custom-cont-init.d` — mount only the two
-> `.sh` files as shown, otherwise the proxy's `mappings.json` and JS get executed as
+> `.sh` files as shown, otherwise the proxy's `mappings/` data and JS get executed as
 > scripts on startup (they just log errors, but it is noisy).
 
 **Step 4 — Restart both, in this order**
@@ -284,7 +287,7 @@ restart then embeds them.
   on every start (and re-patches `index.html` with a cache-busting `?v=`, so no hard refresh
   is ever required).
 
-Your data (`mappings.json`, `certs/`) is never touched. Do not edit the seed files by hand —
+Your data (`mappings/`, `certs/`) is never touched. Do not edit the seed files by hand —
 the image version wins; configure behaviour via environment variables.
 
 ---
@@ -316,9 +319,30 @@ Every series page has a dropdown: **Automatic / TMDB / TVDB**.
 - TMDB = always use TMDB servers for this series.
 - TVDB = always use the real SkyHook/TVDB for this series.
 
-After choosing: **Refresh & Scan** on the series. Overrides are stored in `mappings.json`.
-You might be asked once for your Sonarr API key (Settings → General); it is usually read
-automatically from `/config/config.xml` by the init hook, so there is normally no prompt.
+After choosing: **Refresh & Scan** on the series. Overrides are stored in
+`DATA_DIR/mappings/mappings.json` (one single file for all series — not a file per
+series; per-series files would multiply IO, race, and confuse editing/backup).
+Legacy `DATA_DIR/mappings.json` files are migrated into the `mappings/` folder
+automatically on startup. You might be asked once for your Sonarr API key
+(Settings → General); it is usually read automatically from `/config/config.xml`
+by the init hook, so there is normally no prompt.
+
+### Search provider picker ("Search via")
+
+When adding a series, the search box gets a **Search via** dropdown:
+
+- **Automatic (TMDB + TVDB fallback)** — default behaviour: TMDB first, TVDB on
+  empty results / failures.
+- **TMDB only** — prefixes your query with `tmdb:` so the proxy searches TMDB and
+  shows no TVDB fallback results (e.g. to force a TMDB id, type `tmdb:1396`).
+- **TVDB (SkyHook)** — prefixes with `tvdb:`, forcing the TVDB listing
+  (e.g. `tvdb:breaking bad` or an id `tvdb:81189`).
+
+The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
+`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`.
+
+On small screens (under 768 px) the dropdown collapses into a small **Metadata ▸** pill so
+it does not cover the page; tap it to expand, **–** to collapse again.
 
 ## Environment variables
 
@@ -334,7 +358,7 @@ automatically from `/config/config.xml` by the init hook, so there is normally n
 | `SKYHOOK_BASE_URL` | `https://skyhook.sonarr.tv` | Real SkyHook used for the TVDB fallback. |
 | `SKYHOOK_RESOLVER_URL` | `https://cloudflare-dns.com/dns-query` | DNS-over-HTTPS for the fallback host. |
 | `CORS_ALLOWED_ORIGINS` | empty | Browser origins allowed to call `/api/overrides` (needed for the picker). Multiple with commas, `*` = all. |
-| `DATA_DIR` | `/app/data` | Directory for mappings + CA/certificates (volume in Docker). |
+| `DATA_DIR` | `/app/data` | Persistent data root: `mappings/` (series map + overrides), `certs/` (CA + certs); `init/` seed files are refreshed from the image. |
 
 Set these in `.env`, or as environment on the container / in your own compose.
 

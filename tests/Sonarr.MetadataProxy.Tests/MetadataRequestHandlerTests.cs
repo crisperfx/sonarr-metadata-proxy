@@ -80,6 +80,51 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
+    public async Task Search_TvdbTextTerm_ForcesTvdbSearchWithUnprefixedTerm()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+
+        await handler.SearchAsync("tvdb:breaking bad", CancellationToken.None);
+
+        Assert.Equal("breaking bad", _passthrough.LastSearchTerm);
+        Assert.Equal(0, _tmdb.SearchCallCount);
+    }
+
+    [Fact]
+    public async Task Search_TmdbTextTerm_DoesNotFallThroughToTvdbOnEmptyResults()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+
+        var result = await handler.SearchAsync("tmdb:totally nonexistent show", CancellationToken.None);
+
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_TmdbTextTerm_UsesActiveProvider()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+        _tmdb.Details = TestData.BreakingBadDetails();
+
+        var result = await handler.SearchAsync("tmdb:breaking bad", CancellationToken.None);
+
+        Assert.True(_tmdb.SearchCallCount > 0);
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
     public async Task Search_MalTerm_FallsThroughToTvdb()
     {
         var handler = CreateHandler(fallbackEnabled: true);

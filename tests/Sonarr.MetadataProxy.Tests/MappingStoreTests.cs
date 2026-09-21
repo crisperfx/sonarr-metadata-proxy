@@ -144,6 +144,31 @@ public class MappingStoreTests : IDisposable
         return new MappingStore(new ProxyOptions { DataDir = dataDir }, NullLogger<MappingStore>.Instance);
     }
 
+    [Fact]
+    public void LegacyFile_IsMigratedIntoMappingsSubfolder()
+    {
+        var legacy = Path.Combine(_dataDir, "mappings.json");
+        Directory.CreateDirectory(_dataDir);
+        File.WriteAllText(
+            legacy,
+            """
+            {
+              "SeriesReal": { "81189": 1396 },
+              "Episodes": { "81189:1:1": 2000000000 },
+              "EpisodeSequences": { "81189": 1 },
+              "Overrides": { "81189": "tmdb" }
+            }
+            """);
+
+        var store = new MappingStore(new ProxyOptions { DataDir = _dataDir }, NullLogger<MappingStore>.Instance);
+
+        Assert.Equal(1396, store.TryResolveSeriesTmdb(81189));
+        Assert.Equal(2000000000, store.EpisodeTvdbId(81189, 1, 1));
+        Assert.Equal(MappingStore.SourceTmdb, store.GetOverride(81189));
+        Assert.False(File.Exists(legacy), "Legacy file should be moved, not copied.");
+        Assert.True(File.Exists(Path.Combine(_dataDir, "mappings", "mappings.json")));
+    }
+
     public void Dispose()
     {
         try

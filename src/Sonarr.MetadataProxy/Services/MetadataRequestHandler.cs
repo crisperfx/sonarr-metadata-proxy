@@ -63,10 +63,18 @@ public sealed class MetadataRequestHandler
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
+        if (term.Kind == TermKind.TvdbSearch)
+        {
+            _logger.LogInformation("Explicit TVDB search (tvdb:) for '{Term}'.", term.Value);
+            return await ForwardToTvdbSearchAsync(term.Value, cancellationToken).ConfigureAwait(false);
+        }
+
         if (_activeProvider is null || _activeProvider.Name == "tvdb")
         {
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
+
+        var explicitTmdbSearch = term.Kind == TermKind.TmdbSearch;
 
         IReadOnlyList<SeriesMetadata> results;
         try
@@ -74,6 +82,7 @@ public sealed class MetadataRequestHandler
             results = term.Kind switch
             {
                 TermKind.TmdbId => await _activeProvider.SearchById(term.Value, cancellationToken).ConfigureAwait(false),
+                TermKind.TmdbSearch => await _activeProvider.Search(term.Value, cancellationToken).ConfigureAwait(false),
                 TermKind.ImdbId => await _activeProvider.SearchByImdbId(term.Value, cancellationToken).ConfigureAwait(false),
                 _ => await _activeProvider.Search(term.Value, cancellationToken).ConfigureAwait(false)
             };
@@ -91,6 +100,12 @@ public sealed class MetadataRequestHandler
 
         if (results.Count == 0)
         {
+            if (explicitTmdbSearch)
+            {
+                _logger.LogInformation("Explicit TMDB search (tmdb:) returned no results for '{Term}'.", term.Value);
+                return Results.Ok(Array.Empty<ShowResource>());
+            }
+
             _logger.LogInformation("No results from {Source} for '{Term}'.", _options.MetadataSource, rawTerm);
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }

@@ -68,12 +68,84 @@
     return base ? base + '/api/overrides' : null;
   }
 
+  function isMobile() {
+    return (window.innerWidth || document.documentElement.clientWidth) < 768;
+  }
+
+  function positionCss() {
+    return isMobile()
+      ? 'position:fixed;top:56px;left:8px;right:8px;z-index:99999;'
+      : 'position:fixed;top:64px;right:16px;z-index:99999;';
+  }
+
   function baseCss() {
     return (
-      'position:fixed;top:64px;right:16px;z-index:99999;background:#222c3d;color:#fff;' +
+      positionCss() + 'background:#222c3d;color:#fff;' +
       'border:1px solid #334155;border-radius:8px;padding:10px 12px;' +
       'font:13px/1.4 "Open Sans",sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.4);min-width:210px;'
     );
+  }
+
+  function pillCss() {
+    return (
+      (isMobile()
+        ? 'position:fixed;top:56px;left:8px;z-index:99999;'
+        : 'position:fixed;top:64px;right:16px;z-index:99999;') +
+      'background:#222c3d;color:#fff;border:1px solid #334155;border-radius:8px;' +
+      'padding:8px 12px;font:13px/1.4 "Open Sans",sans-serif;' +
+      'box-shadow:0 4px 12px rgba(0,0,0,.4);cursor:pointer;'
+    );
+  }
+
+  function buildShell(titleText) {
+    var root = document.createElement('div');
+    root.id = PANEL_ID;
+    root.style.cssText = baseCss();
+
+    var pill = document.createElement('div');
+    pill.style.cssText = 'display:none;font-weight:600;';
+    pill.textContent = 'Metadata \u25B8';
+
+    var header = document.createElement('div');
+    header.style.cssText =
+      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
+    var title = document.createElement('span');
+    title.style.cssText = 'font-weight:600;';
+    title.textContent = titleText;
+    var toggle = document.createElement('button');
+    toggle.textContent = '\u2013';
+    toggle.style.cssText =
+      'padding:2px 8px;background:#334155;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+    toggle.setAttribute('aria-label', 'Collapse');
+    header.appendChild(title);
+    header.appendChild(toggle);
+
+    var body = document.createElement('div');
+    body.className = 'mpo-body';
+
+    root.appendChild(pill);
+    root.appendChild(header);
+    root.appendChild(body);
+    root._mpoBody = body;
+
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setCollapsed(true);
+    });
+    pill.addEventListener('click', function () {
+      setCollapsed(false);
+    });
+
+    function setCollapsed(on) {
+      root.dataset.mpoCollapsed = on ? '1' : '';
+      root.style.cssText = on ? pillCss() : baseCss();
+      body.style.display = on ? 'none' : '';
+      header.style.display = on ? 'none' : '';
+      pill.style.display = on ? '' : 'none';
+    }
+
+    root.mpoCollapse = setCollapsed;
+    return root;
   }
 
   function setStatus(text, color) {
@@ -88,19 +160,12 @@
   }
 
   function buildKeyPanel(message) {
-    var root = document.createElement('div');
-    root.id = PANEL_ID;
-    root.style.cssText = baseCss();
-
-    var txt = document.createElement('div');
-    txt.style.cssText = 'font-weight:600;margin-bottom:8px;';
-    txt.textContent = 'Metadata source';
-    root.appendChild(txt);
+    var shell = buildShell('Metadata source');
 
     var hint = document.createElement('div');
     hint.style.cssText = 'font-size:11px;color:#94a3b8;margin-bottom:8px;';
     hint.textContent = message || 'Enter your Sonarr API key first (Settings → General → API Key).';
-    root.appendChild(hint);
+    shell._mpoBody.appendChild(hint);
 
     var btn = document.createElement('button');
     btn.style.cssText =
@@ -108,24 +173,18 @@
     btn.textContent = 'Enter API key';
     btn.addEventListener('click', function () {
       if (setApiKey()) {
-        root.remove();
+        shell.remove();
         tick(true);
       }
     });
-    root.appendChild(btn);
+    shell._mpoBody.appendChild(btn);
 
-    document.body.appendChild(root);
+    document.body.appendChild(shell);
+    return shell;
   }
 
   function buildPickerPanel() {
-    var root = document.createElement('div');
-    root.id = PANEL_ID;
-    root.style.cssText = baseCss();
-
-    var title = document.createElement('div');
-    title.style.cssText = 'font-weight:600;margin-bottom:6px;';
-    title.textContent = 'Metadata source: ' + (series.title || series.tvdbId);
-    root.appendChild(title);
+    var shell = buildShell('Metadata source: ' + (series.title || series.tvdbId));
 
     var select = document.createElement('select');
     select.style.cssText = 'width:100%;padding:4px;margin-bottom:6px;';
@@ -140,13 +199,13 @@
       select.appendChild(option);
     });
     select.value = '';
-    root.appendChild(select);
+    shell._mpoBody.appendChild(select);
 
     var status = document.createElement('div');
     status.className = 'mpo-status';
     status.style.cssText = 'font-size:11px;color:#94a3b8;';
     status.textContent = 'TVDB id: ' + series.tvdbId;
-    root.appendChild(status);
+    shell._mpoBody.appendChild(status);
 
     select.addEventListener('change', function () {
       saveOverride(series.tvdbId, select.value)
@@ -166,7 +225,7 @@
         });
     });
 
-    document.body.appendChild(root);
+    document.body.appendChild(shell);
     return select;
   }
 
@@ -358,6 +417,126 @@
         buildKeyPanel('Error: ' + err.message);
       });
   }
+
+  var SEARCH_PREFIXES = ['tvdb:', 'tmdb:', 'tvdbid:', 'anilist:', 'mal:', 'imdb:'];
+
+  function stripSearchPrefix(value) {
+    var v = String(value || '').trim();
+    for (var i = 0; i < SEARCH_PREFIXES.length; i++) {
+      if (v.toLowerCase().indexOf(SEARCH_PREFIXES[i]) === 0) {
+        return v.slice(SEARCH_PREFIXES[i].length);
+      }
+    }
+    return v;
+  }
+
+  function searchInputCandidates() {
+    var found = [];
+    var inputs = document.querySelectorAll('input');
+    for (var i = 0; i < inputs.length; i++) {
+      var input = inputs[i];
+      var ph = String(input.placeholder || '').toLowerCase();
+      var inModal = !!input.closest && !!input.closest('.modal-content');
+      if (ph.indexOf('series') !== -1 || (inModal && ph.indexOf('search') !== -1)) {
+        found.push(input);
+      }
+    }
+    return found;
+  }
+
+  function attachSearchPicker(input) {
+    if (input.getAttribute('data-mpo-search') === '1') {
+      return;
+    }
+    input.setAttribute('data-mpo-search', '1');
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+
+    var label = document.createElement('span');
+    label.style.cssText = 'font-size:11px;color:#94a3b8;';
+    label.textContent = 'Search via';
+
+    var select = document.createElement('select');
+    select.style.cssText =
+      'padding:3px 6px;font-size:12px;background:#263241;color:#fff;border:1px solid #334155;border-radius:4px;';
+    [
+      { value: '', label: 'Automatic (TMDB + TVDB fallback)' },
+      { value: 'tmdb:', label: 'TMDB only' },
+      { value: 'tvdb:', label: 'TVDB (SkyHook)' }
+    ].forEach(function (opt) {
+      var option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      select.appendChild(option);
+    });
+
+    row.appendChild(label);
+    row.appendChild(select);
+    input.parentNode.insertBefore(row, input);
+
+    function normalize() {
+      var prefix = select.value;
+      var value = input.value;
+      var lowered = String(value).toLowerCase();
+      var current = '';
+      for (var i = 0; i < SEARCH_PREFIXES.length; i++) {
+        if (lowered.indexOf(SEARCH_PREFIXES[i]) === 0) {
+          current = SEARCH_PREFIXES[i];
+          break;
+        }
+      }
+      var raw = current ? value.slice(current.length) : value;
+      var applied = input.dataset.mpoApplied || '';
+
+      if (!prefix) {
+        if (applied && lowered.indexOf(applied) === 0) {
+          input.value = value.slice(applied.length);
+        }
+        input.dataset.mpoApplied = '';
+        return;
+      }
+
+      if (!raw) {
+        input.value = '';
+        input.dataset.mpoApplied = '';
+        return;
+      }
+
+      input.value = prefix + raw;
+      input.dataset.mpoApplied = prefix;
+    }
+
+    select.addEventListener('change', normalize);
+    input.addEventListener('input', normalize);
+  }
+
+  function refreshSearchPickers() {
+    var candidates = searchInputCandidates();
+    for (var i = 0; i < candidates.length; i++) {
+      attachSearchPicker(candidates[i]);
+    }
+  }
+
+  var searchObserver = null;
+  var refreshSearchTimer = null;
+  if (window.MutationObserver) {
+    searchObserver = new MutationObserver(function () {
+      if (refreshSearchTimer) {
+        clearTimeout(refreshSearchTimer);
+      }
+      refreshSearchTimer = setTimeout(refreshSearchPickers, 300);
+    });
+    searchObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  refreshSearchPickers();
+
+  window.addEventListener('resize', function () {
+    var panel = document.getElementById(PANEL_ID);
+    if (panel && panel.dataset.mpoCollapsed !== '1') {
+      panel.style.cssText = baseCss();
+    }
+  });
 
   setInterval(tick, POLL_MS);
   tick();

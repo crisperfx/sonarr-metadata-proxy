@@ -4,7 +4,8 @@
 # This copies metadata-proxy-override.js (mounted next to this script) into the
 # Sonarr UI directory and patches index.html so the script is loaded. The script
 # adds a small per-series overlay: Automatisch / TMDB / TVDB, backed by the
-# proxy's /api/overrides management API.
+# proxy's /api/overrides management API, and a "Search via" provider picker on
+# the Add New search box (tmdb:/tvdb: prefixes).
 #
 # Runs once at container start (LinuxServer /custom-cont-init.d hook). Recreate
 # the container (or touch this script) to re-apply after a Sonarr update.
@@ -27,8 +28,8 @@ fi
 INDEX="${UI_DIR}/index.html"
 SRC=""
 for candidate in \
-  "/shared/metadata-proxy-override.js" \
   "/shared/init/metadata-proxy-override.js" \
+  "/shared/metadata-proxy-override.js" \
   "$(dirname "$0")/metadata-proxy-override.js"
 do
   if [ -f "${candidate}" ]; then

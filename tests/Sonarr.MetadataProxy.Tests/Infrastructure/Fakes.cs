@@ -13,10 +13,12 @@ public sealed class FakeTmdbApi : ITmdbApi
     public Dictionary<int, List<TmdbEpisode>> Seasons { get; set; } = new();
     public Exception? Exception { get; set; }
     public int DetailsCallCount { get; private set; }
+    public int SearchCallCount { get; private set; }
 
     public Task<List<TmdbTvSearchResult>> SearchTvAsync(string query, CancellationToken cancellationToken)
     {
         ThrowIf();
+        SearchCallCount++;
         return Task.FromResult(SearchResults);
     }
 

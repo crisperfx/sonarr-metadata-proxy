@@ -19,9 +19,31 @@ public sealed class MappingStore
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
-        _filePath = Path.Combine(options.DataDir, "mappings.json");
+        var directory = Path.Combine(options.DataDir, "mappings");
+        _filePath = Path.Combine(directory, "mappings.json");
         _logger = logger;
+        MigrateLegacyFile(options.DataDir);
         Load();
+    }
+
+    private void MigrateLegacyFile(string dataDir)
+    {
+        var legacy = Path.Combine(dataDir, "mappings.json");
+        if (!File.Exists(legacy) || File.Exists(_filePath))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            File.Move(legacy, _filePath);
+            _logger.LogInformation("Migrated mapping store from {Legacy} to {Path}.", legacy, _filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not migrate legacy mapping store from {Legacy}.", legacy);
+        }
     }
 
     public int? TryResolveSeriesTmdb(int tvdbId)
