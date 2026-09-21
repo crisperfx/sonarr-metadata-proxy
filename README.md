@@ -175,7 +175,7 @@ networks:
 | `skyhook.sonarr.tv` network alias on the proxy | Sonarr's metadata requests land on the proxy, not the internet. |
 | the two `init/*.sh` mounts + `certs` volume on Sonarr | The hooks trust the proxy's certificate and inject the picker. |
 | `cap_add: NET_BIND_SERVICE` on the proxy | Lets the proxy bind port 443 (SkyHook) inside the container. |
-| `certs` + `proxy-data` volumes | Persist the CA + your `mappings/` overrides. |
+| `certs` + `proxy-data` volumes | Persist the CA + your `mappings/` overrides. The **proxy writes its CA into `certs`** (`/app/data/certs`) and Sonarr reads the same volume as `/shared/certs`. That is why both containers mount it. |
 
 ---
 
@@ -259,11 +259,27 @@ is not recreated). On a shared custom network the IP stays stable too.
 You do not need this compose's Sonarr. Just add to your existing Sonarr the three things
 from Option A / Option B step 3:
 
-1. the `certs` volume (proxy CA),
-2. the two `init/*.sh` mounts into `/custom-cont-init.d/`,
+1. the CA as `/shared/certs`, 2. the two `init/*.sh` mounts into `/custom-cont-init.d/`,
 3. the `skyhook.sonarr.tv` alias or hosts entry.
 
-Nothing else in Sonarr changes — same web UI, same settings, same port.
+**How to share the CA depends on how your proxy stores its data:**
+
+- **Proxy runs with the compose `certs` volume** → mount that same volume on Sonarr as
+  `certs:/shared/certs:ro` (the proxy writes the CA into it).
+- **Proxy uses a plain folder as `DATA_DIR`** (no volumes — e.g. an existing instance
+  whose data lives in a folder like `/volume3/docker/config/sonarr-proxy/testmap`) →
+  mount that **whole folder** as `/shared` on Sonarr. Its `certs/` then shows up at
+  `/shared/certs` and its `init/` at `/shared/init`, no extra mounts needed:
+  ```yaml
+  volumes:
+    - /volume3/docker/config/sonarr-proxy/testmap:/shared:ro
+    - /volume3/docker/config/sonarr-proxy/testmap/01-install-ca.sh:/custom-cont-init.d/01-install-ca.sh:ro
+    - /volume3/docker/config/sonarr-proxy/testmap/50-sonarr-override-ui.sh:/custom-cont-init.d/50-sonarr-override-ui.sh:ro
+  ```
+
+> A named `certs` volume that no container writes to is **empty** — the hook then logs
+> "CA not present yet … skipping install". If you see that, make sure the proxy shares
+> *its* CA folder (see above), not a separate empty volume.
 
 ---
 
