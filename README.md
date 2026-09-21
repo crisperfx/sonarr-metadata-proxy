@@ -7,189 +7,318 @@ intercepting Sonarr's metadata requests (`skyhook.sonarr.tv` / TVDB) and transla
 back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no local
 .NET SDK required — runs as a prebuilt Docker image.
 
-## Working features
+## What you need
 
-- Sonarr search + add + refresh fully via **TMDB** (series, seasons, episodes).
-- Correct **airdates** (`airDateUtc`) from TMDB into Sonarr.
-- Images, actors, ratings, genres, network, status from TMDB.
-- **Per-series TMDB/TVDB source selection**: a dropdown on every Sonarr series page
-  (the "Metadata source" picker) or via a small REST API (`/api/overrides`).
-- **Automatic TVDB↔TMDB mapping** (TMDB `external_ids` + Wikidata reverse lookup),
-  persisted so refreshes return stable ids.
-- Series without a TVDB mapping get a **stable synthetic TVDB id**.
-- **TVDB fallback** when a series cannot be mapped or the source fails.
-- Prebuilt image on **Docker Hub** and **GHCR** (mirror) for `linux/amd64` and `linux/arm64`;
-  CI runs the test suite and publishes an image on every `v*` tag.
+1. **Docker** — either Docker with Compose v2, or a Docker UI on your NAS / PC
+   (Synology Container Manager, Dockhand, Portainer, ...).
+2. **A free TMDB API key** — <https://www.themoviedb.org/settings/api> (sign up, then
+   *API* → *Create* → *Developer*). It is the only secret you must fill in.
+3. **Sonarr** — not required to have yet: the compose example below starts a fresh one.
+   Got an existing Sonarr? See [Option C](#option-c--you-already-run-sonarr).
 
-## Requirements
+## How it works (30 seconds)
 
-- Docker with Compose v2.
-- A free TMDB API key: <https://www.themoviedb.org/settings/api>.
+```
+ your browser                    Docker network
+      │  http://<ip>:8989                │
+      ▼                                  ▼
+ ┌───────────┐  metadata request   ┌────────────────┐   TMDB data   ┌──────┐
+ │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ────────────▶ │ TMDB │
+ │ (stock)   │   (port 443, alias)  │  proxy (443/  │               └──────┘
+ └───────────┘                      │   9697)       │
+      ▲                             └────────────────┘
+      │ picker dropdown (overrides)
+      └────────────────── /api/overrides
+```
 
-## Installation (docker compose)
+- Sonarr talks to `skyhook.sonarr.tv` exactly as it always does — the DNS alias just makes
+  that name resolve to the proxy instead of the real SkyHook. Everything else in Sonarr is
+  untouched.
+- Search / add / refresh all come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
+  real TVDB when a series cannot be mapped).
+- Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
+  proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
+  the Sonarr web UI (per-series TMDB/TVDB picker).
+
+---
+
+## Option A — Docker Compose (recommended, ~5 minutes)
+
+The whole stack is one `docker-compose.yml` and one `.env`.
+
+**Step 1 — get the files**
 
 ```bash
 git clone https://github.com/crisperfx/sonarr-metadata-proxy.git
 cd sonarr-metadata-proxy
 cp .env.example .env
-# open .env: only TMDB_API_KEY and CORS_ALLOWED_ORIGINS need your own values
+```
+
+**Step 2 — set only your TMDB API key**
+
+```bash
+nano .env          # or open in any editor
+```
+
+Change just this line (find it near the top):
+
+```bash
+TMDB_API_KEY=your-tmdb-v3-api-key
+```
+
+→ replace `your-tmdb-v3-api-key` with your real key from step 2 of *What you need*.
+Leave everything else as-is. `CORS_ALLOWED_ORIGINS` can stay empty for a local setup.
+
+**Step 3 — start it**
+
+```bash
 docker compose up -d
 ```
 
-- The compose file uses `crisperfx/sonarr-metadata-proxy` (Docker Hub). Prefer the GHCR
-  mirror? Replace the image with `ghcr.io/crisperfx/sonarr-metadata-proxy`, or comment out
-  `image:` and enable `build: .` to build locally.
-- The compose starts a clean Sonarr (port `8989`) plus the proxy (port `9697`). The proxy
-  answers on `skyhook.sonarr.tv` (network alias) and manages its own CA certificate that
-  Sonarr installs automatically.
-- Open Sonarr → **Add Series** → search → add. Everything comes from TMDB.
+**Step 4 — use it**
 
-### Dockhand / Portainer (image pull) — step by step
+- Open Sonarr at `http://<your-ip>:8989` → **Add Series** → search → metadata from TMDB.
+- Go to a series page → **Metadata source** dropdown → specify **TMDB** or **TVDB**
+  per series → **Refresh & Scan**.
 
-For those who only want to pull the image, no repo/downloads involved. Docker UIs such as
-Dockhand do not show env/ports pre-filled, but that is fine: **all defaults are already in
-the image**, and the Sonarr injection files are in the image too — the proxy drops them
-into its data directory on first start.
+The complete stack (this is the whole `docker-compose.yml`):
+
+```yaml
+# Sonarr Metadata Proxy – docker compose example.
+#
+# This wires an UNMODIFIED stock Sonarr to the proxy:
+#   - the proxy answers skyhook.sonarr.tv (network alias) and serves TMDB metadata,
+#   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
+#   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI.
+#
+# Usage:
+#   cp .env.example .env      # set TMDB_API_KEY (and CORS_ALLOWED_ORIGINS if needed)
+#   docker compose up -d
+#
+# The image below is the Docker Hub default. Use the GHCR mirror instead by replacing
+# it with "ghcr.io/crisperfx/sonarr-metadata-proxy:latest", or uncomment "build: ."
+# to build locally.
+
+services:
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      # Optional, behind an HTTPS reverse proxy (e.g. Synology): point the override
+      # dropdown at the proxied management API. Example:
+      # - OVERRIDES_API_URL=https://proxy.example.com
+    volumes:
+      - ./sonarr-data/config:/config
+      - ./tv:/tv
+      - ./downloads:/downloads
+      - certs:/shared/certs:ro
+      - ./init/01-install-ca.sh:/custom-cont-init.d/01-install-ca.sh:ro
+      - ./init/50-sonarr-override-ui.sh:/custom-cont-init.d/50-sonarr-override-ui.sh:ro
+      - ./init:/shared/init:ro
+    ports:
+      - "8989:8989"
+    networks:
+      - arrnet
+    depends_on:
+      sonarr-metadata-proxy:
+        condition: service_healthy
+    restart: unless-stopped
+
+  sonarr-metadata-proxy:
+    image: crisperfx/sonarr-metadata-proxy:latest
+    # build: .   # uncomment to build locally instead of pulling a prebuilt image
+    container_name: sonarr-metadata-proxy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    env_file:
+      - .env
+    volumes:
+      - proxy-data:/app/data
+      - certs:/app/data/certs
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - "9697:9697"
+    networks:
+      arrnet:
+        aliases:
+          - skyhook.sonarr.tv
+    expose:
+      - "443"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /app/data/certs/ca.crt && curl -fsS http://127.0.0.1:9697/health > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  proxy-data:
+  certs:
+
+networks:
+  arrnet:
+    driver: bridge
+```
+
+**What each piece does** (so you can adapt it with confidence):
+
+| Piece | Why it is there |
+|---|---|
+| `skyhook.sonarr.tv` network alias on the proxy | Sonarr's metadata requests land on the proxy, not the internet. |
+| the two `init/*.sh` mounts + `certs` volume on Sonarr | The hooks trust the proxy's certificate and inject the picker. |
+| `cap_add: NET_BIND_SERVICE` on the proxy | Lets the proxy bind port 443 (SkyHook) inside the container. |
+| `certs` + `proxy-data` volumes | Persist the CA + your `mappings.json` overrides. |
+
+---
+
+## Option B — Docker UI (Dockhand / Portainer / Synology Container Manager)
+
+Prefer clicking over files? Same result, no repo needed — all defaults are baked into the
+image and the injection files land in your data folder on first start.
 
 **Step 0 — Beforehand (one-time)**
 
 - TMDB API key: <https://www.themoviedb.org/settings/api>
-- Create a folder on your data volume where the proxy keeps its data, for example:
-  `/volume3/docker/config/sonarr-metadata-proxy`
-  (This *is* "the volume": Sonarr will bind the same folder.)
+- Create a data folder, e.g. `/volume3/docker/config/sonarr-metadata-proxy`.
+  This *is* the volume: Sonarr will bind this same folder.
 
-**Step 1 — Create the `sonarr-metadata-proxy` container**
+**Step 1 — Create the proxy container, start it blank first**
 
-- Image: `crisperfx/sonarr-metadata-proxy:latest`
-- **Start the container completely blank first** and wait until it is UP. On first start the
-  image runs with its baked-in defaults and places the injection files + the CA in the folder.
+- Image: `crisperfx/sonarr-metadata-proxy:latest`.
+- Start it **completely blank** and wait until it is UP. On first start the image runs with
+  its baked-in defaults and writes the injection files + CA into the data folder.
 
-**Step 2 — Stop the proxy, then fill in the settings**
-
-Stop the container, then open its configuration and fill in the following:
+**Step 2 — Stop it, then fill in these settings**
 
 | Field | Value |
 |---|---|
 | Name | `sonarr-metadata-proxy` |
 | Port mapping (optional) | `9697:9697` — only if you want `/info` reachable outside Docker |
 | Environment variable | `TMDB_API_KEY` = `<your key>` |
-| Environment variable | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — multiple allowed, separate with "," |
+| Environment variable | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — for the dropdown; multiple with "," |
 | Volume (host path → container) | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
 | Extra capability | `NET_BIND_SERVICE` — required to bind port 443 |
 
-> Prefer a named volume instead of a host path? Create one (e.g. `sonarr-metadata-proxy`)
-> and use the same volume on both containers.
+> Prefer a named volume (e.g. `sonarr-metadata-proxy`)? Use the same one on both containers.
 
-After (re)starting, that folder contains among others: `01-install-ca.sh`,
-`50-sonarr-override-ui.sh`, `metadata-proxy-override.js` and `certs/ca.crt`.
+After (re)starting, the folder contains `01-install-ca.sh`, `50-sonarr-override-ui.sh`,
+`metadata-proxy-override.js` and `certs/ca.crt`.
 
 **Step 3 — Configure Sonarr (new or existing)**
 
-For a new Sonarr just use `lscr.io/linuxserver/sonarr:latest`. For an existing Sonarr:
-open its configuration and add the fields below.
+New: just use `lscr.io/linuxserver/sonarr:latest`. Existing: add the fields below.
 
 | Field | Value |
 |---|---|
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
-| Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/custom-cont-init.d` (read-only) |
+| Volume | `.../sonarr-metadata-proxy/01-install-ca.sh` → `/custom-cont-init.d/01-install-ca.sh` (read-only) |
+| Volume | `.../sonarr-metadata-proxy/50-sonarr-override-ui.sh` → `/custom-cont-init.d/50-sonarr-override-ui.sh` (read-only) |
 | Environment variable (optional) | `OVERRIDES_API_URL` = `https://proxy.example.com` — only behind a reverse proxy |
 
-Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the proxy
-(port 443 in Docker).
+Network & DNS: Sonarr must resolve `skyhook.sonarr.tv` to the proxy (port 443 in Docker).
+Put both containers on the same network and give Sonarr a **hosts entry**:
+`skyhook.sonarr.tv` → the IP of the proxy container (the IP is stable as long as the proxy
+is not recreated). On a shared custom network the IP stays stable too.
 
-- Put both containers on **the same network**. A separate network is not required: the
-  default **bridge** works fine; containers reach each other via their IP.
-- Give Sonarr a **hosts entry** for that: key `skyhook.sonarr.tv`, value = the IP of the
-  `sonarr-metadata-proxy` container (shown in the container details of step 1; that IP stays
-  the same as long as that container is not recreated).
-- Prefer a fixed network? Create one and put both containers on it — the IP stays stable too.
+> Do **not** mount the whole folder onto `/custom-cont-init.d` — mount only the two
+> `.sh` files as shown, otherwise the proxy's `mappings.json` and JS get executed as
+> scripts on startup (they just log errors, but it is noisy).
 
-**Step 4 — Restart both (in this order)**
+**Step 4 — Restart both, in this order**
 
-1. Start/restart the proxy (`sonarr-metadata-proxy`) and wait until it is fully UP;
-2. Start Sonarr — on startup it installs the CA and patches its own web UI
+1. Start/restart the proxy and wait until it is fully UP;
+2. Start Sonarr — on startup it installs the CA and patches its web UI
    (log line `[sonarr-metadata-proxy] index.html patched...`);
 3. **Restart Sonarr once more** — now `config.xml` exists, so your Sonarr API key is
-   embedded in the dropdown and there will never be a key prompt.
+   embedded in the picker and there is never a key prompt.
 
-**Step 5 — Testing**
+**Step 5 — Test**
 
-- Sonarr log: `[sonarr-metadata-proxy] Installing proxied CA for skyhook.sonarr.tv`
+- Sonarr log should show `[sonarr-metadata-proxy] Installing proxied CA for skyhook.sonarr.tv`
   and `index.html patched with override UI script`.
 - Open Sonarr (port `8989`) → **Add Series** → search → results from TMDB.
-- Open a series page → "Metadata source" dropdown → choose **TMDB** → **Refresh & Scan**.
+- Open a series page → **Metadata source** dropdown → **TMDB** → **Refresh & Scan**.
 
 **Step 6 — If you ever recreate the proxy**
 
-- Use exactly the same folder/volume → mappings and CA stay preserved;
-- the IP may change then → update the Sonarr hosts entry (or restart both without
-  recreating).
+- Keep the same folder/volume → mappings and CA stay preserved.
+- The IP may change → update Sonarr's hosts entry (or restart both without recreating).
 
-### Updating to a newer image
+---
 
-```
+## Option C — You already run Sonarr
+
+You do not need this compose's Sonarr. Just add to your existing Sonarr the three things
+from Option A / Option B step 3:
+
+1. the `certs` volume (proxy CA),
+2. the two `init/*.sh` mounts into `/custom-cont-init.d/`,
+3. the `skyhook.sonarr.tv` alias or hosts entry.
+
+Nothing else in Sonarr changes — same web UI, same settings, same port.
+
+---
+
+## Updating to a newer image
+
+```bash
 docker pull crisperfx/sonarr-metadata-proxy:latest
 docker restart sonarr-metadata-proxy
 docker restart sonarr
 ```
 
 **When do you have to pull?** Only to get *new code* (features/fixes) from the project. The
-proxy compares the seed files in the data folder against the image on every start and
-refreshes them when they differ, so after a pull → proxy restart the newest
-`50-sonarr-override-ui.sh` + JS are already in `/shared`; the Sonarr restart then embeds them.
+proxy compares its seed files against the image on every start and refreshes them when they
+differ, so after a pull → proxy restart the newest hooks/JS are already shared; a Sonarr
+restart then embeds them.
 
 **When can you skip the pull?** For purely *configuration* changes:
 
-- changed `OVERRIDES_API_URL` (or `CORS_ALLOWED_ORIGINS`, API key): **no new image needed** —
-  just `docker restart sonarr`. The Sonarr-side hook re-copies the JS and embeds the current
-  env/config on every start, so your browser always gets a fresh picker (it also re-patches
-  `index.html` with a cache-busting `?v=`, so no hard refresh is ever required).
+- changed `OVERRIDES_API_URL`, `CORS_ALLOWED_ORIGINS`, or your API key → **no new image
+  needed**, just `docker restart sonarr`. The Sonarr hook re-embeds the current environment
+  on every start (and re-patches `index.html` with a cache-busting `?v=`, so no hard refresh
+  is ever required).
 
-Your data (`mappings.json`, `certs/`) is never touched. Do not edit the three seed files by
-hand — the image version wins; configure behaviour via env vars (`OVERRIDES_API_URL`,
-`CORS_ALLOWED_ORIGINS`, ...).
+Your data (`mappings.json`, `certs/`) is never touched. Do not edit the seed files by hand —
+the image version wins; configure behaviour via environment variables.
 
-### Behind an HTTPS reverse proxy (e.g. Synology DSM)
+---
 
-If you open Sonarr as `https://sonarr.example.com` instead of `http://<ip>:8989`, the
-"Metadata source" dropdown does not work with `CORS_ALLOWED_ORIGINS` alone. The dropdown JS
-talks to `http://<host>:9697` by default, which is blocked behind HTTPS (mixed content) and
-port 9697 is never forwarded by the reverse proxy.
+## Behind an HTTPS reverse proxy (e.g. Synology DSM)
 
-So put the management API behind the reverse proxy too:
+If you open Sonarr as `https://sonarr.example.com` instead of `http://<ip>:8989`, the picker
+defaults to `http://<host>:9697`, which is blocked on an HTTPS page (mixed content). Fix:
 
-1. **New reverse proxy rule** in DSM → Login Portal → Advanced → Reverse Proxy:
-   - `https://proxy.example.com` → `http://<metadata-proxy-ip>:9697`
-   - Use a *different* subdomain; DSM cannot route two backends on one hostname.
-2. **`OVERRIDES_API_URL`** goes on the **Sonarr** container (env):
-   - `OVERRIDES_API_URL=https://proxy.example.com`
-   - The init hook (`init/50-sonarr-override-ui.sh`) embeds this into the UI JS; recreate
-     Sonarr so the patch runs again.
-3. **`CORS_ALLOWED_ORIGINS`** on the proxy container stays the **browser origin of Sonarr**:
-   - `CORS_ALLOWED_ORIGINS=https://sonarr.example.com`
+1. **Add a reverse proxy rule** in DSM → Login Portal → Advanced → Reverse Proxy:
+   `https://proxy.example.com` → `http://<metadata-proxy-ip>:9697`.
+   Use a *different* subdomain; one hostname cannot route to two backends.
+2. **`OVERRIDES_API_URL=https://proxy.example.com`** — set it as environment variable on
+   the **Sonarr** container (the init hook embeds it into the UI JS).
+3. **`CORS_ALLOWED_ORIGINS=https://sonarr.example.com`** — on the proxy container, keep it
+   the **browser origin of Sonarr**.
 4. Test: series page → dropdown → **TMDB** → **Refresh & Scan**.
 
-Without `OVERRIDES_API_URL` the JS falls back to `http://<host>:9697` (LAN/port-forward);
-that keeps working for local use.
+Without `OVERRIDES_API_URL` the picker falls back to `http://<host>:9697` — fine for plain
+LAN / port-forward use.
 
-### Using a standalone/existing Sonarr
-
-Add three things to your existing Sonarr service: the `certs` volume, the
-`init/01-install-ca.sh` mount into `/custom-cont-init.d/`, and the alias network. Use the
-`sonarr:` service in `docker-compose.yml` as an example. Nothing else in Sonarr changes.
+---
 
 ## Per-series source selection ("Metadata source")
 
-Every series page now has a dropdown: **Automatic / TMDB / TVDB**.
+Every series page has a dropdown: **Automatic / TMDB / TVDB**.
 
 - Automatic = the default source from `METADATA_SOURCE`.
 - TMDB = always use TMDB servers for this series.
 - TVDB = always use the real SkyHook/TVDB for this series.
 
-After choosing: **Refresh & Scan** on the series in Sonarr. Overrides are stored in
-`mappings.json`. The first time you will be asked for your Sonarr API key
-(Settings → General); it is read automatically from `/config/config.xml` once
-`init/50-sonarr-override-ui.sh` runs, so usually there is no prompt.
+After choosing: **Refresh & Scan** on the series. Overrides are stored in `mappings.json`.
+You might be asked once for your Sonarr API key (Settings → General); it is usually read
+automatically from `/config/config.xml` by the init hook, so there is normally no prompt.
 
 ## Environment variables
 
@@ -197,14 +326,14 @@ After choosing: **Refresh & Scan** on the series in Sonarr. Overrides are stored
 |---|---|---|
 | `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb` or `tvdb` (passthrough only). |
 | `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
-| `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key. |
+| `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key (wins if both set). |
 | `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to the real TVDB on mapping/source failure. |
 | `PORT` | `9697` | HTTP port for management/health; the SkyHook/TLS listener is always on `443`. |
 | `SKIP_TLS` | `false` | `true` = TLS/443 disabled (dev only, not with Sonarr). |
 | `SKYHOOK_BASE_URL` | `https://skyhook.sonarr.tv` | Real SkyHook used for the TVDB fallback. |
 | `SKYHOOK_RESOLVER_URL` | `https://cloudflare-dns.com/dns-query` | DNS-over-HTTPS for the fallback host. |
-| `CORS_ALLOWED_ORIGINS` | empty | Browser origins allowed to call `/api/overrides` (needed for the dropdown). Multiple with commas, `*` = all. |
+| `CORS_ALLOWED_ORIGINS` | empty | Browser origins allowed to call `/api/overrides` (needed for the picker). Multiple with commas, `*` = all. |
 | `DATA_DIR` | `/app/data` | Directory for mappings + CA/certificates (volume in Docker). |
 
 Set these in `.env`, or as environment on the container / in your own compose.
@@ -225,7 +354,7 @@ curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 ## Build / publish (for maintainers)
 
 ```bash
-git tag v0.2.2 && git push origin v0.2.2   # triggers CI: tests + publish to Docker Hub and GHCR (amd64+arm64)
+git tag v0.2.4 && git push origin v0.2.4   # triggers CI: tests + publish to Docker Hub and GHCR (amd64+arm64)
 ```
 
 The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
