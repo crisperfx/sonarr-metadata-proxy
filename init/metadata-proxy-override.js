@@ -323,7 +323,7 @@
           })
           .catch(function (err) {
             setStatus(
-              'overrides API unreachable (CORS/firewall 9697): ' + err.message,
+              'overrides API unreachable: ' + proxyUrl() + ' (' + err.message + ')',
               '#f87171'
             );
           });
