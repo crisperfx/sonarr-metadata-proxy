@@ -125,6 +125,20 @@ Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the prox
 - the IP may change then → update the Sonarr hosts entry (or restart both without
   recreating).
 
+### Updating to a newer image
+
+```
+docker pull crisperfx/sonarr-metadata-proxy:latest
+docker restart sonarr-metadata-proxy
+```
+
+On the next start the proxy refreshes its three seed files (`01-install-ca.sh`,
+`50-sonarr-override-ui.sh`, `metadata-proxy-override.js`) in the data folder to match the
+image, then **recreate/restart Sonarr** so it picks up the updated hook script and UI JS.
+Your data (`mappings.json`, `certs/`) is never touched. Do not edit those three seed files
+by hand — the image version wins; configure behaviour via env vars (`OVERRIDES_API_URL`,
+`CORS_ALLOWED_ORIGINS`, ...).
+
 ### Behind an HTTPS reverse proxy (e.g. Synology DSM)
 
 If you open Sonarr as `https://sonarr.example.com` instead of `http://<ip>:8989`, the

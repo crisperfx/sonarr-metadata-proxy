@@ -19,7 +19,8 @@ RUN apt-get update \
 COPY --from=build /app/publish .
 
 # Sonarr-side injection files (CA hook, override-UI hook and JS). Copied into
-# DATA_DIR on first start so a pulling user needs no local files at all.
+# DATA_DIR on start and kept in sync on every start, so a pulling user needs no
+# local files at all and always gets the current version.
 COPY entrypoint.sh /app/entrypoint.sh
 COPY init/ /app/init/
 RUN chmod +x /app/entrypoint.sh /app/init/*.sh
