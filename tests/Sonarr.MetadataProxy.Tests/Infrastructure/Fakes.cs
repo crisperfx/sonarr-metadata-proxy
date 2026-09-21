@@ -26,6 +26,12 @@ public sealed class FakeTmdbApi : ITmdbApi
         return Task.FromResult(SearchResults);
     }
 
+    public Task<List<TmdbTvSearchResult>> FindByTvdbAsync(int tvdbId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(SearchResults);
+    }
+
     public Task<TmdbTvDetails> GetTvDetailsAsync(int tmdbId, CancellationToken cancellationToken)
     {
         ThrowIf();
