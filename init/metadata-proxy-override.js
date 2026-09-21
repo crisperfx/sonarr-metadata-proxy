@@ -74,7 +74,7 @@
 
   function positionCss() {
     return isMobile()
-      ? 'position:fixed;top:56px;left:8px;right:8px;z-index:99999;'
+      ? 'position:fixed;bottom:12px;left:8px;right:8px;z-index:99999;'
       : 'position:fixed;top:64px;right:16px;z-index:99999;';
   }
 
@@ -432,19 +432,16 @@
 
   function searchInputCandidates() {
     var found = [];
+    var path = window.location.pathname || '';
+    if (path.indexOf('/add/new') !== 0) {
+      return found;
+    }
     var inputs = document.querySelectorAll('input');
-    var onAddPage = window.location.pathname.indexOf('/add') === 0;
     for (var i = 0; i < inputs.length; i++) {
       var input = inputs[i];
       var ph = String(input.placeholder || '').toLowerCase();
       var aria = String(input.getAttribute('aria-label') || '').toLowerCase();
-      var inModal = !!input.closest && !!input.closest('.modal-content');
-      var isSearch =
-        ph.indexOf('series') !== -1 ||
-        ph.indexOf('search') !== -1 ||
-        aria.indexOf('search') !== -1 ||
-        (inModal && ph.indexOf('search') !== -1);
-      if (isSearch || (onAddPage && (ph.indexOf('search') !== -1 || aria.indexOf('search') !== -1))) {
+      if (ph.indexOf('search') !== -1 || ph.indexOf('series') !== -1 || aria.indexOf('search') !== -1) {
         found.push(input);
       }
     }
