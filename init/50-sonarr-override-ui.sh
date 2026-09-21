@@ -7,8 +7,8 @@
 # proxy's /api/overrides management API, and a "Search via" provider picker on
 # the Add New search box (tmdb:/tvdb: prefixes).
 #
-# Runs once at container start (LinuxServer /custom-cont-init.d hook). Recreate
-# the container (or touch this script) to re-apply after a Sonarr update.
+# Runs at every container start (LinuxServer runs /custom-cont-init.d on each
+# boot, not only at create), so an update or restart re-applies everything.
 
 set -e
 
@@ -87,16 +87,57 @@ else
   echo "[sonarr-metadata-proxy] ${SRC} not found; skipping script copy."
 fi
 
-if grep -q '</head>' "${INDEX}" 2>/dev/null; then
-  # Idempotent patch: drop any previous include, then add a fresh one with a
-  # cache-busting query. Sonarr serves the UI JS with cache headers, so without
-  # ?v= the browser keeps running an outdated picker after an update (shows the
-  # "overrides API unreachable" panel). Bumping the version on every start forces
-  # a re-fetch.
-  sed -i '/metadata-proxy-override/d' "${INDEX}"
-  VSTAMP="$(date +%s)"
-  sed -i "s#</head>#<script src=\"/metadata-proxy-override.js?v=${VSTAMP}\"></script></head>#" "${INDEX}"
-  echo "[sonarr-metadata-proxy] index.html patched with override UI script (cache-bust v=${VSTAMP})."
+# Some Sonarr images rewrite or truncate index.html at startup (the file can end
+# mid-markup without <div id="root">, which blanks the whole UI with a React
+# "Target container is not a DOM element" error). We stop patching via a naive
+# </head> substitution and instead rebuild a complete, minimal index.html that
+# guarantees the mount point AND our picker script. A short background loop then
+# re-protects it in case Sonarr rewrites the file again after its app starts.
+rebuild_index() {
+  local js
+  js="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
+  [ -n "${js}" ] || js="/index-cf02e6f1e5a4c0f40ef2.js"
+  local v
+  v="$(date +%s)"
+  local tmp="${INDEX}.mpo.tmp"
+  {
+    printf '<!doctype html><html lang="en"><head><meta charset="utf-8"/>\n'
+    printf '<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'
+    printf '<link rel="stylesheet" href="/Content/Fonts/fonts.css">\n'
+    printf '<link rel="stylesheet" href="/Content/styles.css">\n'
+    printf '<style>html,body,#root{height:100%%;margin:0;}</style>\n'
+    printf "<script>window.Sonarr = { urlBase: '__URL_BASE__' };</script>\n"
+    printf '<script src="%s" data-no-hash></script>\n' "${js}"
+    printf '<title>Sonarr</title>\n</head>\n<body><div id="root"></div>\n'
+    printf '<script src="/metadata-proxy-override.js?v=%s"></script>\n' "${v}"
+    printf '</body></html>\n'
+  } > "${tmp}"
+  mv -f "${tmp}" "${INDEX}"
+  chmod 644 "${INDEX}"
+}
+
+index_ok() {
+  [ -f "${INDEX}" ] \
+    && grep -q 'id="root"' "${INDEX}" \
+    && grep -q 'metadata-proxy-override' "${INDEX}"
+}
+
+if index_ok; then
+  echo "[sonarr-metadata-proxy] index.html already complete (root mount point + picker script)."
 else
-  echo "[sonarr-metadata-proxy] No </head> found in ${INDEX}; skipping patch."
+  rebuild_index
+  echo "[sonarr-metadata-proxy] Rebuilt index.html with root mount point + override UI script."
 fi
+
+# Sonarr (or its image) may rewrite index.html after the app starts; keep it intact.
+(
+  n=0
+  while [ "${n}" -lt 24 ]; do
+    sleep 5
+    n=$((n + 1))
+    if ! index_ok; then
+      rebuild_index
+      echo "[sonarr-metadata-proxy] Repaired index.html after it was rewritten (attempt ${n})."
+    fi
+  done
+) &
