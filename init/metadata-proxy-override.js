@@ -89,7 +89,7 @@
   function pillCss() {
     return (
       (isMobile()
-        ? 'position:fixed;top:56px;left:8px;z-index:99999;'
+        ? 'position:fixed;bottom:12px;right:12px;z-index:99999;'
         : 'position:fixed;top:64px;right:16px;z-index:99999;') +
       'background:#222c3d;color:#fff;border:1px solid #334155;border-radius:8px;' +
       'padding:8px 12px;font:13px/1.4 "Open Sans",sans-serif;' +
@@ -433,11 +433,18 @@
   function searchInputCandidates() {
     var found = [];
     var inputs = document.querySelectorAll('input');
+    var onAddPage = window.location.pathname.indexOf('/add') === 0;
     for (var i = 0; i < inputs.length; i++) {
       var input = inputs[i];
       var ph = String(input.placeholder || '').toLowerCase();
+      var aria = String(input.getAttribute('aria-label') || '').toLowerCase();
       var inModal = !!input.closest && !!input.closest('.modal-content');
-      if (ph.indexOf('series') !== -1 || (inModal && ph.indexOf('search') !== -1)) {
+      var isSearch =
+        ph.indexOf('series') !== -1 ||
+        ph.indexOf('search') !== -1 ||
+        aria.indexOf('search') !== -1 ||
+        (inModal && ph.indexOf('search') !== -1);
+      if (isSearch || (onAddPage && (ph.indexOf('search') !== -1 || aria.indexOf('search') !== -1))) {
         found.push(input);
       }
     }
