@@ -520,16 +520,18 @@
 
   var searchObserver = null;
   var refreshSearchTimer = null;
-  if (window.MutationObserver) {
-    searchObserver = new MutationObserver(function () {
-      if (refreshSearchTimer) {
-        clearTimeout(refreshSearchTimer);
-      }
-      refreshSearchTimer = setTimeout(refreshSearchPickers, 300);
-    });
-    searchObserver.observe(document.body, { childList: true, subtree: true });
+  function initSearchPickers() {
+    refreshSearchPickers();
+    if (window.MutationObserver && document.body) {
+      searchObserver = new MutationObserver(function () {
+        if (refreshSearchTimer) {
+          clearTimeout(refreshSearchTimer);
+        }
+        refreshSearchTimer = setTimeout(refreshSearchPickers, 300);
+      });
+      searchObserver.observe(document.body, { childList: true, subtree: true });
+    }
   }
-  refreshSearchPickers();
 
   window.addEventListener('resize', function () {
     var panel = document.getElementById(PANEL_ID);
@@ -537,6 +539,12 @@
       panel.style.cssText = baseCss();
     }
   });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSearchPickers);
+  } else {
+    initSearchPickers();
+  }
 
   setInterval(tick, POLL_MS);
   tick();
