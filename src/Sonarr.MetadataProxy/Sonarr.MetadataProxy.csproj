@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Sonarr.MetadataProxy</RootNamespace>
     <AssemblyName>Sonarr.MetadataProxy</AssemblyName>
+    <Version>0.2.3</Version>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 

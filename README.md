@@ -130,13 +130,23 @@ Network & DNS (important): Sonarr must make `skyhook.sonarr.tv` land on the prox
 ```
 docker pull crisperfx/sonarr-metadata-proxy:latest
 docker restart sonarr-metadata-proxy
+docker restart sonarr
 ```
 
-On the next start the proxy refreshes its three seed files (`01-install-ca.sh`,
-`50-sonarr-override-ui.sh`, `metadata-proxy-override.js`) in the data folder to match the
-image, then **recreate/restart Sonarr** so it picks up the updated hook script and UI JS.
-Your data (`mappings.json`, `certs/`) is never touched. Do not edit those three seed files
-by hand — the image version wins; configure behaviour via env vars (`OVERRIDES_API_URL`,
+**When do you have to pull?** Only to get *new code* (features/fixes) from the project. The
+proxy compares the seed files in the data folder against the image on every start and
+refreshes them when they differ, so after a pull → proxy restart the newest
+`50-sonarr-override-ui.sh` + JS are already in `/shared`; the Sonarr restart then embeds them.
+
+**When can you skip the pull?** For purely *configuration* changes:
+
+- changed `OVERRIDES_API_URL` (or `CORS_ALLOWED_ORIGINS`, API key): **no new image needed** —
+  just `docker restart sonarr`. The Sonarr-side hook re-copies the JS and embeds the current
+  env/config on every start, so your browser always gets a fresh picker (it also re-patches
+  `index.html` with a cache-busting `?v=`, so no hard refresh is ever required).
+
+Your data (`mappings.json`, `certs/`) is never touched. Do not edit the three seed files by
+hand — the image version wins; configure behaviour via env vars (`OVERRIDES_API_URL`,
 `CORS_ALLOWED_ORIGINS`, ...).
 
 ### Behind an HTTPS reverse proxy (e.g. Synology DSM)
