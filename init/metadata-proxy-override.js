@@ -448,11 +448,126 @@
     return found;
   }
 
+  var SEARCH_UI_ID = 'metadata-search-ui';
+
+  function buildMobileSearchPicker(input) {
+    var ui = document.getElementById(SEARCH_UI_ID);
+    if (ui) {
+      ui.remove();
+    }
+
+    ui = document.createElement('div');
+    ui.id = SEARCH_UI_ID;
+    ui._mpoInput = input;
+    ui.style.cssText = baseCss();
+
+    var pill = document.createElement('div');
+    pill.style.cssText = 'display:none;font-weight:600;';
+    pill.textContent = 'Search via \u25B8';
+
+    var header = document.createElement('div');
+    header.style.cssText =
+      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
+    var title = document.createElement('span');
+    title.style.cssText = 'font-weight:600;';
+    title.textContent = 'Search via';
+    var toggle = document.createElement('button');
+    toggle.textContent = '\u2013';
+    toggle.style.cssText =
+      'padding:2px 8px;background:#334155;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+    toggle.setAttribute('aria-label', 'Collapse');
+
+    var select = document.createElement('select');
+    select.style.cssText = 'width:100%;padding:4px;';
+    [
+      { value: '', label: 'Automatic (TMDB + TVDB fallback)' },
+      { value: 'tmdb:', label: 'TMDB only' },
+      { value: 'tvdb:', label: 'TVDB (SkyHook)' }
+    ].forEach(function (opt) {
+      var option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      select.appendChild(option);
+    });
+
+    header.appendChild(title);
+    header.appendChild(toggle);
+    ui.appendChild(pill);
+    ui.appendChild(header);
+    ui.appendChild(select);
+
+    ui.mpoCollapse = function () {
+      ui.dataset.mpoCollapsed = '1';
+      ui.style.cssText = pillCss();
+      header.style.display = 'none';
+      select.style.display = 'none';
+      pill.style.display = '';
+    };
+    ui.mpoExpand = function () {
+      ui.dataset.mpoCollapsed = '';
+      ui.style.cssText = baseCss();
+      header.style.display = '';
+      select.style.display = '';
+      pill.style.display = 'none';
+    };
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      ui.mpoCollapse();
+    });
+    pill.addEventListener('click', function () {
+      ui.mpoExpand();
+    });
+
+    function normalize() {
+      var prefix = select.value;
+      var value = input.value;
+      var lowered = String(value).toLowerCase();
+      var current = '';
+      for (var i = 0; i < SEARCH_PREFIXES.length; i++) {
+        if (lowered.indexOf(SEARCH_PREFIXES[i]) === 0) {
+          current = SEARCH_PREFIXES[i];
+          break;
+        }
+      }
+      var raw = current ? value.slice(current.length) : value;
+      var applied = input.dataset.mpoApplied || '';
+
+      if (!prefix) {
+        if (applied && lowered.indexOf(applied) === 0) {
+          input.value = value.slice(applied.length);
+        }
+        input.dataset.mpoApplied = '';
+        return;
+      }
+
+      if (!raw) {
+        input.value = '';
+        input.dataset.mpoApplied = '';
+        return;
+      }
+
+      input.value = prefix + raw;
+      input.dataset.mpoApplied = prefix;
+    }
+
+    select.addEventListener('change', normalize);
+    input.addEventListener('input', normalize);
+
+    document.body.appendChild(ui);
+    ui.mpoExpand();
+    return ui;
+  }
+
   function attachSearchPicker(input) {
     if (input.getAttribute('data-mpo-search') === '1') {
       return;
     }
     input.setAttribute('data-mpo-search', '1');
+
+    if (isMobile()) {
+      buildMobileSearchPicker(input);
+      return;
+    }
 
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
@@ -526,6 +641,13 @@
     input.removeAttribute('data-mpo-search');
   }
 
+  function removeSearchUi() {
+    var ui = document.getElementById(SEARCH_UI_ID);
+    if (ui && ui.parentNode) {
+      ui.parentNode.removeChild(ui);
+    }
+  }
+
   function refreshSearchPickers() {
     var path = window.location.pathname || '';
     if (path.indexOf('/add/new') !== 0) {
@@ -533,6 +655,7 @@
       for (var i = 0; i < inputs.length; i++) {
         removeSearchRow(inputs[i]);
       }
+      removeSearchUi();
       return;
     }
     var candidates = searchInputCandidates();
@@ -568,8 +691,14 @@
 
   window.addEventListener('resize', function () {
     var panel = document.getElementById(PANEL_ID);
-    if (panel && panel.dataset.mpoCollapsed !== '1') {
-      panel.style.cssText = baseCss();
+    if (panel) {
+      panel.style.cssText =
+        panel.dataset.mpoCollapsed === '1' ? pillCss() : baseCss();
+    }
+    var ui = document.getElementById(SEARCH_UI_ID);
+    if (ui) {
+      ui.style.cssText =
+        ui.dataset.mpoCollapsed === '1' ? pillCss() : baseCss();
     }
   });
 
