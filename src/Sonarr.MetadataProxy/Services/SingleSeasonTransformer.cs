@@ -100,7 +100,41 @@ public static class SingleSeasonTransformer
         }
 
         root["episodes"] = flat;
+        root["seasons"] = BuildFlatSeasons(root, specials.Count > 0, indexed.Count > 0);
         return new ProxyResponse(response.StatusCode, response.ContentType, root.ToJsonString());
+    }
+
+    private static JsonArray BuildFlatSeasons(JsonObject root, bool hasSpecials, bool hasRegular)
+    {
+        var original = root["seasons"] as JsonArray;
+        var seasons = new JsonArray();
+        if (hasSpecials)
+        {
+            seasons.Add(CloneSeason(FindSeason(original, 0), 0));
+        }
+
+        if (hasRegular)
+        {
+            seasons.Add(CloneSeason(FindSeason(original, 1), 1));
+        }
+
+        return seasons;
+    }
+
+    private static JsonObject? FindSeason(JsonArray? seasons, int seasonNumber)
+    {
+        return seasons?.OfType<JsonObject>()
+            .FirstOrDefault(season => (season["seasonNumber"]?.GetValue<int>() ?? -1) == seasonNumber);
+    }
+
+    private static JsonObject CloneSeason(JsonObject? original, int seasonNumber)
+    {
+        if (original is not null)
+        {
+            return (JsonObject)JsonNode.Parse(original.ToJsonString());
+        }
+
+        return new JsonObject { ["seasonNumber"] = seasonNumber };
     }
 
     private static int? AbsoluteNumber(JsonObject episode)

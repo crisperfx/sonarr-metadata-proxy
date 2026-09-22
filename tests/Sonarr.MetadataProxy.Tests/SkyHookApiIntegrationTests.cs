@@ -671,6 +671,9 @@ public class SkyHookApiIntegrationTests
         Assert.All(flattened, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
         Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("episodeNumber").GetInt32()));
         Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+
+        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
+        Assert.Equal(new[] { 0, 1 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
