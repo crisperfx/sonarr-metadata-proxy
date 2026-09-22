@@ -175,8 +175,13 @@ public sealed class MetadataRequestHandler
             {
                 if (_mapping.GetDefaultSearchSource() == MappingStore.SourceTvdb)
                 {
+                    if (_options.EnableTvdbFallback)
+                    {
+                        _mapping.SetOverride(tvdbId, MappingStore.SourceTvdb);
+                    }
+
                     _logger.LogInformation(
-                        "Default search source 'tvdb' applies to TVDB id {TvdbId}; serving from TVDB backend instead of reverse-mapping.",
+                        "Default search source 'tvdb' applies to TVDB id {TvdbId}; saving TVDB override and serving from TVDB backend instead of reverse-mapping.",
                         tvdbId);
                 }
                 else

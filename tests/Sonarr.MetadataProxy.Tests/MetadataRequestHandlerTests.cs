@@ -333,6 +333,7 @@ public class MetadataRequestHandlerTests
         Assert.Equal(1, _passthrough.ShowCallCount);
         Assert.Equal(0, _tmdb.DetailsCallCount);
         Assert.Equal(0, _resolver.CallCount);
+        Assert.Equal(MappingStore.SourceTvdb, mapping.GetOverride(81189));
     }
 
     [Fact]

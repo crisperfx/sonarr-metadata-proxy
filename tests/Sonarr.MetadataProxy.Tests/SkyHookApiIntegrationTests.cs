@@ -381,6 +381,14 @@ public class SkyHookApiIntegrationTests
 
         Assert.Contains("from-tvdb", body, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, resolver.CallCount);
+
+        var overrides = await client.GetStringAsync("/api/overrides");
+        using var document = JsonDocument.Parse(overrides);
+        var entries = document.RootElement.EnumerateArray()
+            .Select(e => (tvdbId: e.GetProperty("tvdbId").GetInt32(),
+                          source: e.GetProperty("source").GetString()))
+            .ToList();
+        Assert.Contains((81189, "tvdb"), entries);
     }
 
     private WebApplicationFactory<Program> CreateFactory(
