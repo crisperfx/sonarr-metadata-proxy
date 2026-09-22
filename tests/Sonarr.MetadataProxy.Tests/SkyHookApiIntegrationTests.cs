@@ -541,37 +541,45 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_ContinuousAnime_FlattensMappedEpisodesIntoOneSeason()
+    public async Task Show_AniListBoundSeries_FlattensMappedSeasonsIntoOne()
     {
+        WriteAniListFixtures();
+        var aniList = new FakeAniListApi
+        {
+            ById = { [1535] = TestData.DeathNote() }
+        };
         var tmdb = new FakeTmdbApi
         {
-            DetailsById = { [TestData.ContinuousAnimeTmdbId] = TestData.ContinuousAnimeDetails() },
+            DetailsById = { [TestData.BreakingBadTmdbId] = TestData.BreakingBadDetails() },
             Seasons =
             {
-                [1] = TestData.ContinuousSeasonOneEpisodes(),
-                [2] = TestData.ContinuousSeasonTwoEpisodes()
+                [1] = TestData.SeasonOneEpisodes(),
+                [2] = TestData.SeasonTwoEpisodes()
             }
         };
-        var resolver = new FakeTvdbResolver { Map = { [TestData.ContinuousAnimeTvdbId] = TestData.ContinuousAnimeTmdbId } };
+        var resolver = new FakeTvdbResolver { Map = { [81356] = TestData.BreakingBadTmdbId } };
 
-        using var factory = CreateFactory(tmdb, resolver: resolver);
+        using var factory = CreateFactory(tmdb, resolver: resolver, aniList: aniList);
         using var client = factory.CreateClient();
 
-        var body = await client.GetStringAsync($"/v1/tvdb/shows/en/{TestData.ContinuousAnimeTvdbId}");
+        using var search = await client.GetAsync("/v1/tvdb/search/en/?term=anilist%3A1535");
+        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81356");
         using var document = JsonDocument.Parse(body);
 
         var episodes = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
-        Assert.Equal(21, episodes.Count);
+        Assert.Equal(3, episodes.Count);
         Assert.All(episodes, episode => Assert.Equal(1, episode.GetProperty("seasonNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, 21), episodes.Select(e => e.GetProperty("episodeNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, 21), episodes.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
 
         var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
         Assert.Equal(new[] { 1 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
-    public async Task Show_MultiSeasonSeries_IsNotFlattened()
+    public async Task Show_SeriesWithoutAniListBinding_IsNotFlattened()
     {
         var tmdb = new FakeTmdbApi
         {
@@ -599,8 +607,14 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_ContinuousAnime_FlattensPassthroughEpisodesIntoOneSeason()
+    public async Task Show_AniListBoundSeries_FlattensPassthroughEpisodesIntoOne()
     {
+        WriteAniListFixtures();
+        var aniList = new FakeAniListApi
+        {
+            ById = { [1535] = TestData.DeathNote() }
+        };
+
         const int regularCount = 8 + 14 + 6;
         var episodes = new JsonArray();
         episodes.Add(new JsonObject
@@ -630,7 +644,7 @@ public class SkyHookApiIntegrationTests
 
         var root = new JsonObject
         {
-            ["tvdbId"] = 81189,
+            ["tvdbId"] = 81356,
             ["title"] = "One Piece",
             ["seasons"] = new JsonArray(),
             ["episodes"] = episodes
@@ -640,10 +654,13 @@ public class SkyHookApiIntegrationTests
             ShowResponse = new ProxyResponse(200, "application/json", root.ToJsonString())
         };
 
-        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough, aniList: aniList);
         using var client = factory.CreateClient();
 
-        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81189");
+        using var search = await client.GetAsync("/v1/tvdb/search/en/?term=anilist%3A1535");
+        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81356");
         using var document = JsonDocument.Parse(body);
 
         var all = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
@@ -657,7 +674,7 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_PassthroughSeries_WithoutAbsoluteNumbers_IsNotFlattened()
+    public async Task Show_PassthroughSeries_WithoutAniListBinding_IsNotFlattened()
     {
         var episodes = new JsonArray();
         var absolute = 0;

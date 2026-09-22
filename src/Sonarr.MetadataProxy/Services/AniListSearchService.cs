@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
+using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Providers;
@@ -20,6 +21,7 @@ public sealed class AniListSearchService
     private readonly IAniListApi _api;
     private readonly AniListTvdbMap _map;
     private readonly AniListTranslator _translator;
+    private readonly MappingStore _mapping;
     private readonly ILogger<AniListSearchService> _logger;
     private readonly TimeSpan _cacheTtl;
     private readonly ConcurrentDictionary<string, CachedResult> _cache = new();
@@ -30,12 +32,14 @@ public sealed class AniListSearchService
         IAniListApi api,
         AniListTvdbMap map,
         AniListTranslator translator,
+        MappingStore mapping,
         ProxyOptions options,
         ILogger<AniListSearchService> logger)
     {
         _api = api;
         _map = map;
         _translator = translator;
+        _mapping = mapping;
         _logger = logger;
         _cacheTtl = TimeSpan.FromMinutes(options.CacheTtlMinutes);
     }
@@ -125,6 +129,7 @@ public sealed class AniListSearchService
             }
 
             _logger.LogInformation("TVDB mapping found for AniList {AniListId}: TVDB {TvdbId}.", item.Id, tvdbId.Value);
+            _mapping.RegisterAniListId(tvdbId.Value, item.Id);
             results.Add(_translator.ToSearchResult(item, tvdbId.Value));
         }
 

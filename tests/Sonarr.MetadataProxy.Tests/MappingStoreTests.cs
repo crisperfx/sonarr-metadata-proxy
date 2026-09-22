@@ -15,6 +15,38 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void RegisterAniListId_StoresAniListBindingForTvdbId()
+    {
+        var store = CreateStore();
+
+        store.RegisterAniListId(81356, 1535);
+
+        Assert.Equal(1535, store.TryGetAniListIdByTvdb(81356));
+    }
+
+    [Fact]
+    public void RegisterAniListId_IgnoresSyntheticTvdbIds()
+    {
+        var store = CreateStore();
+        var synthetic = SyntheticIds.SeriesId(1396);
+
+        store.RegisterAniListId(synthetic, 1535);
+
+        Assert.Null(store.TryGetAniListIdByTvdb(synthetic));
+    }
+
+    [Fact]
+    public void AniListBindings_PersistAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        CreateStore(dir).RegisterAniListId(81356, 1535);
+
+        var reloaded = CreateStore(dir);
+
+        Assert.Equal(1535, reloaded.TryGetAniListIdByTvdb(81356));
+    }
+
+    [Fact]
     public void RegisterSeries_StoresRealTvdbToTmdbMapping()
     {
         var store = CreateStore();

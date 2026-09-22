@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Models.Metadata;
@@ -195,7 +194,7 @@ public sealed class MetadataRequestHandler
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
         var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
 
-        resolution = FlattenIfContinuous(tvdbId, resolution);
+        resolution = FlattenIfAniListBound(tvdbId, resolution);
 
         return resolution switch
         {
@@ -205,37 +204,26 @@ public sealed class MetadataRequestHandler
         };
     }
 
-    private ShowResolution FlattenIfContinuous(int tvdbId, ShowResolution resolution)
+    private ShowResolution FlattenIfAniListBound(int tvdbId, ShowResolution resolution)
     {
-        if (resolution is ShowResolution.Mapped mapped && SingleSeasonDetector.IsContinuous(mapped.Show))
+        var anilistId = _mapping.TryGetAniListIdByTvdb(tvdbId);
+        if (anilistId is null)
         {
-            _logger.LogInformation(
-                "Series {TvdbId} detected as a continuous anime; flattening to a single season.",
-                tvdbId);
-            return new ShowResolution.Mapped(SingleSeasonTransformer.Flatten(mapped.Show));
+            return resolution;
         }
 
-        if (resolution is ShowResolution.Passthrough passed && IsContinuousPassthrough(passed.Response))
+        return resolution switch
         {
-            _logger.LogInformation(
-                "Series {TvdbId} detected as a continuous anime; flattening passthrough to a single season.",
-                tvdbId);
-            return FlattenPassthrough(passed);
-        }
-
-        return resolution;
+            ShowResolution.Mapped mapped => new ShowResolution.Mapped(FlattenMapped(mapped.Show)),
+            ShowResolution.Passthrough passed => FlattenPassthrough(passed),
+            _ => resolution
+        };
     }
 
-    private static bool IsContinuousPassthrough(ProxyResponse response)
+    private ShowResource FlattenMapped(ShowResource show)
     {
-        try
-        {
-            return JsonNode.Parse(response.Body) is JsonObject root && SingleSeasonDetector.IsContinuous(root);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        _logger.LogInformation("AniList-bound series; flattening to a single season.");
+        return SingleSeasonTransformer.Flatten(show);
     }
 
     private ShowResolution FlattenPassthrough(ShowResolution.Passthrough passed)
@@ -244,7 +232,7 @@ public sealed class MetadataRequestHandler
         if (flattened is null)
         {
             _logger.LogWarning(
-                "Could not flatten passthrough response for continuous series; returning original response.");
+                "Could not flatten passthrough response for AniList-bound series; returning original response.");
             return passed;
         }
 

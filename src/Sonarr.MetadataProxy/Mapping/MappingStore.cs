@@ -13,6 +13,7 @@ public sealed class MappingStore
     private readonly Dictionary<string, int> _episodes = new();
     private readonly Dictionary<int, int> _nextEpisodeSequence = new();
     private readonly Dictionary<int, string> _overrides = new();
+    private readonly Dictionary<int, int> _aniListByTvdb = new();
     private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
@@ -89,6 +90,33 @@ public sealed class MappingStore
             _nextEpisodeSequence[seriesTvdbId] = sequence + 1;
             Save();
             return assigned;
+        }
+    }
+
+    public int? TryGetAniListIdByTvdb(int tvdbId)
+    {
+        lock (_sync)
+        {
+            return _aniListByTvdb.TryGetValue(tvdbId, out var anilistId) ? anilistId : null;
+        }
+    }
+
+    public void RegisterAniListId(int tvdbId, int anilistId)
+    {
+        if (anilistId <= 0 || SyntheticIds.IsSyntheticSeries(tvdbId))
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            if (_aniListByTvdb.ContainsKey(tvdbId))
+            {
+                return;
+            }
+
+            _aniListByTvdb[tvdbId] = anilistId;
+            Save();
         }
     }
 
@@ -190,6 +218,7 @@ public sealed class MappingStore
                     _nextEpisodeSequence.Clear();
                     _overrides.Clear();
                     _defaultSearchSource = persisted.DefaultSearchSource ?? "";
+                    _aniListByTvdb.Clear();
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -209,6 +238,11 @@ public sealed class MappingStore
                     foreach (var (key, value) in persisted.Overrides)
                     {
                         _overrides[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.AniListByTvdb)
+                    {
+                        _aniListByTvdb[key] = value;
                     }
                 }
 
@@ -240,6 +274,7 @@ public sealed class MappingStore
                 Episodes = new Dictionary<string, int>(_episodes),
                 EpisodeSequences = new Dictionary<int, int>(_nextEpisodeSequence),
                 Overrides = new Dictionary<int, string>(_overrides),
+                AniListByTvdb = new Dictionary<int, int>(_aniListByTvdb),
                 DefaultSearchSource = _defaultSearchSource
             };
 
@@ -260,6 +295,7 @@ public sealed class MappingStore
         public Dictionary<string, int> Episodes { get; set; } = new();
         public Dictionary<int, int> EpisodeSequences { get; set; } = new();
         public Dictionary<int, string> Overrides { get; set; } = new();
+        public Dictionary<int, int> AniListByTvdb { get; set; } = new();
         public string DefaultSearchSource { get; set; } = "";
     }
 }
