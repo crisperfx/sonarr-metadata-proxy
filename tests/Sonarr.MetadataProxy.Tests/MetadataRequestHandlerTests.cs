@@ -442,7 +442,8 @@ public class MetadataRequestHandlerTests
 
     private (MetadataRequestHandler Handler, MappingStore Mapping) CreateHandlerWithMapping(
         bool fallbackEnabled,
-        string source = "tmdb")
+        string source = "tmdb",
+        AniListSearchService? aniList = null)
     {
         var options = new ProxyOptions
         {
@@ -462,6 +463,7 @@ public class MetadataRequestHandlerTests
             _resolver,
             _passthrough,
             translator,
+            aniList,
             activeProvider,
             NullLogger<MetadataRequestHandler>.Instance);
 

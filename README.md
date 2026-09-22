@@ -39,7 +39,7 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
   the Sonarr web UI (per-series TMDB/TVDB picker) and a **Search via** provider picker
-  (TMDB only / TVDB) into the Add New search box.
+  (TMDB / TVDB / AniList) into the Add New search box.
 
 ---
 
@@ -92,7 +92,7 @@ The complete stack (this is the whole `docker-compose.yml`):
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
 #   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI
-#     plus a "Search via" provider picker (TMDB only / TVDB) into the add-series search.
+#     plus a "Search via" provider picker (TMDB / TVDB / AniList) into the add-series search.
 #
 # Usage:
 #   cp .env.example .env      # set TMDB_API_KEY (and CORS_ALLOWED_ORIGINS if needed)
@@ -353,9 +353,13 @@ When adding a series, the search box gets a **Search via** dropdown:
   shows no TVDB fallback results (e.g. to force a TMDB id, type `tmdb:1396`).
 - **TVDB (SkyHook)** — prefixes with `tvdb:`, forcing the TVDB listing
   (e.g. `tvdb:breaking bad` or an id `tvdb:81189`).
+- **AniList** — searches AniList for anime by title/alias, maps the hit to a real
+  TVDB id (the proxy ships the Fribb + Anime-Lists datasets) and shows the result;
+  series without a known TVDB mapping and API failures fall through to TVDB.
 
 The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
-`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`.
+`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id` (the `mal:`/`anilist:` prefixes
+resolve through AniList when the bundled mapping data is available).
 
 On small screens (under 768 px) the dropdown collapses into a small **Metadata ▸** pill so
 it does not cover the page; tap it to expand, **–** to collapse again.
@@ -375,6 +379,7 @@ it does not cover the page; tap it to expand, **–** to collapse again.
 | `SKYHOOK_RESOLVER_URL` | `https://cloudflare-dns.com/dns-query` | DNS-over-HTTPS for the fallback host. |
 | `CORS_ALLOWED_ORIGINS` | empty | Browser origins allowed to call `/api/overrides` (needed for the picker). Multiple with commas, `*` = all. |
 | `DATA_DIR` | `/app/data` | Persistent data root: `mappings/` (series map + overrides), `certs/` (CA + certs); `init/` seed files are refreshed from the image. |
+| `ANILIST_DATAMAP_DIR` | `/app/datamaps` | Folder with the AniList↔AniDB↔TVDB datasets (`anime.json` + `anime-list-full.xml`); baked into the image, override only to point at your own copies. |
 
 Set these in `.env`, or as environment on the container / in your own compose.
 
@@ -407,6 +412,7 @@ Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadat
 
 ## Limitations
 
-- `anilist:`/`mal:` search terms still pass through to TVDB.
+- AniList search only maps anime that have a known TVDB entry (anime without one
+  fall through to TVDB); details/episodes are still served by the TMDB/TVDB pipeline.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.

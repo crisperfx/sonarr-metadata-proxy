@@ -474,7 +474,7 @@
 
   function normalizeSearchSource(value) {
     var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
-    if (v !== 'tmdb' && v !== 'tvdb') {
+    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist') {
       return '';
     }
     return v;
@@ -579,7 +579,8 @@
     [
       { value: '', label: 'Default' },
       { value: 'tmdb', label: 'TMDB' },
-      { value: 'tvdb', label: 'TVDB' }
+      { value: 'tvdb', label: 'TVDB' },
+      { value: 'anilist', label: 'AniList' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -656,7 +657,8 @@
     [
       { value: '', label: 'Automatic' },
       { value: 'tmdb', label: 'TMDB' },
-      { value: 'tvdb', label: 'TVDB' }
+      { value: 'tvdb', label: 'TVDB' },
+      { value: 'anilist', label: 'AniList' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;

@@ -150,6 +150,7 @@ public class MappingStoreTests : IDisposable
     [InlineData("")]
     [InlineData(MappingStore.SourceTmdb)]
     [InlineData(MappingStore.SourceTvdb)]
+    [InlineData(MappingStore.SourceAniList)]
     public void SearchSource_SetStoresValue(string source)
     {
         var store = CreateStore();
@@ -170,7 +171,6 @@ public class MappingStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("anilist")]
     [InlineData("bogus")]
     [InlineData("tmdb:")]
     public void SearchSource_RejectsInvalidValue(string source)

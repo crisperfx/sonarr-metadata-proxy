@@ -17,6 +17,7 @@ public sealed class MappingStore
 
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
+    public const string SourceAniList = "anilist";
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
@@ -151,9 +152,9 @@ public sealed class MappingStore
     public void SetDefaultSearchSource(string source)
     {
         var normalized = (source ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized is not "" and not SourceTmdb and not SourceTvdb)
+        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList)
         {
-            throw new ArgumentException("Search source must be '', 'tmdb' or 'tvdb'.", nameof(source));
+            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
         }
 
         lock (_sync)

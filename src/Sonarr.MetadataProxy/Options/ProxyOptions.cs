@@ -16,6 +16,7 @@ public sealed class ProxyOptions
     public bool SkipTls { get; init; }
     public string SkyhookBaseUrl { get; init; } = "https://skyhook.sonarr.tv";
     public string SkyhookResolverUrl { get; init; } = "https://cloudflare-dns.com/dns-query";
+    public string AniListDatamapDir { get; init; } = "datamaps";
     public IReadOnlyList<string> CorsAllowedOrigins { get; init; } = Array.Empty<string>();
 
     public static ProxyOptions FromConfiguration(IConfiguration cfg)
@@ -35,6 +36,7 @@ public sealed class ProxyOptions
             SkipTls = ParseBool(cfg["SKIP_TLS"], false),
             SkyhookBaseUrl = NonEmpty(cfg["SKYHOOK_BASE_URL"], "https://skyhook.sonarr.tv"),
             SkyhookResolverUrl = NonEmpty(cfg["SKYHOOK_RESOLVER_URL"], "https://cloudflare-dns.com/dns-query"),
+            AniListDatamapDir = NonEmpty(cfg["ANILIST_DATAMAP_DIR"], "datamaps"),
             CorsAllowedOrigins = ParseList(cfg["CORS_ALLOWED_ORIGINS"])
         };
     }

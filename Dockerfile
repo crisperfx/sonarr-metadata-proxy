@@ -18,6 +18,12 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
+# AniList -> AniDB -> TVDB mapping datasets (baked at build time so the proxy can
+# translate AniList search hits into real TheTVDB ids without any extra service).
+RUN mkdir -p /app/datamaps \
+    && curl -fsSL -o /app/datamaps/anime.json https://raw.githubusercontent.com/anime-and-manga/lists/main/anime.json \
+    && curl -fsSL -o /app/datamaps/anime-list-full.xml https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list-full.xml
+
 # Sonarr-side injection files (CA hook, override-UI hook and JS). Copied into
 # DATA_DIR on start and kept in sync on every start, so a pulling user needs no
 # local files at all and always gets the current version.
@@ -37,6 +43,7 @@ ENV METADATA_SOURCE=tmdb \
     SKIP_TLS=false \
     SKYHOOK_BASE_URL=https://skyhook.sonarr.tv \
     SKYHOOK_RESOLVER_URL=https://cloudflare-dns.com/dns-query \
+    ANILIST_DATAMAP_DIR=/app/datamaps \
     CACHE_TTL_MINUTES=1440 \
     SEARCH_RESULT_LIMIT=10 \
     CORS_ALLOWED_ORIGINS= \
