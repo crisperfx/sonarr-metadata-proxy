@@ -92,7 +92,7 @@ public static class SingleSeasonTransformer
 
         for (var i = 0; i < indexed.Count; i++)
         {
-            var copy = (JsonObject)JsonNode.Parse(indexed[i].ToJsonString());
+            var copy = JsonNode.Parse(indexed[i].ToJsonString()) as JsonObject ?? new JsonObject();
             copy["seasonNumber"] = 1;
             copy["episodeNumber"] = i + 1;
             copy["absoluteEpisodeNumber"] = AbsoluteNumber(copy) ?? i + 1;
@@ -131,7 +131,8 @@ public static class SingleSeasonTransformer
     {
         if (original is not null)
         {
-            return (JsonObject)JsonNode.Parse(original.ToJsonString());
+            return JsonNode.Parse(original.ToJsonString()) as JsonObject
+                   ?? new JsonObject { ["seasonNumber"] = seasonNumber };
         }
 
         return new JsonObject { ["seasonNumber"] = seasonNumber };
