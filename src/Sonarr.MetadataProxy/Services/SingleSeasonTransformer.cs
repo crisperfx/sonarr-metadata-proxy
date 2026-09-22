@@ -87,19 +87,20 @@ public static class SingleSeasonTransformer
         var flat = new JsonArray();
         foreach (var special in specials)
         {
-            flat.Add(special);
+            flat.Add(JsonNode.Parse(special.ToJsonString()));
         }
 
         for (var i = 0; i < indexed.Count; i++)
         {
-            indexed[i]["seasonNumber"] = 1;
-            indexed[i]["episodeNumber"] = i + 1;
-            indexed[i]["absoluteEpisodeNumber"] = AbsoluteNumber(indexed[i]) ?? i + 1;
-            flat.Add(indexed[i]);
+            var copy = (JsonObject)JsonNode.Parse(indexed[i].ToJsonString());
+            copy["seasonNumber"] = 1;
+            copy["episodeNumber"] = i + 1;
+            copy["absoluteEpisodeNumber"] = AbsoluteNumber(copy) ?? i + 1;
+            flat.Add(copy);
         }
 
         root["episodes"] = flat;
-        return new ProxyResponse(response.StatusCode, response.ContentType, body.ToJsonString());
+        return new ProxyResponse(response.StatusCode, response.ContentType, root.ToJsonString());
     }
 
     private static int? AbsoluteNumber(JsonObject episode)
