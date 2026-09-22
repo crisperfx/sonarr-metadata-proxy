@@ -528,6 +528,8 @@
       })
       .then(function (data) {
         applySearchProvider(data && data.source);
+        // Ensure any dropdowns created after this fetch get the correct value
+        refreshSearchPickers();
       })
       .catch(function () {
         /* fall back to localStorage value */
