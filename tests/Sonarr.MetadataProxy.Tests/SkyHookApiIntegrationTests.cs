@@ -381,7 +381,8 @@ public class SkyHookApiIntegrationTests
                         ["DATA_DIR"] = _dataDir,
                         ["SKIP_TLS"] = "true",
                         ["PORT"] = "9697",
-                        ["LOG_LEVEL"] = "Warning"
+                        ["LOG_LEVEL"] = "Warning",
+                        ["CORS_ALLOWED_ORIGINS"] = "*"
                     });
                 });
 
