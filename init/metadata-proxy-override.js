@@ -545,6 +545,13 @@
         /* fallback naar localStorage blijft gelden */
       });
   }
+
+  // Forceer dropdown-waarde bij elke hercreatie (bijv. na AJAX-refresh)
+  function forceProviderOnSelect(select) {
+    if (select && SEARCH_PROVIDER) {
+      select.value = SEARCH_PROVIDER;
+    }
+  }
   loadSearchProvider();
 
   function triggerSearchRestart() {
@@ -652,6 +659,7 @@
     select.addEventListener('change', function () {
       setSearchProvider(this.value);
     });
+    forceProviderOnSelect(select);
 
     document.body.appendChild(ui);
     ui.mpoCollapse();
@@ -708,6 +716,7 @@
     select.addEventListener('change', function () {
       setSearchProvider(this.value);
     });
+    forceProviderOnSelect(select);
   }
 
   function removeSearchRow(input) {
