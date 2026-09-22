@@ -510,11 +510,16 @@
   }
 
   function loadSearchProvider() {
+    // 1. Direct localStorage als UI-truth (instant, geen flash)
     try {
-      SEARCH_PROVIDER = normalizeSearchSource(localStorage.getItem(LS_PROVIDER_KEY));
-    } catch (e) {
-      SEARCH_PROVIDER = '';
-    }
+      var ls = normalizeSearchSource(localStorage.getItem(LS_PROVIDER_KEY));
+      if (ls) {
+        SEARCH_PROVIDER = ls;
+        applySearchProvider(ls);
+      }
+    } catch (e) { /* ignore */ }
+
+    // 2. Achtergrond: haal serverwaarde op en sync
     var base = overridesApiBase();
     if (!base) {
       return;
@@ -527,12 +532,17 @@
         return res.json();
       })
       .then(function (data) {
-        applySearchProvider(data && data.source);
-        // Ensure any dropdowns created after this fetch get the correct value
-        refreshSearchPickers();
+        var server = data && data.source ? normalizeSearchSource(data.source) : '';
+        // Alleen overschrijven als server een geldige waarde heeft
+        if (server) {
+          SEARCH_PROVIDER = server;
+          try { localStorage.setItem(LS_PROVIDER_KEY, server); } catch (e) {}
+          applySearchProvider(server);
+          refreshSearchPickers();
+        }
       })
       .catch(function () {
-        /* fall back to localStorage value */
+        /* fallback naar localStorage blijft gelden */
       });
   }
   loadSearchProvider();
