@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Sonarr.MetadataProxy.Models.Tmdb;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Passthrough;
@@ -19,6 +21,7 @@ namespace Sonarr.MetadataProxy.Tests;
 
 public class SkyHookApiIntegrationTests
 {
+    private static readonly ConcurrentQueue<string> CapturedLogs = new();
     private readonly string _dataDir;
 
     public SkyHookApiIntegrationTests()
@@ -299,7 +302,7 @@ public class SkyHookApiIntegrationTests
         using var client = factory.CreateClient();
 
         using var setResponse = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "tvdb" });
-        Assert.Equal(HttpStatusCode.OK, setResponse.StatusCode);
+        Assert.True(HttpStatusCode.OK == setResponse.StatusCode, LogDump());
 
         using var searchResponse = await client.GetAsync("/v1/tvdb/search/en/?term=breaking+bad");
 
@@ -320,7 +323,7 @@ public class SkyHookApiIntegrationTests
         using var client = factory.CreateClient();
 
         using var setResponse = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "tvdb" });
-        Assert.Equal(HttpStatusCode.OK, setResponse.StatusCode);
+        Assert.True(HttpStatusCode.OK == setResponse.StatusCode, LogDump());
 
         await client.GetAsync("/v1/tvdb/search/en/?term=breaking+bad");
 
@@ -340,7 +343,7 @@ public class SkyHookApiIntegrationTests
         Assert.Equal("", document.RootElement.GetProperty("source").GetString());
 
         using var post = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "tmdb" });
-        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        Assert.True(HttpStatusCode.OK == post.StatusCode, LogDump());
 
         var get2 = await client.GetAsync("/api/overrides/searchsource");
         var body2 = await get2.Content.ReadAsStringAsync();
@@ -356,7 +359,7 @@ public class SkyHookApiIntegrationTests
 
         using var response = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "bogus" });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(HttpStatusCode.BadRequest == response.StatusCode, LogDump());
     }
 
     private WebApplicationFactory<Program> CreateFactory(
@@ -382,6 +385,11 @@ public class SkyHookApiIntegrationTests
                     });
                 });
 
+                builder.ConfigureLogging(logging =>
+                {
+                    logging.AddProvider(new CaptureLoggerProvider(CapturedLogs));
+                });
+
                 builder.ConfigureTestServices(services =>
                 {
                     services.RemoveAll<ProxyOptions>();
@@ -404,5 +412,68 @@ public class SkyHookApiIntegrationTests
                     services.AddSingleton<ISkyHookPassthrough>(passthrough ?? new FakeSkyHookPassthrough());
                 });
             });
+    }
+
+    private static string LogDump()
+    {
+        return string.Join(Environment.NewLine, CapturedLogs.ToArray());
+    }
+
+    private sealed class CaptureLoggerProvider : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<string> _messages;
+
+        public CaptureLoggerProvider(ConcurrentQueue<string> messages)
+        {
+            _messages = messages;
+        }
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new CaptureLogger(_messages, categoryName);
+        }
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CaptureLogger : ILogger
+        {
+            private readonly ConcurrentQueue<string> _messages;
+            private readonly string _category;
+
+            public CaptureLogger(ConcurrentQueue<string> messages, string category)
+            {
+                _messages = messages;
+                _category = category;
+            }
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                var text = formatter(state, exception);
+                if (exception is not null)
+                {
+                    text += Environment.NewLine + exception;
+                }
+
+                _messages.Enqueue($"[{DateTime.UtcNow:HH:mm:ss.fff}] {logLevel} {_category}: {text}");
+            }
+
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return true;
+            }
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull
+            {
+                return null;
+            }
+        }
     }
 }
