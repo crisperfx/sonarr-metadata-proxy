@@ -1,9 +1,39 @@
+using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Models.Tmdb;
 using Sonarr.MetadataProxy.Passthrough;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
 
 namespace Sonarr.MetadataProxy.Tests.Infrastructure;
+
+public sealed class FakeAniListApi : IAniListApi
+{
+    public List<AniListMedia> SearchResults { get; set; } = new();
+    public Dictionary<int, AniListMedia> ById { get; set; } = new();
+    public Exception? Exception { get; set; }
+    public int SearchCallCount { get; private set; }
+
+    public Task<IReadOnlyList<AniListMedia>> SearchAsync(string query, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        SearchCallCount++;
+        return Task.FromResult<IReadOnlyList<AniListMedia>>(SearchResults);
+    }
+
+    public Task<AniListMedia?> GetByIdAsync(int anilistId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ById.TryGetValue(anilistId, out var media) ? media : null);
+    }
+
+    private void ThrowIf()
+    {
+        if (Exception is not null)
+        {
+            throw Exception;
+        }
+    }
+}
 
 public sealed class FakeTmdbApi : ITmdbApi
 {

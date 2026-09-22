@@ -40,11 +40,20 @@ var loggerFactory = LoggerFactory.Create(logging => logging.AddSerilog(dispose: 
 var certificateProvider = new CertificateProvider(options, loggerFactory.CreateLogger<CertificateProvider>());
 builder.Services.AddSingleton(certificateProvider);
 
+builder.Services.AddHttpClient<IAniListApi, AniListClient>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(20);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
+});
+
 builder.Services.AddSingleton<MappingStore>();
 builder.Services.AddSingleton<WikidataTvdbResolver>();
 builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();
 builder.Services.AddSingleton<ITmdbApi, TmdbClient>();
 builder.Services.AddSingleton<TmdbMetadataProvider>();
+builder.Services.AddSingleton<AniListTvdbMap>();
+builder.Services.AddSingleton<AniListTranslator>();
+builder.Services.AddSingleton<AniListSearchService>();
 builder.Services.AddSingleton<IMetadataProvider>(
     serviceProvider => MetadataProviderRegistry.Create(options.MetadataSource, serviceProvider));
 builder.Services.AddSingleton<RuntimeDnsResolver>();

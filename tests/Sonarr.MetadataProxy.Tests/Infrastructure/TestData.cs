@@ -1,3 +1,4 @@
+using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Models.Tmdb;
 
 namespace Sonarr.MetadataProxy.Tests.Infrastructure;
@@ -127,6 +128,32 @@ public static class TestData
                 VoteCount = 120,
                 EpisodeType = "standard"
             }
+        };
+    }
+
+    public static AniListMedia DeathNote()
+    {
+        return new AniListMedia
+        {
+            Id = 1535,
+            IdMal = 1535,
+            TitleRomaji = "Death Note",
+            TitleEnglish = "Death Note",
+            TitleNative = "\u30c7\u30b9\u30ce\u30fc\u30c8",
+            Synonyms = new List<string> { "Death Note (2006)" },
+            Episodes = 37,
+            DurationMinutes = 23,
+            Status = "FINISHED",
+            FirstAirDate = "2006-10-04",
+            LastAirDate = "2007-06-27",
+            AverageScore = 77,
+            Description = "A high school student finds a notebook that kills anyone whose name is written in it.",
+            PosterUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/nx1535-1.jpg",
+            BannerUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/banner/1535-1.jpg",
+            Genres = new List<string> { "Mystery", "Psychological" },
+            CountryOfOrigin = "JP",
+            Studio = "Madhouse",
+            AlternativeTitles = new List<string> { "Death Note (2006)" }
         };
     }
 }

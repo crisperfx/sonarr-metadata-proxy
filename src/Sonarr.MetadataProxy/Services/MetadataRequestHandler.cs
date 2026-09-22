@@ -17,6 +17,7 @@ public sealed class MetadataRequestHandler
     private readonly ITvdbToTmdbResolver _tvdbToTmdb;
     private readonly ISkyHookPassthrough _passthrough;
     private readonly SkyHookTranslator _translator;
+    private readonly AniListSearchService? _aniList;
     private readonly IMetadataProvider? _activeProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
@@ -26,6 +27,7 @@ public sealed class MetadataRequestHandler
         ITvdbToTmdbResolver tvdbToTmdb,
         ISkyHookPassthrough passthrough,
         SkyHookTranslator translator,
+        AniListSearchService? aniList,
         IMetadataProvider? activeProvider,
         ILogger<MetadataRequestHandler> logger)
     {
@@ -34,6 +36,7 @@ public sealed class MetadataRequestHandler
         _tvdbToTmdb = tvdbToTmdb;
         _passthrough = passthrough;
         _translator = translator;
+        _aniList = aniList;
         _activeProvider = activeProvider;
         _logger = logger;
     }
@@ -56,6 +59,17 @@ public sealed class MetadataRequestHandler
 
         if (term.Kind is TermKind.AniListId or TermKind.MalId)
         {
+            if (_aniList is { IsConfigured: true })
+            {
+                var shows = term.Kind switch
+                {
+                    TermKind.AniListId => await _aniList.SearchByAniListIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false),
+                    _ => await _aniList.SearchByMalIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false)
+                };
+
+                return await ForwardAniListResultAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
             _logger.LogInformation(
                 "Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.",
                 _options.MetadataSource,
@@ -80,9 +94,47 @@ public sealed class MetadataRequestHandler
                     rawTerm);
                 return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
+
+            if (searchSource == MappingStore.SourceAniList)
+            {
+                if (_aniList is not { IsConfigured: true })
+                {
+                    _logger.LogInformation(
+                        "Search source preference '{SearchSource}' is set but AniList mapping data is unavailable; falling through to TVDB.",
+                        searchSource);
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                var shows = await _aniList.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardAniListResultAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return await SearchAutomaticAsync(term, rawTerm, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IResult> ForwardAniListResultAsync(
+        IReadOnlyList<Contracts.SkyHook.ShowResource>? shows,
+        string rawTerm,
+        CancellationToken cancellationToken)
+    {
+        if (shows is null)
+        {
+            _logger.LogInformation("AniList search failed or is misconfigured for '{Term}'. Falling through to TVDB.", rawTerm);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (shows.Count == 0)
+        {
+            _logger.LogInformation("No TVDB-mappable AniList results for '{Term}'. Falling through to TVDB.", rawTerm);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        return Results.Ok(shows);
     }
 
     private async Task<IResult> SearchAutomaticAsync(SearchTerm term, string rawTerm, CancellationToken cancellationToken)
