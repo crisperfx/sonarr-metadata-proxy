@@ -41,7 +41,7 @@ public sealed class MetadataRequestHandler
         _logger = logger;
     }
 
-    public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
+    private async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Incoming Sonarr metadata request: series search, term '{Term}'.", rawTerm);
         var term = TermClassifier.Classify(rawTerm);
@@ -110,14 +110,29 @@ public sealed class MetadataRequestHandler
                     searchSource,
                     rawTerm);
                 var shows = await _aniList.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-                return await ForwardAniListResultAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (searchSource == MappingStore.SourceTmdb)
+            {
+                if (_activeProvider is null || _activeProvider.Name == "tvdb")
+                {
+                    _logger.LogInformation("TMDB search requested but no TMDB provider configured; falling through to TVDB.");
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                return await SearchTmdbWithFallbackAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
         }
 
         return await SearchAutomaticAsync(term, rawTerm, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<IResult> ForwardAniListResultAsync(
+    private async Task<IResult> ForwardWithFallbackAsync(
         IReadOnlyList<Contracts.SkyHook.ShowResource>? shows,
         string rawTerm,
         CancellationToken cancellationToken)
@@ -135,6 +150,52 @@ public sealed class MetadataRequestHandler
         }
 
         return Results.Ok(shows);
+    }
+
+    private async Task<IResult> SearchTmdbWithFallbackAsync(string rawTerm, CancellationToken cancellationToken)
+    {
+        if (_activeProvider is null || _activeProvider.Name == "tvdb")
+        {
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        IReadOnlyList<SeriesMetadata> results;
+        try
+        {
+            results = await _activeProvider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+        catch (NotSupportedException)
+        {
+            _logger.LogInformation("Provider {Source} does not support this search. Falling through to TVDB.", _options.MetadataSource);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TmdbApiException ex)
+        {
+            _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (results.Count == 0)
+        {
+            _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, rawTerm);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        _logger.LogInformation(
+            "Source: {Source}. TMDB result count: {Count}.",
+            _options.MetadataSource.ToUpperInvariant(),
+            results.Count);
+
+        var translated = results.Select(_translator.ToSearchResult).ToList();
+        return Results.Ok(translated);
+    }
+
+    private async Task<IResult> ForwardAniListResultAsync(
+        IReadOnlyList<Contracts.SkyHook.ShowResource>? shows,
+        string rawTerm,
+        CancellationToken cancellationToken)
+    {
+        return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IResult> SearchAutomaticAsync(SearchTerm term, string rawTerm, CancellationToken cancellationToken)
@@ -176,7 +237,7 @@ public sealed class MetadataRequestHandler
                 return Results.Ok(Array.Empty<ShowResource>());
             }
 
-            _logger.LogInformation("No results from {Source} for '{Term}'.", _options.MetadataSource, rawTerm);
+            _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, rawTerm);
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
