@@ -96,6 +96,7 @@ public class MappingStoreTests : IDisposable
     [Theory]
     [InlineData(MappingStore.SourceTmdb)]
     [InlineData(MappingStore.SourceTvdb)]
+    [InlineData(MappingStore.SourceAniList)]
     public void Override_SetStoresSource(string source)
     {
         var store = CreateStore();

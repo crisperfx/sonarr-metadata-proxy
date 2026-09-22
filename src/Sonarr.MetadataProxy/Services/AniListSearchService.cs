@@ -108,12 +108,19 @@ public sealed class AniListSearchService
     private IReadOnlyList<ShowResource> TranslateAll(IReadOnlyList<AniListMedia> media)
     {
         var results = new List<ShowResource>();
+        var seenTvdbIds = new HashSet<int>();
         foreach (var item in media)
         {
             var tvdbId = _map.TryGetTvdbId(item.Id);
             if (tvdbId is not > 0)
             {
                 _logger.LogDebug("No TVDB mapping for AniList {Id} ('{Title}'); skipping.", item.Id, TitleOf(item));
+                continue;
+            }
+
+            if (!seenTvdbIds.Add(tvdbId.Value))
+            {
+                _logger.LogDebug("Duplicate TVDB id {TvdbId} for AniList {Id} ('{Title}'); skipping.", tvdbId.Value, item.Id, TitleOf(item));
                 continue;
             }
 
