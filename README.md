@@ -75,7 +75,10 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 - AniList search filters to `format_in: [TV, TV_SHORT]` (excludes movies/specials/OVAs).
 - Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList ID) so they appear in search; details are served via TMDB (synthetic → TMDB mapping).
 - Search provider preference is persisted in localStorage and on the proxy (`/api/overrides/searchsource`), survives page refresh and container restarts.
-- Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
+- Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB / AniList) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
+
+**External automation (Prowlarr, Overseerr, Ombi, Radarr, Sonarr RSS, etc.)**
+The search provider choice (via `METADATA_SOURCE` env var or UI dropdown) applies to **all** searches that hit Sonarr's SkyHook endpoint — including those triggered by external automation (Prowlarr, Overseerr, Ombi, Radarr, Sonarr's own RSS/monitoring). There is no separate setting; the configured search provider is global for the proxy.
 
 ## Option A — Docker Compose (recommended, ~5 minutes)
 
