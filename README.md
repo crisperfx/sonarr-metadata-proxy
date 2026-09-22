@@ -2,7 +2,7 @@
 
 # Sonarr Metadata Proxy
 
-A sidecar that feeds an **unmodified Sonarr** with metadata from **TMDB** by transparently
+A sidecar that feeds an **unmodified Sonarr** with metadata from **TMDB (more comming)** by transparently
 intercepting Sonarr's metadata requests (`skyhook.sonarr.tv` / TVDB) and translating them
 back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no local
 .NET SDK required — runs as a prebuilt Docker image.
