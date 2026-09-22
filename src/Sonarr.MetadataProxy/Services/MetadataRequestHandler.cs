@@ -41,7 +41,7 @@ public sealed class MetadataRequestHandler
         _logger = logger;
     }
 
-    private async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
+    public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Incoming Sonarr metadata request: series search, term '{Term}'.", rawTerm);
         var term = TermClassifier.Classify(rawTerm);
