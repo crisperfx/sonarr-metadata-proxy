@@ -121,7 +121,7 @@ public sealed class AniListSearchService
             if (!hasRealTvdbMapping)
             {
                 var syntheticTvdbId = SyntheticIds.SeriesId(item.Id);
-                _logger.LogDebug("No TVDB mapping for AniList {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), syntheticTvdbId);
+                _logger.LogInformation("No TVDB mapping for AniList {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), syntheticTvdbId);
                 _mapping.RegisterAniListId(syntheticTvdbId, item.Id);
                 tvdbId = syntheticTvdbId;
             }
@@ -136,6 +136,10 @@ public sealed class AniListSearchService
             {
                 _logger.LogInformation("TVDB mapping found for AniList {AniListId}: TVDB {TvdbId}.", item.Id, tvdbId.Value);
             }
+            else
+            {
+                _logger.LogInformation("Including AniList {AniListId} ('{Title}') with synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId.Value);
+            }
             _mapping.RegisterAniListId(tvdbId.Value, item.Id);
             var show = _translator.ToSearchResult(item, tvdbId.Value);
             if (!hasRealTvdbMapping)
@@ -145,6 +149,7 @@ public sealed class AniListSearchService
             results.Add(show);
         }
 
+        _logger.LogInformation("TranslateAll returning {Count} results ({Real} real mappings, {Synthetic} synthetic).", results.Count, media.Count(m => _map.TryGetTvdbId(m.Id) is > 0), media.Count(m => _map.TryGetTvdbId(m.Id) is not > 0));
         return results;
     }
 
