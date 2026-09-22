@@ -1,4 +1,17 @@
-<img width="1172" height="764" alt="image" src="https://github.com/user-attachments/assets/529787c7-3703-44bf-a076-c2a1daee2a20" />
+# Screenshots of modded interface
+
+<img width="1183" height="659" alt="image" src="https://github.com/user-attachments/assets/2fff7998-f02d-458d-9fc2-98f800225782" />
+<img width="1000" height="734" alt="image" src="https://github.com/user-attachments/assets/6b83eac3-1273-4f26-ba65-77d2564d684b" />
+<img width="1108" height="926" alt="image" src="https://github.com/user-attachments/assets/af45bbb1-1515-406c-b3d9-e716bc934aca" />
+<img width="1160" height="878" alt="image" src="https://github.com/user-attachments/assets/b2b1854f-e0b9-480a-86a2-dfd20c5803d5" />
+
+# Choice of source TVDB (30 seasons, different ep. listing)
+
+<img width="1173" height="1016" alt="image" src="https://github.com/user-attachments/assets/70bc5db2-a41f-40ec-8779-d8906996d4c5" />
+
+# Choice of source TMDB (24 seasons, different ep. listing)
+
+<img width="1225" height="1009" alt="image" src="https://github.com/user-attachments/assets/43656a7b-a6fc-499d-896a-e3d2ee43af81" />
 
 # Sonarr Metadata Proxy
 
