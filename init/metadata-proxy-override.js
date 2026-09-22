@@ -145,6 +145,7 @@
     }
 
     root.mpoCollapse = setCollapsed;
+    setCollapsed(true);
     return root;
   }
 
@@ -180,6 +181,7 @@
     shell._mpoBody.appendChild(btn);
 
     document.body.appendChild(shell);
+    shell.mpoCollapse(false);
     return shell;
   }
 
@@ -208,7 +210,19 @@
     status.textContent = 'TVDB id: ' + series.tvdbId;
     shell._mpoBody.appendChild(status);
 
+    var isSynthetic = series.tvdbId >= 1000000000;
+    if (isSynthetic) {
+      var warn = document.createElement('div');
+      warn.style.cssText = 'font-size:11px;color:#fbbf24;margin-top:4px;';
+      warn.textContent = 'Let op: deze serie heeft geen echte TVDB-ID. Bij "TVDB" als bron werkt passthrough niet (fallback naar standaard bron).';
+      shell._mpoBody.appendChild(warn);
+    }
+
     select.addEventListener('change', function () {
+      var selectedSource = select.value;
+      if (selectedSource === 'tvdb' && isSynthetic) {
+        setStatus('Waarschuwing: TVDB passthrough werkt niet voor deze serie (geen echte TVDB-ID). Fallback naar standaard bron.', '#fbbf24');
+      }
       saveOverride(series.tvdbId, select.value)
         .then(function (dto) {
           if (dto && dto.source === 'tmdb') {
@@ -441,7 +455,13 @@
         found.push(input);
       }
     }
-    return found;
+    var unique = [];
+    for (var j = 0; j < found.length; j++) {
+      if (unique.indexOf(found[j]) === -1) {
+        unique.push(found[j]);
+      }
+    }
+    return unique;
   }
 
   function setNativeValue(element, value) {
@@ -622,7 +642,7 @@
     });
 
     document.body.appendChild(ui);
-    ui.mpoExpand();
+    ui.mpoCollapse();
     return ui;
   }
 
@@ -697,16 +717,28 @@
   function refreshSearchPickers() {
     var path = window.location.pathname || '';
     if (path.indexOf('/add/new') !== 0) {
-      var inputs = document.querySelectorAll('input[data-mpo-search]');
-      for (var i = 0; i < inputs.length; i++) {
-        removeSearchRow(inputs[i]);
-      }
+      removeAllSearchRows();
       removeSearchUi();
       return;
     }
     var candidates = searchInputCandidates();
-    for (var j = 0; j < candidates.length; j++) {
-      attachSearchPicker(candidates[j]);
+    if (!candidates.length) {
+      return;
+    }
+    var primary = candidates[0];
+    var existing = document.querySelectorAll('input[data-mpo-search]');
+    for (var j = 0; j < existing.length; j++) {
+      if (existing[j] !== primary) {
+        removeSearchRow(existing[j]);
+      }
+    }
+    attachSearchPicker(primary);
+  }
+
+  function removeAllSearchRows() {
+    var inputs = document.querySelectorAll('input[data-mpo-search]');
+    for (var i = 0; i < inputs.length; i++) {
+      removeSearchRow(inputs[i]);
     }
   }
 
@@ -752,6 +784,18 @@
     if (ui) {
       ui.style.cssText =
         ui.dataset.mpoCollapsed === '1' ? pillCss() : baseCss();
+    }
+  });
+
+  document.addEventListener('mousedown', function (e) {
+    var target = e.target;
+    var panel = document.getElementById(PANEL_ID);
+    if (panel && panel.dataset.mpoCollapsed !== '1' && !panel.contains(target)) {
+      panel.mpoCollapse(true);
+    }
+    var ui = document.getElementById(SEARCH_UI_ID);
+    if (ui && ui.dataset.mpoCollapsed !== '1' && !ui.contains(target)) {
+      ui.mpoCollapse();
     }
   });
 

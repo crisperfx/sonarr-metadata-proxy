@@ -86,4 +86,5 @@ public sealed class ShowResource
     public List<ImageResource> Images { get; set; } = new();
     public List<SeasonResource> Seasons { get; set; } = new();
     public List<EpisodeResource> Episodes { get; set; } = new();
+    public bool NoTVDBMapping { get; set; }
 }

@@ -67,14 +67,21 @@ public sealed class OverridesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Set([FromBody] OverrideRequest request)
     {
-        if (request.TvdbId <= 0 || SyntheticIds.IsSyntheticSeries(request.TvdbId))
+        if (request.TvdbId <= 0)
         {
-            return BadRequest(new { error = "tvdbId must be a real (non-synthetic) TVDB id" });
+            return BadRequest(new { error = "tvdbId must be positive" });
         }
+
+        var isSynthetic = SyntheticIds.IsSyntheticSeries(request.TvdbId);
 
         if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList))
         {
             return BadRequest(new { error = "source must be 'tmdb', 'tvdb' or 'anilist'" });
+        }
+
+        if (isSynthetic && request.Source == MappingStore.SourceTvdb)
+        {
+            _logger.LogWarning("TVDB override requested for synthetic TVDB id {TvdbId}; TVDB passthrough will not work (no real TVDB mapping).", request.TvdbId);
         }
 
         if (request.Source == MappingStore.SourceTmdb && request.TmdbId is > 0)

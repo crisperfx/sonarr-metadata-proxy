@@ -103,7 +103,7 @@ public sealed class MappingStore
 
     public void RegisterAniListId(int tvdbId, int anilistId)
     {
-        if (anilistId <= 0 || SyntheticIds.IsSyntheticSeries(tvdbId))
+        if (anilistId <= 0)
         {
             return;
         }
@@ -135,9 +135,9 @@ public sealed class MappingStore
             throw new ArgumentException("Source must be 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
         }
 
-        if (tvdbId <= 0 || SyntheticIds.IsSyntheticSeries(tvdbId))
+        if (tvdbId <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(tvdbId), "Overrides only apply to real (non-synthetic) TVDB ids.");
+            throw new ArgumentOutOfRangeException(nameof(tvdbId), "tvdbId must be positive");
         }
 
         lock (_sync)

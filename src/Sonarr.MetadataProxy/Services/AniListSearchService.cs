@@ -116,10 +116,14 @@ public sealed class AniListSearchService
         foreach (var item in media)
         {
             var tvdbId = _map.TryGetTvdbId(item.Id);
-            if (tvdbId is not > 0)
+            bool hasRealTvdbMapping = tvdbId is > 0;
+
+            if (!hasRealTvdbMapping)
             {
-                _logger.LogDebug("No TVDB mapping for AniList {Id} ('{Title}'); skipping.", item.Id, TitleOf(item));
-                continue;
+                var syntheticTvdbId = SyntheticIds.SeriesId(item.Id);
+                _logger.LogDebug("No TVDB mapping for AniList {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), syntheticTvdbId);
+                _mapping.RegisterAniListId(syntheticTvdbId, item.Id);
+                tvdbId = syntheticTvdbId;
             }
 
             if (!seenTvdbIds.Add(tvdbId.Value))
@@ -128,9 +132,17 @@ public sealed class AniListSearchService
                 continue;
             }
 
-            _logger.LogInformation("TVDB mapping found for AniList {AniListId}: TVDB {TvdbId}.", item.Id, tvdbId.Value);
+            if (hasRealTvdbMapping)
+            {
+                _logger.LogInformation("TVDB mapping found for AniList {AniListId}: TVDB {TvdbId}.", item.Id, tvdbId.Value);
+            }
             _mapping.RegisterAniListId(tvdbId.Value, item.Id);
-            results.Add(_translator.ToSearchResult(item, tvdbId.Value));
+            var show = _translator.ToSearchResult(item, tvdbId.Value);
+            if (!hasRealTvdbMapping)
+            {
+                show.NoTVDBMapping = true;
+            }
+            results.Add(show);
         }
 
         return results;
