@@ -521,6 +521,24 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Override_AniListSource_IsAcceptedAndListed()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        using var post = await client.PostAsJsonAsync("/api/overrides", new { tvdbId = 81189, source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+
+        var overrides = await client.GetStringAsync("/api/overrides");
+        using var document = JsonDocument.Parse(overrides);
+        var entries = document.RootElement.EnumerateArray()
+            .Select(e => (tvdbId: e.GetProperty("tvdbId").GetInt32(),
+                          source: e.GetProperty("source").GetString()))
+            .ToList();
+        Assert.Contains((81189, "anilist"), entries);
+    }
+
+    [Fact]
     public async Task Show_RealTvdb_NoMapping_WithTvdbSearchSourcePreference_SkipsReverseMapping()
     {
         var resolver = new FakeTvdbResolver { Map = { [81189] = 1396 } };

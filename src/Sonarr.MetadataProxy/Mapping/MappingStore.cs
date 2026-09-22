@@ -102,9 +102,9 @@ public sealed class MappingStore
 
     public void SetOverride(int tvdbId, string source)
     {
-        if (source != SourceTmdb && source != SourceTvdb)
+        if (source is not (SourceTmdb or SourceTvdb or SourceAniList))
         {
-            throw new ArgumentException("Source must be 'tmdb' or 'tvdb'.", nameof(source));
+            throw new ArgumentException("Source must be 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
         }
 
         if (tvdbId <= 0 || SyntheticIds.IsSyntheticSeries(tvdbId))
