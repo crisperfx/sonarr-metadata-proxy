@@ -2,7 +2,7 @@
 
 # Sonarr Metadata Proxy
 
-A sidecar that feeds an **unmodified Sonarr** with metadata from **TMDB (more comming)** by transparently
+A sidecar that feeds an **unmodified Sonarr** with metadata from **TMDB, AniList, and TVDB** by transparently
 intercepting Sonarr's metadata requests (`skyhook.sonarr.tv` / TVDB) and translating them
 back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no local
 .NET SDK required — runs as a prebuilt Docker image.
@@ -22,10 +22,10 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
  your browser                    Docker network
       │  http://<ip>:8989                │
       ▼                                  ▼
- ┌───────────┐  metadata request   ┌────────────────┐   TMDB data   ┌──────┐
- │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ────────────▶ │ TMDB │
- │ (stock)   │   (port 443, alias)  │  proxy (443/  │               └──────┘
- └───────────┘                      │   9697)       │
+ ┌───────────┐  metadata request   ┌────────────────┐   TMDB/AniList data   ┌──────┐
+ │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ────────────────────▶ │ TMDB │
+ │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀───────────────────── │ AniList│
+ └───────────┘                      │   9697)       │                       └──────┘
       ▲                             └────────────────┘
       │ picker dropdown (overrides)
       └────────────────── /api/overrides
@@ -34,14 +34,35 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 - Sonarr talks to `skyhook.sonarr.tv` exactly as it always does — the DNS alias just makes
   that name resolve to the proxy instead of the real SkyHook. Everything else in Sonarr is
   untouched.
-- Search / add / refresh all come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
+- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList) with **automatic
+  fallback to TVDB** when the chosen source returns no results.
+- **Series details/episodes** come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
   real TVDB when a series cannot be mapped).
+- **Single-season flattening** for AniList-bound series (continuous anime like One Piece):
+  when a series is linked to AniList via search, the proxy automatically serves it as one
+  continuous season (both mapped and TVDB passthrough paths).
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
-  the Sonarr web UI (per-series TMDB/TVDB picker) and a **Search via** provider picker
+  the Sonarr web UI (per-series TMDB/TVDB/AniList picker) and a **Search via** provider picker
   (TMDB / TVDB / AniList) into the Add New search box.
 
 ---
+
+## Provider behaviour & fallback summary
+
+| Provider | Search behaviour | No results → fallback | Details / episodes |
+|---|---|---|---|
+| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb` or `tvdb`). If `tmdb`: TMDB search → TVDB on empty. | → TVDB | TMDB primary, TVDB fallback on mapping failure |
+| **TMDB only** | `tmdb:` prefix; searches TMDB, maps to TVDB via internal map | → TVDB | TMDB primary, TVDB fallback |
+| **TVDB (SkyHook)** | `tvdb:` prefix; direct SkyHook passthrough | *(none — source is TVDB)* | Real TVDB |
+| **AniList** | Searches AniList (format TV / TV_SHORT only), maps via bundled Fribb + Anime-Lists datasets to TVDB; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary (via synthetic ID → TMDB), TVDB fallback |
+
+**Key points:**
+- **Every provider falls back to TVDB on empty results** (except explicit TVDB).
+- AniList search filters to `format_in: [TV, TV_SHORT]` (excludes movies/specials/OVAs).
+- Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList ID) so they appear in search; details are served via TMDB (synthetic → TMDB mapping).
+- Search provider preference is persisted in localStorage and on the proxy (`/api/overrides/searchsource`), survives page refresh and container restarts.
+- Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
 
 ## Option A — Docker Compose (recommended, ~5 minutes)
 
@@ -329,11 +350,14 @@ LAN / port-forward use.
 
 ## Per-series source selection ("Metadata source")
 
-Every series page has a dropdown: **Automatic / TMDB / TVDB**.
+Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList**.
 
-- Automatic = the default source from `METADATA_SOURCE`.
-- TMDB = always use TMDB servers for this series.
-- TVDB = always use the real SkyHook/TVDB for this series.
+- **Automatic** = the default source from `METADATA_SOURCE`.
+- **TMDB** = always use TMDB servers for this series.
+- **TVDB** = always use the real SkyHook/TVDB for this series.
+- **AniList** = serve this series as a single continuous season (AniList-bound flattening).
+  Works when the series was discovered via AniList search (AniList ↔ TVDB binding created
+  on first search). Applies to both mapped and TVDB passthrough paths.
 
 After choosing: **Refresh & Scan** on the series. Overrides are stored in
 `DATA_DIR/mappings/mappings.json` (one single file for all series — not a file per
@@ -343,19 +367,31 @@ automatically on startup. You might be asked once for your Sonarr API key
 (Settings → General); it is usually read automatically from `/config/config.xml`
 by the init hook, so there is normally no prompt.
 
+**Note for AniList series without a real TVDB ID:**
+When you select **TVDB** in the dropdown for a series that only has a synthetic TVDB ID
+(no real TVDB mapping), the UI shows a warning:
+> "Let op: deze serie heeft geen echte TVDB-ID. Bij 'TVDB' als bron werkt passthrough niet (fallback naar standaard bron)."
+The series will then fall back to the default source (TMDB via synthetic ID decomposition).
+
 ### Search provider picker ("Search via")
 
 When adding a series, the search box gets a **Search via** dropdown:
 
-- **Automatic (TMDB + TVDB fallback)** — default behaviour: TMDB first, TVDB on
-  empty results / failures.
+- **Automatic** — uses the default source from `METADATA_SOURCE` (TMDB or TVDB).
+  TMDB searches fall back to TVDB on empty results; TVDB is direct.
 - **TMDB only** — prefixes your query with `tmdb:` so the proxy searches TMDB and
-  shows no TVDB fallback results (e.g. to force a TMDB id, type `tmdb:1396`).
+  falls back to TVDB on empty results (e.g. to force a TMDB id, type `tmdb:1396`).
 - **TVDB (SkyHook)** — prefixes with `tvdb:`, forcing the TVDB listing
-  (e.g. `tvdb:breaking bad` or an id `tvdb:81189`).
-- **AniList** — searches AniList for anime by title/alias, maps the hit to a real
-  TVDB id (the proxy ships the Fribb + Anime-Lists datasets) and shows the result;
-  series without a known TVDB mapping and API failures fall through to TVDB.
+  (e.g. `tvdb:breaking bad` or an id `tvdb:81189`). No fallback.
+- **AniList** — searches AniList for anime (format TV / TV_SHORT only, excludes movies/specials/OVAs),
+  maps the hit to a real TVDB id via the bundled Fribb + Anime-Lists datasets.
+  Results without a known TVDB mapping get a synthetic TVDB ID and appear in results;
+  API failures and series without mapping fall through to TVDB.
+
+**Fallback behaviour for all providers (except explicit TVDB):**
+- **Empty results → TVDB fallback** (always).
+- **API errors → TVDB fallback**.
+- AniList: synthetic TVDB IDs are decomposed to TMDB for detail/episode fetch.
 
 The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
 `tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id` (the `mal:`/`anilist:` prefixes
@@ -368,7 +404,7 @@ it does not cover the page; tap it to expand, **–** to collapse again.
 
 | Variable | Default | Description |
 |---|---|---|
-| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb` or `tvdb` (passthrough only). |
+| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, or `anilist` (passthrough only). |
 | `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
 | `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key (wins if both set). |
 | `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
@@ -412,7 +448,6 @@ Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadat
 
 ## Limitations
 
-- AniList search only maps anime that have a known TVDB entry (anime without one
-  fall through to TVDB); details/episodes are still served by the TMDB/TVDB pipeline.
+- AniList search filters to `format: [TV, TV_SHORT]` (excludes movies, specials, OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.
