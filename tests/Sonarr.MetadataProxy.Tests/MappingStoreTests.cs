@@ -25,14 +25,14 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
-    public void RegisterAniListId_IgnoresSyntheticTvdbIds()
+    public void RegisterAniListId_AcceptsSyntheticTvdbIds()
     {
         var store = CreateStore();
         var synthetic = SyntheticIds.SeriesId(1396);
 
         store.RegisterAniListId(synthetic, 1535);
 
-        Assert.Null(store.TryGetAniListIdByTvdb(synthetic));
+        Assert.Equal(1535, store.TryGetAniListIdByTvdb(synthetic));
     }
 
     [Fact]
@@ -139,12 +139,14 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
-    public void Override_RejectsSyntheticIds()
+    public void Override_AcceptsSyntheticIds()
     {
         var store = CreateStore();
+        var synthetic = SyntheticIds.SeriesId(1396);
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => store.SetOverride(SyntheticIds.SeriesId(1396), MappingStore.SourceTvdb));
+        store.SetOverride(synthetic, MappingStore.SourceTvdb);
+
+        Assert.Equal(MappingStore.SourceTvdb, store.GetOverride(synthetic));
     }
 
     [Fact]

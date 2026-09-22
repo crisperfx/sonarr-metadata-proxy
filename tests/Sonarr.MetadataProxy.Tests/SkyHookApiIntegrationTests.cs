@@ -307,7 +307,7 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Search_AniListResultWithoutMapping_FallsBackToTvdb()
+    public async Task Search_AniListResultWithoutMapping_ReturnsResultWithSyntheticId()
     {
         WriteAniListFixtures();
         var unmapped = new AniListMedia
@@ -330,7 +330,8 @@ public class SkyHookApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Equal("[]", body);
+        Assert.Contains("No TVDB link here", body);
+        Assert.Contains("1000000701", body);
         Assert.Equal("unmapped", passthrough.LastSearchTerm);
     }
 
