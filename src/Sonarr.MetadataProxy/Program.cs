@@ -65,27 +65,28 @@ builder.Services.AddControllers()
         jsonOptions.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
     });
 
+builder.Services.AddCors(cors =>
+{
+    cors.AddPolicy(Sonarr.MetadataProxy.Controllers.OverridesController.CorsPolicyName, policy =>
+    {
+        if (options.CorsAllowedOrigins.Contains("*"))
+        {
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        }
+        else if (options.CorsAllowedOrigins.Count > 0)
+        {
+            policy.WithOrigins(options.CorsAllowedOrigins.ToArray()).AllowAnyMethod().AllowAnyHeader();
+        }
+    });
+});
+
 if (options.CorsAllowedOrigins.Count > 0)
 {
-    builder.Services.AddCors(cors =>
-    {
-        cors.AddPolicy(Sonarr.MetadataProxy.Controllers.OverridesController.CorsPolicyName, policy =>
-        {
-            if (options.CorsAllowedOrigins.Contains("*"))
-            {
-                policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-            }
-            else
-            {
-                policy.WithOrigins(options.CorsAllowedOrigins.ToArray()).AllowAnyMethod().AllowAnyHeader();
-            }
-        });
-    });
     Log.Information("CORS for override UI enabled for origins: {Origins}.", string.Join(", ", options.CorsAllowedOrigins));
 }
 else
 {
-    Log.Information("CORS not configured (CORS_ALLOWED_ORIGINS empty); the override UI cannot reach /api/overrides from a browser.");
+    Log.Information("CORS not configured (CORS_ALLOWED_ORIGINS empty); same-origin requests to /api/overrides still work.");
 }
 
 builder.WebHost.ConfigureKestrel(kestrel =>
@@ -125,10 +126,7 @@ app.MapGet("/", () => Results.Text(
     "</ul></body></html>",
     "text/html; charset=utf-8"));
 
-if (options.CorsAllowedOrigins.Count > 0)
-{
-    app.UseCors(Sonarr.MetadataProxy.Controllers.OverridesController.CorsPolicyName);
-}
+app.UseCors(Sonarr.MetadataProxy.Controllers.OverridesController.CorsPolicyName);
 
 app.MapControllers();
 app.Run();
