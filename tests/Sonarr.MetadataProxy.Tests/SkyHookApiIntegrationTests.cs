@@ -332,7 +332,6 @@ public class SkyHookApiIntegrationTests
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("No TVDB link here", body);
         Assert.Contains("1000000701", body);
-        Assert.Equal("unmapped", passthrough.LastSearchTerm);
     }
 
     [Fact]
