@@ -319,6 +319,72 @@ public class MetadataRequestHandlerTests
         Assert.Equal(StatusCodes.Status200OK, status);
     }
 
+    [Fact]
+    public async Task Search_Title_WithTvdbSearchSourcePreference_ForcesTvdbPassthrough()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvdb);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+
+        var result = await handler.SearchAsync("breaking bad", CancellationToken.None);
+
+        Assert.Equal("breaking bad", _passthrough.LastSearchTerm);
+        Assert.Equal(0, _tmdb.SearchCallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_Title_WithTmdbSearchSourcePreference_UsesActiveProvider()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTmdb);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+        _tmdb.Details = TestData.BreakingBadDetails();
+
+        var result = await handler.SearchAsync("breaking bad", CancellationToken.None);
+
+        Assert.True(_tmdb.SearchCallCount > 0);
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_Title_WithTvdbSearchSourcePreference_EmptyResultsStaysOnTvdb()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvdb);
+
+        var result = await handler.SearchAsync("totally nonexistent show", CancellationToken.None);
+
+        Assert.Equal("totally nonexistent show", _passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_ExplicitTvdbPrefix_OverridesSearchSourcePreference()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTmdb);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+
+        await handler.SearchAsync("tvdb:breaking bad", CancellationToken.None);
+
+        Assert.Equal("breaking bad", _passthrough.LastSearchTerm);
+        Assert.Equal(0, _tmdb.SearchCallCount);
+    }
+
     private MetadataRequestHandler CreateHandler(bool fallbackEnabled, string source = "tmdb")
     {
         return CreateHandlerWithMapping(fallbackEnabled, source).Handler;

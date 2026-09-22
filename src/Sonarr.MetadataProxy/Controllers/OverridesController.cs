@@ -30,6 +30,32 @@ public sealed class OverridesController : ControllerBase
 
     public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId, string? Title, int? Year);
 
+    public sealed record SearchSourceDto(string Source);
+
+    public sealed record SearchSourceRequest(string? Source);
+
+    [HttpGet("searchsource")]
+    public IActionResult GetSearchSource()
+    {
+        return Ok(new SearchSourceDto(_mapping.GetDefaultSearchSource()));
+    }
+
+    [HttpPost("searchsource")]
+    public IActionResult SetSearchSource([FromBody] SearchSourceRequest request)
+    {
+        try
+        {
+            _mapping.SetDefaultSearchSource(request.Source ?? "");
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+
+        _logger.LogInformation("Default search source set to '{Source}'.", _mapping.GetDefaultSearchSource());
+        return Ok(new SearchSourceDto(_mapping.GetDefaultSearchSource()));
+    }
+
     [HttpGet]
     public IActionResult List()
     {

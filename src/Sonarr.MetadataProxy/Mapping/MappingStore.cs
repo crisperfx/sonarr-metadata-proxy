@@ -13,6 +13,7 @@ public sealed class MappingStore
     private readonly Dictionary<string, int> _episodes = new();
     private readonly Dictionary<int, int> _nextEpisodeSequence = new();
     private readonly Dictionary<int, string> _overrides = new();
+    private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
@@ -139,6 +140,34 @@ public sealed class MappingStore
         }
     }
 
+    public string GetDefaultSearchSource()
+    {
+        lock (_sync)
+        {
+            return _defaultSearchSource;
+        }
+    }
+
+    public void SetDefaultSearchSource(string source)
+    {
+        var normalized = (source ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized is not "" and not SourceTmdb and not SourceTvdb)
+        {
+            throw new ArgumentException("Search source must be '', 'tmdb' or 'tvdb'.", nameof(source));
+        }
+
+        lock (_sync)
+        {
+            if (_defaultSearchSource == normalized)
+            {
+                return;
+            }
+
+            _defaultSearchSource = normalized;
+            Save();
+        }
+    }
+
     private void Load()
     {
         if (!File.Exists(_filePath))
@@ -159,6 +188,7 @@ public sealed class MappingStore
                     _episodes.Clear();
                     _nextEpisodeSequence.Clear();
                     _overrides.Clear();
+                    _defaultSearchSource = persisted.DefaultSearchSource ?? "";
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -208,7 +238,8 @@ public sealed class MappingStore
                 SeriesReal = new Dictionary<int, int>(_seriesReal),
                 Episodes = new Dictionary<string, int>(_episodes),
                 EpisodeSequences = new Dictionary<int, int>(_nextEpisodeSequence),
-                Overrides = new Dictionary<int, string>(_overrides)
+                Overrides = new Dictionary<int, string>(_overrides),
+                DefaultSearchSource = _defaultSearchSource
             };
 
             var json = JsonSerializer.Serialize(persisted, new JsonSerializerOptions { WriteIndented = true });
@@ -228,5 +259,6 @@ public sealed class MappingStore
         public Dictionary<string, int> Episodes { get; set; } = new();
         public Dictionary<int, int> EpisodeSequences { get; set; } = new();
         public Dictionary<int, string> Overrides { get; set; } = new();
+        public string DefaultSearchSource { get; set; } = "";
     }
 }

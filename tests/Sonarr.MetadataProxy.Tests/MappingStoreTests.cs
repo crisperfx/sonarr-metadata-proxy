@@ -138,6 +138,60 @@ public class MappingStoreTests : IDisposable
         Assert.Equal(MappingStore.SourceTvdb, store2.GetOverride(81189));
     }
 
+    [Fact]
+    public void SearchSource_EmptyByDefault()
+    {
+        var store = CreateStore();
+
+        Assert.Equal("", store.GetDefaultSearchSource());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(MappingStore.SourceTmdb)]
+    [InlineData(MappingStore.SourceTvdb)]
+    public void SearchSource_SetStoresValue(string source)
+    {
+        var store = CreateStore();
+
+        store.SetDefaultSearchSource(source);
+
+        Assert.Equal(source, store.GetDefaultSearchSource());
+    }
+
+    [Fact]
+    public void SearchSource_NormalizesInput()
+    {
+        var store = CreateStore();
+
+        store.SetDefaultSearchSource("  TVDB ");
+
+        Assert.Equal(MappingStore.SourceTvdb, store.GetDefaultSearchSource());
+    }
+
+    [Theory]
+    [InlineData("anilist")]
+    [InlineData("bogus")]
+    [InlineData("tmdb:")]
+    public void SearchSource_RejectsInvalidValue(string source)
+    {
+        var store = CreateStore();
+
+        Assert.Throws<ArgumentException>(() => store.SetDefaultSearchSource(source));
+    }
+
+    [Fact]
+    public void SearchSource_PersistsAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        var store1 = CreateStore(dir);
+        store1.SetDefaultSearchSource(MappingStore.SourceTmdb);
+
+        var store2 = CreateStore(dir);
+
+        Assert.Equal(MappingStore.SourceTmdb, store2.GetDefaultSearchSource());
+    }
+
     private MappingStore CreateStore(string? dir = null)
     {
         var dataDir = dir ?? _dataDir;

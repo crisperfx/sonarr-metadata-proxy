@@ -69,6 +69,24 @@ public sealed class MetadataRequestHandler
             return await ForwardToTvdbSearchAsync(term.Value, cancellationToken).ConfigureAwait(false);
         }
 
+        if (term.Kind == TermKind.Title)
+        {
+            var searchSource = _mapping.GetDefaultSearchSource();
+            if (searchSource == MappingStore.SourceTvdb)
+            {
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return await SearchAutomaticAsync(term, rawTerm, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IResult> SearchAutomaticAsync(SearchTerm term, string rawTerm, CancellationToken cancellationToken)
+    {
         if (_activeProvider is null || _activeProvider.Name == "tvdb")
         {
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);

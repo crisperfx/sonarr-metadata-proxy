@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -284,6 +285,78 @@ public class SkyHookApiIntegrationTests
         using var response = await client.GetAsync("/v1/tvdb/shows/en/81189");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetSearchSource_ThenPlainTermSearch_RoutesToTvdbPassthrough()
+    {
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            SearchResponse = new Sonarr.MetadataProxy.Passthrough.ProxyResponse(200, "application/json", "[]")
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var setResponse = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "tvdb" });
+        Assert.Equal(HttpStatusCode.OK, setResponse.StatusCode);
+
+        using var searchResponse = await client.GetAsync("/v1/tvdb/search/en/?term=breaking+bad");
+
+        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+        Assert.Equal("breaking bad", passthrough.LastSearchTerm);
+    }
+
+    [Fact]
+    public async Task SetSearchSource_ThenPlainTermSearch_DoesNotQueryTmdb()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            SearchResults = new List<TmdbTvSearchResult> { TestData.BreakingBadSearchResult() },
+            Details = TestData.BreakingBadDetails()
+        };
+
+        using var factory = CreateFactory(tmdb);
+        using var client = factory.CreateClient();
+
+        using var setResponse = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "tvdb" });
+        Assert.Equal(HttpStatusCode.OK, setResponse.StatusCode);
+
+        await client.GetAsync("/v1/tvdb/search/en/?term=breaking+bad");
+
+        Assert.Equal(0, tmdb.SearchCallCount);
+    }
+
+    [Fact]
+    public async Task SearchSource_GetAndSet_RoundTrips()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        var get = await client.GetAsync("/api/overrides/searchsource");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var body = await get.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        Assert.Equal("", document.RootElement.GetProperty("source").GetString());
+
+        using var post = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "tmdb" });
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+
+        var get2 = await client.GetAsync("/api/overrides/searchsource");
+        var body2 = await get2.Content.ReadAsStringAsync();
+        using var document2 = JsonDocument.Parse(body2);
+        Assert.Equal("tmdb", document2.RootElement.GetProperty("source").GetString());
+    }
+
+    [Fact]
+    public async Task SearchSource_InvalidValue_ReturnsBadRequest()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "bogus" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     private WebApplicationFactory<Program> CreateFactory(

@@ -184,14 +184,14 @@
   }
 
   function buildPickerPanel() {
-    var shell = buildShell('Metadata source: ' + (series.title || series.tvdbId));
+    var shell = buildShell('Metadata: ' + (series.title || series.tvdbId));
 
     var select = document.createElement('select');
     select.style.cssText = 'width:100%;padding:4px;margin-bottom:6px;';
     [
-      { value: '', label: 'Automatic (active source)' },
-      { value: 'tmdb', label: 'TMDB (TMDB order)' },
-      { value: 'tvdb', label: 'TVDB (TVDB order)' }
+      { value: '', label: 'Default' },
+      { value: 'tmdb', label: 'TMDB' },
+      { value: 'tvdb', label: 'TVDB' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -418,18 +418,6 @@
       });
   }
 
-  var SEARCH_PREFIXES = ['tvdb:', 'tmdb:', 'tvdbid:', 'anilist:', 'mal:', 'imdb:'];
-
-  function stripSearchPrefix(value) {
-    var v = String(value || '').trim();
-    for (var i = 0; i < SEARCH_PREFIXES.length; i++) {
-      if (v.toLowerCase().indexOf(SEARCH_PREFIXES[i]) === 0) {
-        return v.slice(SEARCH_PREFIXES[i].length);
-      }
-    }
-    return v;
-  }
-
   function searchInputCandidates() {
     var found = [];
     var path = window.location.pathname || '';
@@ -439,18 +427,126 @@
     var inputs = document.querySelectorAll('input');
     for (var i = 0; i < inputs.length; i++) {
       var input = inputs[i];
+      var name = String(input.getAttribute('name') || '').toLowerCase();
       var ph = String(input.placeholder || '').toLowerCase();
       var aria = String(input.getAttribute('aria-label') || '').toLowerCase();
-      if (ph.indexOf('search') !== -1 || ph.indexOf('series') !== -1 || aria.indexOf('search') !== -1) {
+      if (
+        name === 'serieslookup' ||
+        ph.indexOf('tvdb') !== -1 ||
+        ph.indexOf('search') !== -1 ||
+        ph.indexOf('series') !== -1 ||
+        aria.indexOf('search') !== -1
+      ) {
         found.push(input);
       }
     }
     return found;
   }
 
-  var SEARCH_UI_ID = 'metadata-search-ui';
+  function setNativeValue(element, value) {
+    var proto =
+      element.tagName === 'INPUT'
+        ? window.HTMLInputElement.prototype
+        : window.HTMLTextAreaElement.prototype;
+    var setter = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (setter && setter.set) {
+      setter.set.call(element, value);
+    } else {
+      element.value = value;
+    }
+  }
 
-  function buildMobileSearchPicker(input) {
+  function dispatchInput(input) {
+    var evt;
+    try {
+      evt = new Event('input', { bubbles: true });
+    } catch (e) {
+      evt = document.createEvent('Event');
+      evt.initEvent('input', true, false);
+    }
+    input.dispatchEvent(evt);
+  }
+
+  var SEARCH_UI_ID = 'metadata-search-ui';
+  var LS_PROVIDER_KEY = 'sonarrMetadataOverride.searchProvider';
+  var SEARCH_PROVIDER = '';
+  var lastSearchInput = null;
+
+  function normalizeSearchSource(value) {
+    var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
+    if (v !== 'tmdb' && v !== 'tvdb') {
+      return '';
+    }
+    return v;
+  }
+
+  function applySearchProvider(source) {
+    SEARCH_PROVIDER = normalizeSearchSource(source);
+    var selects = document.querySelectorAll('select[data-mpo-provider]');
+    for (var i = 0; i < selects.length; i++) {
+      selects[i].value = SEARCH_PROVIDER;
+    }
+  }
+
+  function loadSearchProvider() {
+    try {
+      SEARCH_PROVIDER = normalizeSearchSource(localStorage.getItem(LS_PROVIDER_KEY));
+    } catch (e) {
+      SEARCH_PROVIDER = '';
+    }
+    var base = overridesApiBase();
+    if (!base) {
+      return;
+    }
+    fetch(base + '/api/overrides/searchsource')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('bad status ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function (data) {
+        applySearchProvider(data && data.source);
+      })
+      .catch(function () {
+        /* fall back to localStorage value */
+      });
+  }
+  loadSearchProvider();
+
+  function triggerSearchRestart() {
+    var pick = lastSearchInput;
+    if (!pick) {
+      var candidates = searchInputCandidates();
+      pick = candidates.length ? candidates[0] : null;
+    }
+    if (pick && String(pick.value).trim()) {
+      dispatchInput(pick);
+    }
+  }
+
+  function setSearchProvider(source) {
+    applySearchProvider(source);
+    try {
+      localStorage.setItem(LS_PROVIDER_KEY, SEARCH_PROVIDER);
+    } catch (e) {
+      /* ignore */
+    }
+    triggerSearchRestart();
+    var base = overridesApiBase();
+    if (!base) {
+      return;
+    }
+    fetch(base + '/api/overrides/searchsource', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: SEARCH_PROVIDER })
+    }).catch(function () {
+      /* proxy offline; localStorage value remains effective */
+    });
+  }
+
+  function buildMobileSearchPicker() {
     var ui = document.getElementById(SEARCH_UI_ID);
     if (ui) {
       ui.remove();
@@ -458,19 +554,18 @@
 
     ui = document.createElement('div');
     ui.id = SEARCH_UI_ID;
-    ui._mpoInput = input;
     ui.style.cssText = baseCss();
 
     var pill = document.createElement('div');
     pill.style.cssText = 'display:none;font-weight:600;';
-    pill.textContent = 'Search via \u25B8';
+    pill.textContent = 'Metasources \u25B8';
 
     var header = document.createElement('div');
     header.style.cssText =
       'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
     var title = document.createElement('span');
     title.style.cssText = 'font-weight:600;';
-    title.textContent = 'Search via';
+    title.textContent = 'Search metasource';
     var toggle = document.createElement('button');
     toggle.textContent = '\u2013';
     toggle.style.cssText =
@@ -479,10 +574,12 @@
 
     var select = document.createElement('select');
     select.style.cssText = 'width:100%;padding:4px;';
+    select.setAttribute('data-mpo-provider', '1');
+    select.value = SEARCH_PROVIDER;
     [
-      { value: '', label: 'Automatic (TMDB + TVDB fallback)' },
-      { value: 'tmdb:', label: 'TMDB only' },
-      { value: 'tvdb:', label: 'TVDB (SkyHook)' }
+      { value: '', label: 'Default' },
+      { value: 'tmdb', label: 'TMDB' },
+      { value: 'tvdb', label: 'TVDB' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -518,40 +615,9 @@
       ui.mpoExpand();
     });
 
-    function normalize() {
-      var prefix = select.value;
-      var value = input.value;
-      var lowered = String(value).toLowerCase();
-      var current = '';
-      for (var i = 0; i < SEARCH_PREFIXES.length; i++) {
-        if (lowered.indexOf(SEARCH_PREFIXES[i]) === 0) {
-          current = SEARCH_PREFIXES[i];
-          break;
-        }
-      }
-      var raw = current ? value.slice(current.length) : value;
-      var applied = input.dataset.mpoApplied || '';
-
-      if (!prefix) {
-        if (applied && lowered.indexOf(applied) === 0) {
-          input.value = value.slice(applied.length);
-        }
-        input.dataset.mpoApplied = '';
-        return;
-      }
-
-      if (!raw) {
-        input.value = '';
-        input.dataset.mpoApplied = '';
-        return;
-      }
-
-      input.value = prefix + raw;
-      input.dataset.mpoApplied = prefix;
-    }
-
-    select.addEventListener('change', normalize);
-    input.addEventListener('input', normalize);
+    select.addEventListener('change', function () {
+      setSearchProvider(this.value);
+    });
 
     document.body.appendChild(ui);
     ui.mpoExpand();
@@ -563,9 +629,15 @@
       return;
     }
     input.setAttribute('data-mpo-search', '1');
+    input.addEventListener('focus', function () {
+      lastSearchInput = input;
+    });
+    input.addEventListener('input', function () {
+      lastSearchInput = input;
+    });
 
     if (isMobile()) {
-      buildMobileSearchPicker(input);
+      buildMobileSearchPicker();
       return;
     }
 
@@ -579,10 +651,12 @@
     var select = document.createElement('select');
     select.style.cssText =
       'padding:3px 6px;font-size:12px;background:#263241;color:#fff;border:1px solid #334155;border-radius:4px;';
+    select.setAttribute('data-mpo-provider', '1');
+    select.value = SEARCH_PROVIDER;
     [
-      { value: '', label: 'Automatic (TMDB + TVDB fallback)' },
-      { value: 'tmdb:', label: 'TMDB only' },
-      { value: 'tvdb:', label: 'TVDB (SkyHook)' }
+      { value: '', label: 'Automatic' },
+      { value: 'tmdb', label: 'TMDB' },
+      { value: 'tvdb', label: 'TVDB' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -596,40 +670,9 @@
     row._mpoInput = input;
     input._mpoRow = row;
 
-    function normalize() {
-      var prefix = select.value;
-      var value = input.value;
-      var lowered = String(value).toLowerCase();
-      var current = '';
-      for (var i = 0; i < SEARCH_PREFIXES.length; i++) {
-        if (lowered.indexOf(SEARCH_PREFIXES[i]) === 0) {
-          current = SEARCH_PREFIXES[i];
-          break;
-        }
-      }
-      var raw = current ? value.slice(current.length) : value;
-      var applied = input.dataset.mpoApplied || '';
-
-      if (!prefix) {
-        if (applied && lowered.indexOf(applied) === 0) {
-          input.value = value.slice(applied.length);
-        }
-        input.dataset.mpoApplied = '';
-        return;
-      }
-
-      if (!raw) {
-        input.value = '';
-        input.dataset.mpoApplied = '';
-        return;
-      }
-
-      input.value = prefix + raw;
-      input.dataset.mpoApplied = prefix;
-    }
-
-    select.addEventListener('change', normalize);
-    input.addEventListener('input', normalize);
+    select.addEventListener('change', function () {
+      setSearchProvider(this.value);
+    });
   }
 
   function removeSearchRow(input) {
@@ -678,14 +721,21 @@
   function initSearchPickers() {
     ensurePortalRoot();
     refreshSearchPickers();
-    if (window.MutationObserver && document.body) {
-      searchObserver = new MutationObserver(function () {
-        if (refreshSearchTimer) {
-          clearTimeout(refreshSearchTimer);
-        }
-        refreshSearchTimer = setTimeout(refreshSearchPickers, 300);
-      });
-      searchObserver.observe(document.body, { childList: true, subtree: true });
+    if (!document.body) {
+      return;
+    }
+    if (window.MutationObserver) {
+      try {
+        searchObserver = new MutationObserver(function () {
+          if (refreshSearchTimer) {
+            clearTimeout(refreshSearchTimer);
+          }
+          refreshSearchTimer = setTimeout(refreshSearchPickers, 300);
+        });
+        searchObserver.observe(document.body, { childList: true, subtree: true });
+      } catch (e) {
+        /* ignore */
+      }
     }
   }
 
