@@ -520,13 +520,15 @@ public class SkyHookApiIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Fact]
-    public async Task Override_AniListSource_IsAcceptedAndListed()
+    [Theory]
+    [InlineData("anilist")]
+    [InlineData("singleseason")]
+    public async Task Override_SecondarySources_AreAcceptedAndListed(string source)
     {
         using var factory = CreateFactory(new FakeTmdbApi());
         using var client = factory.CreateClient();
 
-        using var post = await client.PostAsJsonAsync("/api/overrides", new { tvdbId = 81189, source = "anilist" });
+        using var post = await client.PostAsJsonAsync("/api/overrides", new { tvdbId = 81189, source });
         Assert.Equal(HttpStatusCode.OK, post.StatusCode);
 
         var overrides = await client.GetStringAsync("/api/overrides");
@@ -535,7 +537,79 @@ public class SkyHookApiIntegrationTests
             .Select(e => (tvdbId: e.GetProperty("tvdbId").GetInt32(),
                           source: e.GetProperty("source").GetString()))
             .ToList();
-        Assert.Contains((81189, "anilist"), entries);
+        Assert.Contains((81189, source), entries);
+    }
+
+    [Fact]
+    public async Task Show_SingleSeasonOverride_FlattensMappedSeasonsIntoOne()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            DetailsById = { [TestData.BreakingBadTmdbId] = TestData.BreakingBadDetails() },
+            Seasons =
+            {
+                [1] = TestData.SeasonOneEpisodes(),
+                [2] = TestData.SeasonTwoEpisodes()
+            }
+        };
+        var resolver = new FakeTvdbResolver { Map = { [TestData.BreakingBadTvdbId] = TestData.BreakingBadTmdbId } };
+
+        using var factory = CreateFactory(tmdb, resolver: resolver);
+        using var client = factory.CreateClient();
+
+        using var set = await client.PostAsJsonAsync("/api/overrides", new { tvdbId = 81189, source = "singleseason" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81189");
+        using var document = JsonDocument.Parse(body);
+
+        var episodes = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
+        Assert.Equal(3, episodes.Count);
+        Assert.All(episodes, episode => Assert.Equal(1, episode.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+
+        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
+        Assert.Equal(new[] { 1 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
+    }
+
+    [Fact]
+    public async Task Show_SingleSeasonOverride_FlattensPassthroughEpisodesIntoOne()
+    {
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new Sonarr.MetadataProxy.Passthrough.ProxyResponse(200, "application/json", """
+            {
+              "tvdbId": 81189,
+              "title": "One Piece",
+              "seasons": [],
+              "episodes": [
+                { "tvdbId": 1, "seasonNumber": 0, "episodeNumber": 1, "title": "Spec", "airDateUtc": "1998-07-26T14:15:00Z" },
+                { "tvdbId": 2, "seasonNumber": 1, "episodeNumber": 1, "title": "Ep1", "airDateUtc": "1999-10-20T14:15:00Z", "absoluteEpisodeNumber": 1 },
+                { "tvdbId": 3, "seasonNumber": 2, "episodeNumber": 1, "title": "Ep50", "airDateUtc": "1999-03-13T14:15:00Z", "absoluteEpisodeNumber": 50 },
+                { "tvdbId": 4, "seasonNumber": 2, "episodeNumber": 2, "title": "Ep51", "airDateUtc": "1999-03-20T14:15:00Z", "absoluteEpisodeNumber": 51 }
+              ]
+            }
+            """)
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var set = await client.PostAsJsonAsync("/api/overrides", new { tvdbId = 81189, source = "singleseason" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81189");
+        using var document = JsonDocument.Parse(body);
+
+        var episodes = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
+        Assert.Equal(4, episodes.Count);
+        Assert.Equal(0, episodes[0].GetProperty("seasonNumber").GetInt32());
+
+        var regular = episodes.Skip(1).ToList();
+        Assert.All(regular, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, regular.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 50, 51 }, regular.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
     }
 
     [Fact]

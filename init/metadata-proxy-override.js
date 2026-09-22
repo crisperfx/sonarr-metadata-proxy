@@ -192,7 +192,8 @@
       { value: '', label: 'Default' },
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
+      { value: 'anilist', label: 'AniList' },
+      { value: 'singleseason', label: '1 seizoen' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;

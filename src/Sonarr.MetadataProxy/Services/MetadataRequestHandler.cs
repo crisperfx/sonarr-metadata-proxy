@@ -194,12 +194,40 @@ public sealed class MetadataRequestHandler
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
         var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
 
+        if (_mapping.GetOverride(tvdbId) == MappingStore.SourceSingleSeason)
+        {
+            resolution = FlattenToSingleSeason(resolution);
+        }
+
         return resolution switch
         {
             ShowResolution.Mapped mapped => Results.Ok(mapped.Show),
             ShowResolution.Passthrough passed => Results.Content(passed.Response.Body, passed.Response.ContentType, null, passed.Response.StatusCode),
             _ => Results.NotFound(new { error = "mapping unavailable" })
         };
+    }
+
+    private ShowResolution FlattenToSingleSeason(ShowResolution resolution)
+    {
+        return resolution switch
+        {
+            ShowResolution.Mapped mapped => new ShowResolution.Mapped(SingleSeasonTransformer.Flatten(mapped.Show)),
+            ShowResolution.Passthrough passed => FlattenPassthrough(passed),
+            _ => resolution
+        };
+    }
+
+    private ShowResolution FlattenPassthrough(ShowResolution.Passthrough passed)
+    {
+        var flattened = SingleSeasonTransformer.FlattenPassthrough(passed.Response);
+        if (flattened is null)
+        {
+            _logger.LogWarning(
+                "Could not flatten passthrough response for single-season override; returning original response.");
+            return passed;
+        }
+
+        return new ShowResolution.Passthrough(flattened);
     }
 
     private async Task<ShowResolution> ResolveShowAsync(int tvdbId, CancellationToken cancellationToken)

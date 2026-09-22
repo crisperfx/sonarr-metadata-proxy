@@ -72,9 +72,9 @@ public sealed class OverridesController : ControllerBase
             return BadRequest(new { error = "tvdbId must be a real (non-synthetic) TVDB id" });
         }
 
-        if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList))
+        if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList or MappingStore.SourceSingleSeason))
         {
-            return BadRequest(new { error = "source must be 'tmdb', 'tvdb' or 'anilist'" });
+            return BadRequest(new { error = "source must be 'tmdb', 'tvdb', 'anilist' or 'singleseason'" });
         }
 
         if (request.Source == MappingStore.SourceTmdb && request.TmdbId is > 0)
