@@ -23,9 +23,7 @@ public sealed class AniListClient : IAniListApi
     {
         var variables = new { term = query, perPage = 20 };
         return await ExecuteAsync(
-            "query ($term: String, $perPage: Int) { Page(page: 1, perPage: $perPage) { media(search: $term, type: ANIME) { "
-            + MediaFields
-            + " } } }",
+            SearchQuery,
             variables,
             data => data.GetProperty("Page").GetProperty("media").EnumerateArray().Select(ParseMedia).ToList(),
             cancellationToken).ConfigureAwait(false);
@@ -50,6 +48,11 @@ public sealed class AniListClient : IAniListApi
         + "startDate { year month day } endDate { year month day } seasonYear averageScore meanScore "
         + "description(asHtml: false) coverImage { extraLarge large medium } bannerImage genres "
         + "countryOfOrigin studios(isMain: true) { nodes { name } }";
+
+    private const string SearchQuery =
+        "query ($term: String, $perPage: Int) { Page(page: 1, perPage: $perPage) { media(search: $term, type: ANIME, format_in: [TV, TV_SHORT]) { "
+        + MediaFields
+        + " } } }";
 
     private async Task<TResult> ExecuteAsync<TResult>(
         string query,
@@ -215,16 +218,28 @@ public sealed class AniListClient : IAniListApi
             return null;
         }
 
-        var month = GetNullableInt(node, "month") ?? 0;
-        var day = GetNullableInt(node, "day") ?? 0;
+        var month = GetNullableInt(node, "month") ?? 1;
+        var day = GetNullableInt(node, "day") ?? 1;
 
-        if (month is < 1 or > 12 || day < 1 || day > 31)
+        if (month is < 1 or > 12)
         {
-            return year.Value.ToString("D4");
+            month = 1;
         }
 
-        var date = new DateTime(year.Value, month, Math.Min(day, 28));
-        return date.ToString("yyyy-MM-dd");
+        if (day < 1 || day > 31)
+        {
+            day = 1;
+        }
+
+        try
+        {
+            var date = new DateTime(year.Value, month, Math.Min(day, DateTime.DaysInMonth(year.Value, month)));
+            return date.ToString("yyyy-MM-dd");
+        }
+        catch
+        {
+            return $"{year.Value:D4}-01-01";
+        }
     }
 
     private static int GetInt(JsonElement element, string property)
