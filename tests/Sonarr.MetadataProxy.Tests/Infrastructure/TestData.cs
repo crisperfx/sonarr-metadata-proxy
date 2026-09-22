@@ -7,6 +7,8 @@ public static class TestData
 {
     public const int BreakingBadTmdbId = 1396;
     public const int BreakingBadTvdbId = 81189;
+    public const int ContinuousAnimeTmdbId = 12345;
+    public const int ContinuousAnimeTvdbId = 99999;
 
     public static TmdbTvSearchResult BreakingBadSearchResult()
     {
@@ -129,6 +131,58 @@ public static class TestData
                 EpisodeType = "standard"
             }
         };
+    }
+
+    public static TmdbTvDetails ContinuousAnimeDetails()
+    {
+        return new TmdbTvDetails
+        {
+            Id = ContinuousAnimeTmdbId,
+            Name = "Continuous Anime",
+            OriginalName = "Continuous Anime",
+            Overview = "A continuous anime series split into story arcs by TVDB.",
+            FirstAirDate = "1999-10-20",
+            Status = "Continuing",
+            EpisodeRunTime = { 24 },
+            Genres = { new TmdbGenre { Id = 16, Name = "Animation" } },
+            OriginCountry = { "JP" },
+            OriginalLanguage = "ja",
+            Seasons =
+            {
+                new TmdbSeason { SeasonNumber = 1, EpisodeCount = 10 },
+                new TmdbSeason { SeasonNumber = 2, EpisodeCount = 11 }
+            }
+        };
+    }
+
+    public static List<TmdbEpisode> ContinuousSeasonOneEpisodes()
+    {
+        return Enumerable.Range(1, 10)
+            .Select(i => new TmdbEpisode
+            {
+                Id = 90000 + i,
+                Name = $"Episode {i}",
+                EpisodeNumber = i,
+                SeasonNumber = 1,
+                AbsoluteNumber = i,
+                EpisodeType = "standard"
+            })
+            .ToList();
+    }
+
+    public static List<TmdbEpisode> ContinuousSeasonTwoEpisodes()
+    {
+        return Enumerable.Range(1, 11)
+            .Select(i => new TmdbEpisode
+            {
+                Id = 91000 + i,
+                Name = $"Episode {10 + i}",
+                EpisodeNumber = i,
+                SeasonNumber = 2,
+                AbsoluteNumber = 10 + i,
+                EpisodeType = "standard"
+            })
+            .ToList();
     }
 
     public static AniListMedia DeathNote()

@@ -18,7 +18,6 @@ public sealed class MappingStore
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
     public const string SourceAniList = "anilist";
-    public const string SourceSingleSeason = "singleseason";
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
@@ -103,9 +102,9 @@ public sealed class MappingStore
 
     public void SetOverride(int tvdbId, string source)
     {
-        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceSingleSeason))
+        if (source is not (SourceTmdb or SourceTvdb or SourceAniList))
         {
-            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist' or 'singleseason'.", nameof(source));
+            throw new ArgumentException("Source must be 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
         }
 
         if (tvdbId <= 0 || SyntheticIds.IsSyntheticSeries(tvdbId))
