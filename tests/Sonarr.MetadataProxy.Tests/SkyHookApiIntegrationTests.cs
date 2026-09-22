@@ -206,7 +206,7 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Search_AniListDuplicateTvdbMappings_DeduplicatesResults()
+    public async Task Search_AniListDuplicateTvdbMappings_ReturnsAllResults()
     {
         WriteAniListFixtures();
         var duplicate = new AniListMedia
@@ -230,10 +230,17 @@ public class SkyHookApiIntegrationTests
 
         var body = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(body);
-        var first = Assert.Single(document.RootElement.EnumerateArray());
-
+        var results = document.RootElement.EnumerateArray().ToList();
+        
+        Assert.Equal(2, results.Count);
+        
+        var first = results[0];
         Assert.Equal(81356, first.GetProperty("tvdbId").GetInt32());
         Assert.Equal("Death Note", first.GetProperty("title").GetString());
+        
+        var second = results[1];
+        Assert.Equal(81356, second.GetProperty("tvdbId").GetInt32());
+        Assert.Equal("Death Note (Special)", second.GetProperty("title").GetString());
     }
 
     [Fact]
