@@ -22,29 +22,27 @@ public sealed class AniListClient : IAniListApi
     public async Task<IReadOnlyList<AniListMedia>> SearchAsync(string query, CancellationToken cancellationToken)
     {
         var variables = new { term = query, perPage = 20 };
-        var result = await ExecuteAsync<List<JsonElement>>(
+        return await ExecuteAsync(
             "query ($term: String, $perPage: Int) { Page(page: 1, perPage: $perPage) { media(search: $term, type: ANIME) { "
             + MediaFields
             + " } } }",
             variables,
-            data => data.GetProperty("Page").GetProperty("media").EnumerateArray().ToList(),
+            data => data.GetProperty("Page").GetProperty("media").EnumerateArray().Select(ParseMedia).ToList(),
             cancellationToken).ConfigureAwait(false);
-
-        return result.Select(ParseMedia).ToList();
     }
 
     public async Task<AniListMedia?> GetByIdAsync(int anilistId, CancellationToken cancellationToken)
     {
         var variables = new { id = anilistId };
-        var result = await ExecuteAsync<List<JsonElement>>(
+        var results = await ExecuteAsync(
             "query ($id: Int) { Media(id: $id, type: ANIME) { " + MediaFields + " } }",
             variables,
             data => data.TryGetProperty("Media", out var media) && media.ValueKind == JsonValueKind.Object
-                ? new List<JsonElement> { media }
-                : new List<JsonElement>(),
+                ? new List<AniListMedia> { ParseMedia(media) }
+                : new List<AniListMedia>(),
             cancellationToken).ConfigureAwait(false);
 
-        return result.Select(ParseMedia).FirstOrDefault();
+        return results.FirstOrDefault();
     }
 
     private const string MediaFields =
