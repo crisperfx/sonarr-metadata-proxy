@@ -205,6 +205,37 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Search_AniListDuplicateTvdbMappings_DeduplicatesResults()
+    {
+        WriteAniListFixtures();
+        var duplicate = new AniListMedia
+        {
+            Id = 9000,
+            IdMal = 9000,
+            TitleEnglish = "Death Note (Special)"
+        };
+        var aniList = new FakeAniListApi
+        {
+            SearchResults = new List<AniListMedia> { TestData.DeathNote(), duplicate }
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), aniList: aniList);
+        using var client = factory.CreateClient();
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=death+note");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var first = Assert.Single(document.RootElement.EnumerateArray());
+
+        Assert.Equal(81356, first.GetProperty("tvdbId").GetInt32());
+        Assert.Equal("Death Note", first.GetProperty("title").GetString());
+    }
+
+    [Fact]
     public async Task Search_AniListIdTerm_ReturnsMappedResult()
     {
         WriteAniListFixtures();
@@ -528,7 +559,8 @@ public class SkyHookApiIntegrationTests
 
         File.WriteAllText(Path.Combine(dir, "anime.json"), """
         [
-          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535 }
+          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535 },
+          { "name": "Death Note (Special)", "name_cn": "", "name_jp": "", "idAL": 9000, "idAniDB": 2993, "idMal": 9000 }
         ]
         """);
 
