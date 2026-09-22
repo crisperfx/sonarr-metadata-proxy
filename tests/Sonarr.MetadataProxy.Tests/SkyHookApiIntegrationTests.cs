@@ -197,7 +197,7 @@ public class SkyHookApiIntegrationTests
         Assert.Equal("ended", first.GetProperty("status").GetString());
         Assert.Equal(1, aniList.SearchCallCount);
 
-        var anilistIds = first.GetProperty("anilistIds").EnumerateArray().Select(x => x.GetInt32()).ToList();
+        var anilistIds = first.GetProperty("aniListIds").EnumerateArray().Select(x => x.GetInt32()).ToList();
         Assert.Contains(1535, anilistIds);
 
         var malIds = first.GetProperty("malIds").EnumerateArray().Select(x => x.GetInt32()).ToList();
