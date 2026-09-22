@@ -27,7 +27,7 @@ public class AniListClientTests
         Assert.Equal("JP", first.CountryOfOrigin);
         Assert.Equal("Toei Animation", first.Studio);
         Assert.Contains("Action", first.Genres);
-        Assert.Equal(27, first.Episodes?.GetValueOrDefault()); // fixture only, not the real show's count
+        Assert.Equal(27, first.Episodes);
     }
 
     [Fact]
