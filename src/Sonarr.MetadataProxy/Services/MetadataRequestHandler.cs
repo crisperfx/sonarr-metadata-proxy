@@ -173,7 +173,16 @@ public sealed class MetadataRequestHandler
             tmdbId = _mapping.TryResolveSeriesTmdb(tvdbId);
             if (!tmdbId.HasValue)
             {
-                tmdbId = await _tvdbToTmdb.ResolveTmdbIdAsync(tvdbId, null, null, cancellationToken).ConfigureAwait(false);
+                if (_mapping.GetDefaultSearchSource() == MappingStore.SourceTvdb)
+                {
+                    _logger.LogInformation(
+                        "Default search source 'tvdb' applies to TVDB id {TvdbId}; serving from TVDB backend instead of reverse-mapping.",
+                        tvdbId);
+                }
+                else
+                {
+                    tmdbId = await _tvdbToTmdb.ResolveTmdbIdAsync(tvdbId, null, null, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 

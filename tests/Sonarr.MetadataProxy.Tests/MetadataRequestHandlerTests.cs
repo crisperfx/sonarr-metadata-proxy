@@ -320,6 +320,55 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
+    public async Task Show_RealTvdb_NoMapping_WithTvdbSearchSourcePreference_UsesTvdbPassthrough()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvdb);
+        _resolver.Map[81189] = 1396;
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+
+        var result = await handler.ShowAsync(81189, CancellationToken.None);
+
+        Assert.Equal(1, _passthrough.ShowCallCount);
+        Assert.Equal(0, _tmdb.DetailsCallCount);
+        Assert.Equal(0, _resolver.CallCount);
+    }
+
+    [Fact]
+    public async Task Show_RealTvdb_NoMapping_WithDefaultPreference_ReverseMapsToTmdb()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource("");
+        _resolver.Map[81189] = 1396;
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+
+        var result = await handler.ShowAsync(81189, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        Assert.True(_tmdb.DetailsCallCount > 0);
+        Assert.Equal(1, _resolver.CallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Show_RealTvdb_ExistingMapping_WithTvdbSearchSourcePreference_KeepsTmdbMapping()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.RegisterSeries(81189, 1396);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvdb);
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+
+        var result = await handler.ShowAsync(81189, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        Assert.True(_tmdb.DetailsCallCount > 0);
+    }
+
+    [Fact]
     public async Task Search_Title_WithTvdbSearchSourcePreference_ForcesTvdbPassthrough()
     {
         var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
