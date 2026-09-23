@@ -302,9 +302,10 @@ public sealed class MetadataRequestHandler
 
     private ShowResolution FlattenIfAnimeBound(int tvdbId, ShowResolution resolution)
     {
-        var anilistId = _mapping.TryGetAniListIdByTvdb(tvdbId);
-        var malId = _mapping.TryGetMalIdByTvdb(tvdbId);
-        if (anilistId is null && malId is null)
+        var sourceOverride = _mapping.GetOverride(tvdbId);
+        if (_mapping.TryGetAniListIdByTvdb(tvdbId) is null &&
+            _mapping.TryGetMalIdByTvdb(tvdbId) is null &&
+            sourceOverride is not (MappingStore.SourceAniList or MappingStore.SourceMal))
         {
             return resolution;
         }

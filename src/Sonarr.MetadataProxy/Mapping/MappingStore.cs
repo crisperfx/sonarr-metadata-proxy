@@ -322,7 +322,9 @@ public sealed class MappingStore
             var json = JsonSerializer.Serialize(persisted, new JsonSerializerOptions { WriteIndented = true });
             var temp = _filePath + ".tmp";
             File.WriteAllText(temp, json);
+            UnixPermissions.PrivateFile(temp);
             File.Move(temp, _filePath, true);
+            UnixPermissions.PrivateFile(_filePath);
         }
         catch (Exception ex)
         {

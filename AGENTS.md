@@ -9,3 +9,23 @@
 ## Conventions
 - Do not add comments to code unless asked.
 - Confirm behavior with the user after deploy; CI runs the tests (no local .NET SDK on this machine).
+
+## Adding a new search provider (checklist)
+Missed touchpoints here are a recurring bug class — update ALL of these, not just the client:
+- `src/Sonarr.MetadataProxy/Mapping/MappingStore.cs`:
+  - add `SourceXxx` string constant;
+  - add `TryGetXxxIdByTvdb` / `RegisterXxxId` (that use the same persistence as AniList/MAL);
+  - extend `PersistedState` dictionaries + serialization;
+  - extend source validation in `SetOverride` / `SetDefaultSearchSource`;
+  - clear the new association too in `RemoveOverride`.
+- `src/Sonarr.MetadataProxy/Controllers/OverridesController.cs`: extend the `request.Source` whitelist check.
+- `src/Sonarr.MetadataProxy/Services/TermClassifier.cs`: add the `xxx:` prefix + `TermKind`.
+- `src/Sonarr.MetadataProxy/Services/MetadataRequestHandler.cs`: search dispatch per prefix + default search source; if the provider is anime-bound, also update `FlattenIfAnimeBound` — an override of `SourceAniList`/`SourceMal` counts as anime-bound even when there is no binding (searchs must serve a single continuous season in all three paths: mapped TMDB, passthrough TVDB, and override-without-binding).
+- `src/Sonarr.MetadataProxy/Services/XxxSearchService.cs`: search + by-id lookup; call `RegisterXxxId` when a show resolves to a TVDB id.
+- `src/Sonarr.MetadataProxy/Providers/XxxClient.cs` + interface: HTTP client, timeout, user-agent, rate limiting.
+- `src/Sonarr.MetadataProxy/Translation/XxxTranslator.cs`: convert to `ShowResource`/`SeriesMetadata`.
+- `src/Sonarr.MetadataProxy/MetadataProviderRegistry.cs` (or equivalent): add to the `Create` switch.
+- `src/Sonarr.MetadataProxy/Program.cs`: DI registration (`AddHttpClient<IXxxApi, XxxClient>`).
+- `init/metadata-proxy-override.js`: add the provider to BOTH dropdown option lists (series picker + Add-New picker) AND to `normalizeSearchSource`.
+- Tests: `tests/Sonarr.MetadataProxy.Tests/Infrastructure/Fakes.cs`, `TestData.cs`, plus provider/client/search-service/handler/mapping tests, incl. a flatten test for an override without binding.
+- Docs: `README.md` (provider table, env var table, per-series dropdown bullets), `.env.example`, `examples/requests.md`.

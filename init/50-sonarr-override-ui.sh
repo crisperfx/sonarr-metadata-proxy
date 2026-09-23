@@ -3,9 +3,13 @@
 #
 # This copies metadata-proxy-override.js (mounted next to this script) into the
 # Sonarr UI directory and patches index.html so the script is loaded. The script
-# adds a small per-series overlay: Automatisch / TMDB / TVDB, backed by the
-# proxy's /api/overrides management API, and a "Search via" provider picker on
-# the Add New search box (tmdb:/tvdb: prefixes).
+# adds a small per-series overlay: Automatisch / TMDB / TVDB / AniList / MAL, backed
+# by the proxy's /api/overrides management API, and a "Search via" provider picker
+# on the Add New search box (tmdb:/tvdb:/anilist:/mal: prefixes).
+#
+# No Sonarr API key is embedded or touched: the picker talks to the Sonarr API on
+# the same origin using your logged-in browser session, so nothing secret ends up
+# in a static file served next to the login page.
 #
 # Runs at every container start (LinuxServer runs /custom-cont-init.d on each
 # boot, not only at create), so an update or restart re-applies everything.
@@ -43,28 +47,6 @@ if [ -f "${SRC}" ]; then
   cp -f "${SRC}" "${UI_DIR}/metadata-proxy-override.js"
   chmod 644 "${UI_DIR}/metadata-proxy-override.js"
   echo "[sonarr-metadata-proxy] Copied override UI script to ${UI_DIR}/metadata-proxy-override.js"
-
-  SONARR_CONFIG="/config/config.xml"
-  if [ -f "${SONARR_CONFIG}" ]; then
-    API_KEY="$(sed -n 's:.*<ApiKey>\([^<]*\)</ApiKey>.*:\1:p' "${SONARR_CONFIG}" | head -1)"
-  else
-    API_KEY=""
-  fi
-
-  if [ -n "${API_KEY}" ]; then
-    # Busybox-safe replace of the FIRST occurrence only (no g flag, no GNU 0,
-    # addressing). The placeholder lives on exactly one line of the JS; the
-    # runtime check uses the indexOf('__SONARR_') prefix test which the pattern
-    # below does not touch, so the check stays intact no matter what.
-    sed -i "s/__SONARR_API_KEY__/${API_KEY}/" "${UI_DIR}/metadata-proxy-override.js"
-    if grep -q '__SONARR_API_KEY__' "${UI_DIR}/metadata-proxy-override.js"; then
-      echo "[sonarr-metadata-proxy] WARNING: __SONARR_API_KEY__ placeholder still present; API key was not embedded."
-    else
-      echo "[sonarr-metadata-proxy] Embedded Sonarr API key into override UI script."
-    fi
-  else
-    echo "[sonarr-metadata-proxy] No Sonarr API key found in ${SONARR_CONFIG}; key panel stays in UI."
-  fi
 
   # Optional: reverse-proxy setup. When Sonarr is reached from a browser through
   # an HTTPS reverse proxy (e.g. Synology), the legacy fallback "http://<host>:9697"

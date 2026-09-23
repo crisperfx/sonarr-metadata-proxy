@@ -51,9 +51,10 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
   fallback to TVDB** when the chosen source returns no results.
 - **Series details/episodes** come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
   real TVDB when a series cannot be mapped).
-- **Single-season flattening** for AniList- or MAL-bound series (continuous anime like One Piece):
-  when a series is linked to AniList/MAL via search, the proxy automatically serves it as one
-  continuous season (both mapped and TVDB passthrough paths).
+- **Single-season flattening** for anime forces (continuous anime like One Piece): when a
+  series is linked to AniList/MAL via search **or** its per-series source is set to
+  AniList/MAL, the proxy serves it as one continuous season (both mapped and TVDB
+  passthrough paths).
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
   the Sonarr web UI (per-series TMDB/TVDB/AniList/MAL picker) and a **Search via** provider picker
@@ -129,7 +130,7 @@ The complete stack (this is the whole `docker-compose.yml`):
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
 #   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI
-#     plus a "Search via" provider picker (TMDB / TVDB / AniList) into the add-series search.
+#     plus a "Search via" provider picker (TMDB / TVDB / AniList / MAL) into the add-series search.
 #
 # Usage:
 #   cp .env.example .env      # set TMDB_API_KEY (and CORS_ALLOWED_ORIGINS if needed)
@@ -274,8 +275,8 @@ is not recreated). On a shared custom network the IP stays stable too.
 1. Start/restart the proxy and wait until it is fully UP;
 2. Start Sonarr — on startup it installs the CA and patches its web UI
    (log line `[sonarr-metadata-proxy] index.html patched...`);
-3. **Restart Sonarr once more** — now `config.xml` exists, so your Sonarr API key is
-   embedded in the picker and there is never a key prompt.
+3. **Restart Sonarr once more** — the patched UI (`index.html` + picker script)
+   is now active in the browser.
 
 **Step 5 — Test**
 
@@ -335,10 +336,10 @@ restart then embeds them.
 
 **When can you skip the pull?** For purely *configuration* changes:
 
-- changed `OVERRIDES_API_URL`, `CORS_ALLOWED_ORIGINS`, or your API key → **no new image
-  needed**, just `docker restart sonarr`. The Sonarr hook re-embeds the current environment
-  on every start (and re-patches `index.html` with a cache-busting `?v=`, so no hard refresh
-  is ever required).
+- changed `OVERRIDES_API_URL` or `CORS_ALLOWED_ORIGINS` → **no new image
+  needed**, just `docker restart sonarr`. The Sonarr hook re-applies the current
+  environment on every start (and re-patches `index.html` with a cache-busting `?v=`,
+  so no hard refresh is ever required).
 
 Your data (`mappings/`, `certs/`) is never touched. Do not edit the seed files by hand —
 the image version wins; configure behaviour via environment variables.
@@ -366,22 +367,25 @@ LAN / port-forward use.
 
 ## Per-series source selection ("Metadata source")
 
-Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList**.
+Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList / MAL**.
 
 - **Automatic** = the default source from `METADATA_SOURCE`.
 - **TMDB** = always use TMDB servers for this series.
 - **TVDB** = always use the real SkyHook/TVDB for this series.
 - **AniList** = serve this series as a single continuous season (AniList-bound flattening).
-  Works when the series was discovered via AniList search (AniList ↔ TVDB binding created
-  on first search). Applies to both mapped and TVDB passthrough paths.
+  Applies to both mapped and TVDB passthrough paths — no search binding required, selecting
+  AniList here is enough to flatten.
+- **MAL** = serve this series as a single continuous season (MAL-bound flattening).
+  Applies to both mapped and TVDB passthrough paths — no `mal:`-search binding required,
+  selecting MAL here is enough to flatten.
 
 After choosing: **Refresh & Scan** on the series. Overrides are stored in
 `DATA_DIR/mappings/mappings.json` (one single file for all series — not a file per
 series; per-series files would multiply IO, race, and confuse editing/backup).
 Legacy `DATA_DIR/mappings.json` files are migrated into the `mappings/` folder
-automatically on startup. You might be asked once for your Sonarr API key
-(Settings → General); it is usually read automatically from `/config/config.xml`
-by the init hook, so there is normally no prompt.
+automatically on startup. The picker never needs your Sonarr API key: it talks to the
+Sonarr API on the same origin using the browser session you are signed in with, so
+nothing secret is embedded in files that end up next to the (public) login page.
 
 **Note for AniList series without a real TVDB ID:**
 When you select **TVDB** in the dropdown for a series that only has a synthetic TVDB ID
@@ -440,6 +444,33 @@ expand, **–** to collapse again.
 | `ANILIST_DATAMAP_DIR` | `/app/datamaps` | Folder with the AniList↔AniDB↔TVDB datasets (`anime.json` + `anime-list-full.xml`); baked into the image, override only to point at your own copies. |
 
 Set these in `.env`, or as environment on the container / in your own compose.
+
+## Security
+
+- **Runs unprivileged** — the container starts as root only to fix the data volume
+  ownership, then drops to the unprivileged `app` user (`runuser`). The app process
+  has no special capabilities beyond binding port 443 for TLS (granted via `setcap`);
+  the compose template also drops all kernel capabilities except the few needed
+  (`CHOWN`, `FOWNER`, `SETUID`, `SETGID`, `NET_BIND_SERVICE`, `DAC_OVERRIDE`).
+- **Private keys are 0600** — the generated CA and server private keys in
+  `DATA_DIR/certs/` (and the `mappings.json` store) are readable only by the proxy
+  user. Only `ca.crt` needs to be seen by the Sonarr container.
+- **No secrets in the web UI** — the picker uses your signed-in Sonarr browser
+  session; it never embeds or expects a Sonarr API key, and it sends no credentials
+  anywhere except your same-origin cookie to Sonarr itself.
+- **TMDB credentials are not logged** — error messages redact `api_key` (the bearer
+  token travels only in a header and is never part of URLs).
+- **Outgoing requests go to fixed hosts only** (TMDB, AniList, Jikan for MAL, SkyHook,
+  Cloudflare DoH, Wikidata); user input is limited to IDs and escaped search terms, so
+  there is no SSRF from the public endpoints.
+- **CORS is closed by default** — `/api/overrides` only answers cross-origin browsers
+  listed in `CORS_ALLOWED_ORIGINS` (same-origin requests always work).
+
+> The management API on `9697` is **unauthenticated by design** (the in-browser picker
+> uses it) and `9697:9697` is published on your LAN. Anyone on the network can read and
+> change overrides, and searches against it consume your TMDB quota. Do not expose
+> `9697` to the internet; keep it behind your firewall / reverse proxy if your network
+> is not fully trusted.
 
 ## Management API
 

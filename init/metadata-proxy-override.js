@@ -3,10 +3,8 @@
 
   var PROXY_PORT = 9697;
   var OVERRIDES_API_URL = '__OVERRIDES_API_URL__';
-  var LS_KEY = 'sonarrMetadataOverride.apiKey';
   var PANEL_ID = 'metadata-override-ui';
   var POLL_MS = 2000;
-  var EMBEDDED_KEY = '__SONARR_API_KEY__';
 
   if (window.__metadataOverrideInstalled) {
     return;
@@ -19,26 +17,6 @@
   var seriesCache = null;
   var seriesCacheAt = 0;
   var SERIES_CACHE_TTL_MS = 10 * 60 * 1000;
-
-  function getApiKey() {
-    if (EMBEDDED_KEY && EMBEDDED_KEY.indexOf('__SONARR_') !== 0) {
-      return EMBEDDED_KEY;
-    }
-    return localStorage.getItem(LS_KEY);
-  }
-
-  function setApiKey() {
-    var key = window
-      .prompt(
-        'Metadata source: enter your Sonarr API key (Settings → General → API Key). ' +
-          'It is only stored in your browser (localStorage).'
-      )
-      .trim();
-    if (key) {
-      localStorage.setItem(LS_KEY, key);
-    }
-    return key || null;
-  }
 
   function seriesIdentifier() {
     var parts = window.location.pathname.split('/').filter(Boolean);
@@ -183,22 +161,20 @@
     }
   }
 
-  function buildKeyPanel(message) {
+  function buildNoticePanel(message) {
     var shell = buildShell('Metadata source');
 
     var hint = document.createElement('div');
     hint.className = 'mpo-status';
-    hint.textContent = message || 'Enter your Sonarr API key first (Settings → General → API Key).';
+    hint.textContent = message || 'Could not load the series. Make sure you are signed in to Sonarr in this browser.';
     shell._mpoBody.appendChild(hint);
 
     var btn = document.createElement('button');
     btn.className = 'mpo-btn-primary';
-    btn.textContent = 'Enter API key';
+    btn.textContent = 'Retry';
     btn.addEventListener('click', function () {
-      if (setApiKey()) {
-        shell.remove();
-        tick(true);
-      }
+      shell.remove();
+      tick(true);
     });
     shell._mpoBody.appendChild(btn);
 
@@ -310,15 +286,15 @@
     return '';
   }
 
-  function getSeriesList(key) {
+  function getSeriesList() {
     var now = Date.now();
     if (seriesCache && now - seriesCacheAt < SERIES_CACHE_TTL_MS) {
       return Promise.resolve(seriesCache);
     }
-    return fetch('/api/v3/series?apikey=' + encodeURIComponent(key))
+    return fetch('/api/v3/series')
       .then(function (response) {
         if (!response.ok) {
-          throw new Error('Sonarr API: HTTP ' + response.status + ' — klopt je API-key?');
+          throw new Error('Sonarr API: HTTP ' + response.status + ' — signed in to Sonarr in this browser?');
         }
         return response.json();
       })
@@ -329,7 +305,7 @@
       });
   }
 
-  function findSeries(key, ident) {
+  function findSeries(ident) {
     var slug = String(ident.slug || ident.id);
     var normalized = slug.replace(/[^a-z0-9]+/g, '-');
 
@@ -359,10 +335,10 @@
     }
 
     function fail() {
-      throw new Error('Series not found via "' + slug + '" (check your API key and that the series exists).');
+      throw new Error('Series not found via "' + slug + '" (signed in to Sonarr in this browser?).');
     }
 
-    return getSeriesList(key).then(function (list) {
+    return getSeriesList().then(function (list) {
       var found = pick(list);
       if (found) {
         return found;
@@ -370,7 +346,7 @@
       if (seriesCache && Date.now() - seriesCacheAt < SERIES_CACHE_TTL_MS) {
         seriesCache = null;
         seriesCacheAt = 0;
-        return getSeriesList(key).then(function (fresh) {
+        return getSeriesList().then(function (fresh) {
           var refound = pick(fresh);
           if (refound) {
             return refound;
@@ -409,12 +385,7 @@
       return;
     }
 
-    if (!getApiKey()) {
-      buildKeyPanel();
-      return;
-    }
-
-    findSeries(getApiKey(), ident)
+    findSeries(ident)
       .then(function (data) {
         if (!data || !data.tvdbId) {
           throw new Error('No tvdbId received from Sonarr');
@@ -452,7 +423,7 @@
       .catch(function (err) {
         console.debug('[metadata-proxy-override]', err);
         el = null;
-        buildKeyPanel('Error: ' + err.message);
+        buildNoticePanel('Error: ' + err.message);
       });
   }
 

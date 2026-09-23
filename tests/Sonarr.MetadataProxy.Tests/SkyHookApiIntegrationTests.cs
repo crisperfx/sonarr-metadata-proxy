@@ -883,6 +883,92 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Show_MalOverrideWithoutBinding_FlattensPassthroughEpisodesIntoOne()
+    {
+        var episodes = new JsonArray();
+        var absolute = 0;
+        for (var season = 1; season <= 3; season++)
+        {
+            for (var i = 1; i <= 10; i++)
+            {
+                episodes.Add(new JsonObject
+                {
+                    ["tvdbId"] = 900 + absolute + i,
+                    ["seasonNumber"] = season,
+                    ["episodeNumber"] = i,
+                    ["title"] = "Episode",
+                    ["absoluteEpisodeNumber"] = ++absolute
+                });
+            }
+        }
+
+        var root = new JsonObject
+        {
+            ["tvdbId"] = 81189,
+            ["title"] = "Anime Forced To MAL",
+            ["seasons"] = new JsonArray(),
+            ["episodes"] = episodes
+        };
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new ProxyResponse(200, "application/json", root.ToJsonString())
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var overridePost = await client.PostAsJsonAsync(
+            "/api/overrides",
+            new { tvdbId = 81189, source = "mal" });
+        Assert.Equal(HttpStatusCode.OK, overridePost.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81189");
+        using var document = JsonDocument.Parse(body);
+
+        var all = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
+        Assert.Equal(30, all.Count);
+        Assert.All(all, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(Enumerable.Range(1, 30), all.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+
+        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
+        Assert.Equal(new[] { 1 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
+    }
+
+    [Fact]
+    public async Task Show_AniListOverrideWithoutBinding_FlattensMappedSeasonsIntoOne()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            Details = TestData.BreakingBadDetails(),
+            Seasons =
+            {
+                [1] = TestData.SeasonOneEpisodes(),
+                [2] = TestData.SeasonTwoEpisodes()
+            }
+        };
+        var resolver = new FakeTvdbResolver { Map = { [TestData.BreakingBadTvdbId] = TestData.BreakingBadTmdbId } };
+
+        using var factory = CreateFactory(tmdb, resolver: resolver);
+        using var client = factory.CreateClient();
+
+        using var overridePost = await client.PostAsJsonAsync(
+            "/api/overrides",
+            new { tvdbId = TestData.BreakingBadTvdbId, source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, overridePost.StatusCode);
+
+        var body = await client.GetStringAsync($"/v1/tvdb/shows/en/{TestData.BreakingBadTvdbId}");
+        using var document = JsonDocument.Parse(body);
+
+        var episodes = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
+        Assert.Equal(3, episodes.Count);
+        Assert.All(episodes, episode => Assert.Equal(1, episode.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+
+        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
+        Assert.Equal(new[] { 1 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
+    }
+
+    [Fact]
     public async Task Show_RealTvdb_NoMapping_WithTvdbSearchSourcePreference_SkipsReverseMapping()
     {
         var resolver = new FakeTvdbResolver { Map = { [81189] = 1396 } };
