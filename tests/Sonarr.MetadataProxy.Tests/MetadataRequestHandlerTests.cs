@@ -515,6 +515,8 @@ public class MetadataRequestHandlerTests
             translator,
             aniList,
             mal,
+            null,
+            null,
             activeProvider,
             tmdbProvider,
             NullLogger<MetadataRequestHandler>.Instance);
