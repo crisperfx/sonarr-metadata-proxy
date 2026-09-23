@@ -150,11 +150,11 @@ public sealed class MalClient : IMalApi
 
         return new MalAnime
         {
-            Id = GetInt(element, "id") ?? GetInt(element, "mal_id"),
+            Id = GetNullableInt(element, "id") ?? GetNullableInt(element, "mal_id") ?? 0,
             Title = GetString(element, "title"),
             TitleEnglish = GetString(element, "title_english"),
             TitleJapanese = GetString(element, "title_japanese"),
-            Synonyms = GetStringList(element, "title_synonyms") ?? GetStringList(element, "synonyms"),
+            Synonyms = GetStringList(element, "title_synonyms") ?? GetStringList(element, "synonyms") ?? new List<string>(),
             Episodes = GetNullableInt(element, "episodes"),
             DurationMinutes = ParseDuration(GetString(element, "duration")),
             Status = GetString(element, "status"),
