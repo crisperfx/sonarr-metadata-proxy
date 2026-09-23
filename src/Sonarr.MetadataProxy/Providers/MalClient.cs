@@ -123,7 +123,7 @@ public sealed class MalClient : IMalApi
             return null;
         }
 
-        var hours = Regex.Match(duration, @"(\d+)\s*hour", RegexOptions.IgnoreCase);
+        var hours = Regex.Match(duration, @"(\d+)\s*(?:hours?|hrs?|h)\b", RegexOptions.IgnoreCase);
         var minutes = Regex.Match(duration, @"(\d+)\s*min", RegexOptions.IgnoreCase);
 
         var total = 0;

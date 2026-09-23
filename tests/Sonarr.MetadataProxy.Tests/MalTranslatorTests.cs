@@ -21,7 +21,7 @@ public class MalTranslatorTests
         Assert.Equal("Madhouse", show.Network);
         Assert.Equal("JP", show.OriginalCountry);
         Assert.Equal("ja", show.OriginalLanguage);
-        Assert.Equal(8.6m, show.Rating.Value);
+        Assert.Equal(8.6m, show.Rating!.Value);
         Assert.Equal(12345, show.Rating.Count);
         Assert.Equal(new[] { 1535 }, show.MalIds);
         Assert.Contains("Mystery", show.Genres);

@@ -102,7 +102,7 @@ public sealed class MalSearchService
             bool hasRealTvdbMapping = rawTvdbId is > 0;
 
             int tvdbId;
-            if (!hasRealTvdbMapping)
+            if (rawTvdbId is not > 0)
             {
                 tvdbId = SyntheticIds.SeriesId(item.Id);
                 _logger.LogInformation("No TVDB mapping for MAL {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId);
