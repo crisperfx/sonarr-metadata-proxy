@@ -511,16 +511,21 @@
 
         fetch(url)
           .then(function (proxyResponse) {
+            console.debug('[metadata-proxy-override] overrides list fetch:', url, proxyResponse.status);
             if (!proxyResponse.ok) {
               throw new Error('HTTP ' + proxyResponse.status);
             }
             return proxyResponse.json();
           })
           .then(function (list) {
-            select.value = currentOverride(list, series.tvdbId);
+            console.debug('[metadata-proxy-override] overrides list:', list);
+            var overrideSource = currentOverride(list, series.tvdbId);
+            console.debug('[metadata-proxy-override] current override for', series.tvdbId, ':', overrideSource);
+            select.value = overrideSource;
             updateSeriesBadge(select.value);
           })
           .catch(function (err) {
+            console.error('[metadata-proxy-override] overrides fetch failed:', err);
             setStatus(
               'overrides API unreachable: ' + proxyUrl() + ' (' + err.message + ')',
               '#f87171'
