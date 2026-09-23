@@ -42,32 +42,24 @@ public sealed class MalClient : IMalApi
     public async Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
     {
         return await ExecuteAsync<MalPictures?>(
-            $"{Endpoint}/anime/{malId}/pictures",
+            $"{Endpoint}/anime/{malId}",
             data =>
             {
                 var pictures = new MalPictures();
-                if (data.ValueKind != JsonValueKind.Array)
+                if (data.ValueKind != JsonValueKind.Object)
                 {
                     return pictures;
                 }
 
-                foreach (var item in data.EnumerateArray())
+                // Poster from images.jpg.large_image_url (same as Jikan format)
+                var posterUrl = GetPosterUrl(data);
+                if (!string.IsNullOrWhiteSpace(posterUrl))
                 {
-                    if (item.ValueKind != JsonValueKind.Object)
-                    {
-                        continue;
-                    }
-
-                    if (item.TryGetProperty("url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String)
-                    {
-                        var url = urlProp.GetString();
-                        if (!string.IsNullOrWhiteSpace(url))
-                        {
-                            pictures.Posters.Add(url);
-                        }
-                    }
+                    pictures.Posters.Add(posterUrl);
                 }
 
+                // Backgrounds: if Tenrai provides them in a different field, add here
+                // For now, poster is the main one we need
                 return pictures;
             },
             cancellationToken,
