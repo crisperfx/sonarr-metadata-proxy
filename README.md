@@ -458,7 +458,7 @@ curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 
 ```bash
 git push origin develop   # CI: tests + publish as :develop (Docker Hub + GHCR, amd64+arm64)
-git tag v0.2.4 && git push origin v0.2.4   # CI: tests + publish as :<version> (plus sha/ref tags)
+git tag v0.2.4 && git push origin v0.2.4   # CI: tests + publish as :0.2.4 (single tag)
 ```
 
 The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
@@ -467,10 +467,10 @@ The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
 Read/Write on the Docker Hub repo); GHCR works with the standard `GITHUB_TOKEN` and needs no
 setup. Without `DOCKERHUB_*` secrets only the Docker Hub push fails, the GHCR push succeeds.
 
-Tags by branch/ref:
-- `develop` → pushed only as `:develop` (clearly a dev build, never `latest`).
-- `main` → pushed as `:latest` (plus a `sha-...` tag).
-- `vX.Y.Z` → pushed as `:<version>`, `:X.Y`, `:X` (plus `sha-...` and the tag name itself).
+Tags by branch/ref (one build, one tag per event — no `sha-...` or minor-version tags):
+- `develop` → published only as `:develop` (clearly a dev build, never `latest`).
+- `main` → published only as `:latest`.
+- `vX.Y.Z` → published only as `:X.Y.Z` (e.g. `git tag v1.1.3` → image `crisperfx/sonarr-metadata-proxy:1.1.3`).
 
 Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadata-proxy`.
 
