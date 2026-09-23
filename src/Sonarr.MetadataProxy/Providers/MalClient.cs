@@ -256,7 +256,7 @@ public sealed class MalClient : IMalApi
     }
 }
 
-public sealed class JikanRateLimiter
+public class JikanRateLimiter
 {
     private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(333);
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
