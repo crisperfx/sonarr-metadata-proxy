@@ -11,6 +11,7 @@ public sealed class FakeMalApi : IMalApi
 {
     public List<MalAnime> SearchResults { get; set; } = new();
     public Dictionary<int, MalAnime> ById { get; set; } = new();
+    public Dictionary<int, MalPictures> PicturesById { get; set; } = new();
     public Exception? Exception { get; set; }
     public int SearchCallCount { get; private set; }
 
@@ -25,6 +26,12 @@ public sealed class FakeMalApi : IMalApi
     {
         ThrowIf();
         return Task.FromResult(ById.TryGetValue(malId, out var media) ? media : null);
+    }
+
+    public Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(PicturesById.TryGetValue(malId, out var pics) ? pics : null);
     }
 
     private void ThrowIf()
