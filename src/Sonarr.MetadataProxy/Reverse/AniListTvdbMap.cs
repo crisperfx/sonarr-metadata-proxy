@@ -17,6 +17,7 @@ public sealed class AniListTvdbMap
     private readonly Dictionary<int, int> _anilistToAnidb = new();
     private readonly Dictionary<int, int> _malToAnidb = new();
     private readonly Dictionary<int, int> _malToAniList = new();
+    private readonly Dictionary<int, int> _tvdbToMal = new();
     private readonly ILogger<AniListTvdbMap> _logger;
 
     public AniListTvdbMap(ProxyOptions options, ILogger<AniListTvdbMap> logger)
@@ -49,6 +50,11 @@ public sealed class AniListTvdbMap
     public int? TryGetAniListId(int malId)
     {
         return _malToAniList.TryGetValue(malId, out var anilistId) ? anilistId : null;
+    }
+
+    public int? TryGetMalIdByTvdb(int tvdbId)
+    {
+        return _tvdbToMal.TryGetValue(tvdbId, out var malId) ? malId : null;
     }
 
     private void Load(string datamapDir, string dataDir)
@@ -87,11 +93,24 @@ public sealed class AniListTvdbMap
         }
 
         HasData = _anidbToTvdb.Count > 0 && _anilistToAnidb.Count > 0;
+
+        var anidbToMal = _malToAnidb
+            .GroupBy(kvp => kvp.Value)
+            .ToDictionary(g => g.Key, g => g.First().Key);
+        foreach (var (anidbId, tvdbId) in _anidbToTvdb)
+        {
+            if (anidbToMal.TryGetValue(anidbId, out var malId))
+            {
+                _tvdbToMal[tvdbId] = malId;
+            }
+        }
+
         _logger.LogInformation(
-            "Anime mapping data loaded (shared AniList/MAL): {AniList} anilist ids, {AniDb} anidb ids, {Tvdb} anidb->tvdb links.",
+            "Anime mapping data loaded (shared AniList/MAL): {AniList} anilist ids, {AniDb} anidb ids, {Tvdb} anidb->tvdb links, {Mal} tvdb->mal links.",
             _anilistToAnidb.Count,
             _anidbToTvdb.Count,
-            HasData ? _anidbToTvdb.Count : 0);
+            HasData ? _anidbToTvdb.Count : 0,
+            _tvdbToMal.Count);
     }
 
     private static string? FindFile(string datamapDir, string dataDir, string fileName)

@@ -39,6 +39,54 @@ public sealed class MalClient : IMalApi
         return results.FirstOrDefault();
     }
 
+    public async Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
+    {
+        return await ExecuteAsync(
+            $"{Endpoint}/anime/{malId}/pictures",
+            data =>
+            {
+                var pictures = new MalPictures();
+                if (data.ValueKind != JsonValueKind.Array)
+                {
+                    return pictures;
+                }
+
+                foreach (var item in data.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    if (item.TryGetProperty("jpg", out var jpg) && jpg.ValueKind == JsonValueKind.Object)
+                    {
+                        var large = GetString(jpg, "large_image_url");
+                        var medium = GetString(jpg, "image_url");
+                        var url = large ?? medium;
+                        if (!string.IsNullOrWhiteSpace(url))
+                        {
+                            pictures.Posters.Add(url);
+                        }
+                    }
+
+                    if (item.TryGetProperty("webp", out var webp) && webp.ValueKind == JsonValueKind.Object)
+                    {
+                        var large = GetString(webp, "large_image_url");
+                        var medium = GetString(webp, "image_url");
+                        var url = large ?? medium;
+                        if (!string.IsNullOrWhiteSpace(url))
+                        {
+                            pictures.Backgrounds.Add(url);
+                        }
+                    }
+                }
+
+                return pictures;
+            },
+            cancellationToken,
+            allowNotFound: true).ConfigureAwait(false);
+    }
+
     private async Task<IReadOnlyList<MalAnime>> ExecuteAsync(
         string url,
         Func<JsonElement, List<MalAnime>> extract,

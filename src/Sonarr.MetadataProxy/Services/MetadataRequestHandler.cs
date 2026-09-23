@@ -1,5 +1,8 @@
+using System.Linq;
+using System.Text.Json.Nodes;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Metadata;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Passthrough;
@@ -19,6 +22,8 @@ public sealed class MetadataRequestHandler
     private readonly SkyHookTranslator _translator;
     private readonly AniListSearchService? _aniList;
     private readonly MalSearchService? _mal;
+    private readonly IMalApi? _malApi;
+    private readonly AniListTvdbMap? _animeMap;
     private readonly IMetadataProvider? _activeProvider;
     private readonly TmdbMetadataProvider? _tmdbProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
@@ -31,6 +36,8 @@ public sealed class MetadataRequestHandler
         SkyHookTranslator translator,
         AniListSearchService? aniList,
         MalSearchService? mal,
+        IMalApi? malApi,
+        AniListTvdbMap? animeMap,
         IMetadataProvider? activeProvider,
         TmdbMetadataProvider? tmdbProvider,
         ILogger<MetadataRequestHandler> logger)
@@ -42,6 +49,8 @@ public sealed class MetadataRequestHandler
         _translator = translator;
         _aniList = aniList;
         _mal = mal;
+        _malApi = malApi;
+        _animeMap = animeMap;
         _activeProvider = activeProvider;
         _tmdbProvider = tmdbProvider;
         _logger = logger;
@@ -292,6 +301,13 @@ public sealed class MetadataRequestHandler
 
         resolution = FlattenIfAnimeBound(tvdbId, resolution);
 
+        // Enrich with MAL pictures if this is a MAL-bound series
+        var malId = GetMalId(tvdbId);
+        if (malId.HasValue && _malApi is not null)
+        {
+            resolution = await EnrichWithMalPicturesAsync(resolution, malId.Value, cancellationToken).ConfigureAwait(false);
+        }
+
         return resolution switch
         {
             ShowResolution.Mapped mapped => Results.Ok(mapped.Show),
@@ -300,12 +316,107 @@ public sealed class MetadataRequestHandler
         };
     }
 
+    private int? GetMalId(int tvdbId)
+    {
+        return _mapping.TryGetMalIdByTvdb(tvdbId) ?? _animeMap?.TryGetMalIdByTvdb(tvdbId);
+    }
+
+    private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pictures = await _malApi!.GetPicturesAsync(malId, cancellationToken).ConfigureAwait(false);
+            if (pictures is null || (pictures.Posters.Count == 0 && pictures.Backgrounds.Count == 0))
+            {
+                return resolution;
+            }
+
+            _logger.LogInformation("Enriching TVDB {TvdbId} with MAL pictures (posters: {Count}, backgrounds: {BgCount}).", malId, pictures.Posters.Count, pictures.Backgrounds.Count);
+
+            return resolution switch
+            {
+                ShowResolution.Mapped mapped => new ShowResolution.Mapped(InjectMalImages(mapped.Show, pictures)),
+                ShowResolution.Passthrough passed => InjectMalImagesPassthrough(passed, pictures),
+                _ => resolution
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch MAL pictures for MAL id {MalId}.", malId);
+            return resolution;
+        }
+    }
+
+    private ShowResource InjectMalImages(ShowResource show, MalPictures pictures)
+    {
+        // Prepend MAL poster as primary poster if available
+        if (pictures.Posters.Count > 0)
+        {
+            show.Images.Insert(0, new ImageResource { CoverType = "poster", Url = pictures.Posters[0] });
+        }
+
+        // Add MAL backgrounds as fanart
+        foreach (var bg in pictures.Backgrounds.Take(3))
+        {
+            show.Images.Add(new ImageResource { CoverType = "fanart", Url = bg });
+        }
+
+        return show;
+    }
+
+    private ShowResolution InjectMalImagesPassthrough(ShowResolution.Passthrough passed, MalPictures pictures)
+    {
+        JsonNode? body;
+        try
+        {
+            body = JsonNode.Parse(passed.Response.Body);
+        }
+        catch (Exception)
+        {
+            return passed;
+        }
+
+        if (body is not JsonObject root)
+        {
+            return passed;
+        }
+
+        var imagesArray = root["images"] as JsonArray ?? new JsonArray();
+        root["images"] = imagesArray;
+
+        // Add MAL poster as first poster
+        if (pictures.Posters.Count > 0)
+        {
+            imagesArray.Insert(0, new JsonObject
+            {
+                ["coverType"] = "poster",
+                ["url"] = pictures.Posters[0]
+            });
+        }
+
+        // Add MAL backgrounds
+        foreach (var bg in pictures.Backgrounds.Take(3))
+        {
+            imagesArray.Add(new JsonObject
+            {
+                ["coverType"] = "fanart",
+                ["url"] = bg
+            });
+        }
+
+        var enrichedResponse = new ProxyResponse(passed.Response.StatusCode, passed.Response.ContentType, root.ToJsonString());
+        return new ShowResolution.Passthrough(enrichedResponse);
+    }
+
     private ShowResolution FlattenIfAnimeBound(int tvdbId, ShowResolution resolution)
     {
         var sourceOverride = _mapping.GetOverride(tvdbId);
-        if (_mapping.TryGetAniListIdByTvdb(tvdbId) is null &&
-            _mapping.TryGetMalIdByTvdb(tvdbId) is null &&
-            sourceOverride is not (MappingStore.SourceAniList or MappingStore.SourceMal))
+        var isAnimeBound = _mapping.TryGetAniListIdByTvdb(tvdbId) is not null ||
+                           _mapping.TryGetMalIdByTvdb(tvdbId) is not null ||
+                           _animeMap?.TryGetMalIdByTvdb(tvdbId) is not null ||
+                           sourceOverride is MappingStore.SourceAniList or MappingStore.SourceMal;
+
+        if (!isAnimeBound)
         {
             return resolution;
         }

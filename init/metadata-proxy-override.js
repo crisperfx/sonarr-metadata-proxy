@@ -212,7 +212,7 @@
   }
 
   function buildPickerPanel() {
-    var shell = buildShell('Metadata: ' + (series.title || series.tvdbId));
+    var shell = buildShell('Metadata source settings');
 
     var title = document.createElement('div');
     title.className = 'mpo-title';
@@ -262,7 +262,7 @@
     if (isSynthetic) {
       bullets.push('Geen echte TVDB-ID — "TVDB" als bron werkt niet (fallback naar standaard bron).');
     }
-    bullets.push('Na wijzigen: Refresh & Scan op de serie.');
+    bullets.push('After changing the source: Refresh & Scan on the serie.');
 
     if (bullets.length) {
       var list = document.createElement('ul');
