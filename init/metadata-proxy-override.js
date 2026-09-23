@@ -92,7 +92,7 @@
       '.mpo-title{font:600 15px/1.3 "Open Sans","Segoe UI",sans-serif;color:#fff;}',
       '.mpo-subtitle{font-size:11px;line-height:1.5;color:#909293;}',
       '.mpo-poster{width:100%;border-radius:8px;border:1px solid #393f45;margin:8px 0 4px;display:block;}',
-      '.mpo-badge{display:inline-block;font:600 11px/1 "Open Sans",sans-serif;padding:4px 8px;border-radius:10px;background:#333;border:1px solid #393f45;color:#e1e2e3;letter-spacing:.04em;white-space:nowrap;}',
+      '.mpo-badge{margin-top: 5px;margin-bottom: 5px;display:inline-block;font:600 11px/1 "Open Sans",sans-serif;padding:4px 8px;border-radius:10px;background:#333;border:1px solid #393f45;color:#e1e2e3;letter-spacing:.04em;white-space:nowrap;}',
       '.mpo-badge-active{background:#173a24;border-color:#2f7a44;color:#7ddf9b;}',
       '.mpo-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 6px 0 2px;vertical-align:middle;}',
       '.mpo-dot-on{background:#4ade80;}',

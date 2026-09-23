@@ -24,13 +24,13 @@ public sealed class MalClient : IMalApi
     public async Task<IReadOnlyList<MalAnime>> SearchAsync(string query, CancellationToken cancellationToken)
     {
         var url = $"{Endpoint}/anime?q={Uri.EscapeDataString(query)}&type=tv&limit={SearchLimit}&sfw=true";
-        return await ExecuteAsync(url, data => data.EnumerateArray().Select(ParseAnime).ToList(), cancellationToken)
+        return await ExecuteAsync<IReadOnlyList<MalAnime>>(url, data => data.EnumerateArray().Select(ParseAnime).ToList(), cancellationToken)
             .ConfigureAwait(false);
     }
 
     public async Task<MalAnime?> GetByIdAsync(int malId, CancellationToken cancellationToken)
     {
-        var results = await ExecuteAsync(
+        var results = await ExecuteAsync<List<MalAnime>>(
             $"{Endpoint}/anime/{malId}",
             data => data.ValueKind == JsonValueKind.Object ? new List<MalAnime> { ParseAnime(data) } : new List<MalAnime>(),
             cancellationToken,
@@ -41,7 +41,7 @@ public sealed class MalClient : IMalApi
 
     public async Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
     {
-        return await ExecuteAsync(
+        return await ExecuteAsync<MalPictures?>(
             $"{Endpoint}/anime/{malId}/pictures",
             data =>
             {
@@ -87,9 +87,9 @@ public sealed class MalClient : IMalApi
             allowNotFound: true).ConfigureAwait(false);
     }
 
-    private async Task<IReadOnlyList<MalAnime>> ExecuteAsync(
+    private async Task<T> ExecuteAsync<T>(
         string url,
-        Func<JsonElement, List<MalAnime>> extract,
+        Func<JsonElement, T> extract,
         CancellationToken cancellationToken,
         bool allowNotFound = false)
     {
@@ -106,7 +106,7 @@ public sealed class MalClient : IMalApi
             if (response.StatusCode == HttpStatusCode.NotFound && allowNotFound)
             {
                 _logger.LogInformation("MAL (Jikan) reported not found for '{Url}'.", url);
-                return new List<MalAnime>();
+                return default!;
             }
 
             if (!response.IsSuccessStatusCode)
@@ -116,7 +116,7 @@ public sealed class MalClient : IMalApi
             }
 
             using var document = JsonDocument.Parse(body);
-            return document.RootElement.TryGetProperty("data", out var data) ? extract(data) : new List<MalAnime>();
+            return document.RootElement.TryGetProperty("data", out var data) ? extract(data) : default!;
         }
         catch (MalApiException)
         {
