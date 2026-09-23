@@ -95,44 +95,63 @@ public sealed class MalClient : IMalApi
     {
         await _rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        try
+        const int maxRetries = 3;
+        var baseDelay = TimeSpan.FromSeconds(1);
+        var attempt = 0;
+
+        while (true)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("Accept", "application/json");
-
-            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-            if (response.StatusCode == HttpStatusCode.NotFound && allowNotFound)
+            try
             {
-                _logger.LogInformation("MAL (Jikan) reported not found for '{Url}'.", url);
-                return default!;
-            }
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("Accept", "application/json");
 
-            if (!response.IsSuccessStatusCode)
+                using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+                if (response.StatusCode == HttpStatusCode.NotFound && allowNotFound)
+                {
+                    _logger.LogInformation("MAL (Jikan) reported not found for '{Url}'.", url);
+                    return default!;
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var status = (int)response.StatusCode;
+                    _logger.LogWarning("MAL (Jikan) returned {Status}: {Body}", status, Truncate(body));
+
+                    var isRetryable = status == 502 || status == 503 || status == 504;
+                    if (isRetryable && attempt < maxRetries)
+                    {
+                        attempt++;
+                        var delay = TimeSpan.FromTicks(baseDelay.Ticks * (1L << (attempt - 1)));
+                        _logger.LogInformation("Retrying Jikan request in {Delay}s (attempt {Attempt}/{MaxRetries}).", delay.TotalSeconds, attempt, maxRetries);
+                        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    throw new MalApiException($"Jikan API error {status}.");
+                }
+
+                using var document = JsonDocument.Parse(body);
+                return document.RootElement.TryGetProperty("data", out var data) ? extract(data) : default!;
+            }
+            catch (MalApiException)
             {
-                _logger.LogWarning("MAL (Jikan) returned {Status}: {Body}", (int)response.StatusCode, Truncate(body));
-                throw new MalApiException($"Jikan API error {response.StatusCode}.");
+                throw;
             }
-
-            using var document = JsonDocument.Parse(body);
-            return document.RootElement.TryGetProperty("data", out var data) ? extract(data) : default!;
-        }
-        catch (MalApiException)
-        {
-            throw;
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new MalApiException("Jikan request failed.", ex);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new MalApiException("Jikan request timed out.", ex);
-        }
-        catch (JsonException ex)
-        {
-            throw new MalApiException("Jikan response could not be parsed.", ex);
+            catch (HttpRequestException ex)
+            {
+                throw new MalApiException("Jikan request failed.", ex);
+            }
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new MalApiException("Jikan request timed out.", ex);
+            }
+            catch (JsonException ex)
+            {
+                throw new MalApiException("Jikan response could not be parsed.", ex);
+            }
         }
     }
 
