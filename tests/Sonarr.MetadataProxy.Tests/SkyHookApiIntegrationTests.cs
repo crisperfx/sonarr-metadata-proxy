@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Sonarr.MetadataProxy.Models.AniList;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Passthrough;
@@ -268,12 +269,12 @@ public class SkyHookApiIntegrationTests
     public async Task Search_MalIdTerm_ReturnsMappedResult()
     {
         WriteAniListFixtures();
-        var aniList = new FakeAniListApi
+        var mal = new FakeMalApi
         {
-            ById = { [1535] = TestData.DeathNote() }
+            ById = { [1535] = TestData.DeathNoteMal() }
         };
 
-        using var factory = CreateFactory(new FakeTmdbApi(), aniList: aniList);
+        using var factory = CreateFactory(new FakeTmdbApi(), mal: mal);
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync("/v1/tvdb/search/en/?term=mal%3A1535");
@@ -283,6 +284,92 @@ public class SkyHookApiIntegrationTests
         using var document = JsonDocument.Parse(body);
         var first = Assert.Single(document.RootElement.EnumerateArray());
         Assert.Equal(81356, first.GetProperty("tvdbId").GetInt32());
+        Assert.Equal("Death Note", first.GetProperty("title").GetString());
+        Assert.Equal("ended", first.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Search_MalSearchSourcePreference_ReturnsMappedResults()
+    {
+        WriteAniListFixtures();
+        var mal = new FakeMalApi { SearchResults = new List<MalAnime> { TestData.DeathNoteMal() } };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), mal: mal);
+        using var client = factory.CreateClient();
+
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "mal" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=death+note");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var first = Assert.Single(document.RootElement.EnumerateArray());
+
+        Assert.Equal(81356, first.GetProperty("tvdbId").GetInt32());
+        Assert.Equal("Death Note", first.GetProperty("title").GetString());
+        Assert.Equal("ended", first.GetProperty("status").GetString());
+        Assert.Equal(1, mal.SearchCallCount);
+
+        var malIds = first.GetProperty("malIds").EnumerateArray().Select(x => x.GetInt32()).ToList();
+        Assert.Contains(1535, malIds);
+    }
+
+    [Fact]
+    public async Task Search_MalApiFailure_FallsBackToTvdb()
+    {
+        WriteAniListFixtures();
+        var mal = new FakeMalApi
+        {
+            SearchResults = new List<MalAnime> { TestData.DeathNoteMal() },
+            Exception = new MalApiException("Jikan is down", new Exception("boom"))
+        };
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            SearchResponse = new Sonarr.MetadataProxy.Passthrough.ProxyResponse(200, "application/json", "[]")
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), mal: mal, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "mal" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=death+note");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal("[]", body);
+        Assert.Equal("death note", passthrough.LastSearchTerm);
+    }
+
+    [Fact]
+    public async Task Search_MalResultWithoutMapping_ReturnsResultWithSyntheticId()
+    {
+        WriteAniListFixtures();
+        var unmapped = new MalAnime
+        {
+            Id = 701,
+            Title = "No TVDB link here",
+            TitleEnglish = "No TVDB link here"
+        };
+        var mal = new FakeMalApi { SearchResults = new List<MalAnime> { unmapped } };
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            SearchResponse = new Sonarr.MetadataProxy.Passthrough.ProxyResponse(200, "application/json", "[]")
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), mal: mal, passthrough: passthrough);
+        using var client = factory.CreateClient();
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "mal" });
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=unmapped");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("No TVDB link here", body);
+        Assert.Contains("1000000701", body);
     }
 
     [Fact]
@@ -684,6 +771,73 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Show_MalBoundSeries_FlattensPassthroughEpisodesIntoOne()
+    {
+        WriteAniListFixtures();
+        var mal = new FakeMalApi
+        {
+            ById = { [1535] = TestData.DeathNoteMal() }
+        };
+
+        const int regularCount = 8 + 14 + 6;
+        var episodes = new JsonArray();
+        episodes.Add(new JsonObject
+        {
+            ["tvdbId"] = 1,
+            ["seasonNumber"] = 0,
+            ["episodeNumber"] = 1,
+            ["title"] = "Spec"
+        });
+
+        var absolute = 0;
+        for (var season = 1; season <= 3; season++)
+        {
+            var episodeCount = season == 1 ? 8 : season == 2 ? 14 : 6;
+            for (var i = 1; i <= episodeCount; i++)
+            {
+                episodes.Add(new JsonObject
+                {
+                    ["tvdbId"] = 900 + absolute + i,
+                    ["seasonNumber"] = season,
+                    ["episodeNumber"] = i,
+                    ["title"] = $"Episode {absolute + i}",
+                    ["absoluteEpisodeNumber"] = ++absolute
+                });
+            }
+        }
+
+        var root = new JsonObject
+        {
+            ["tvdbId"] = 81356,
+            ["title"] = "Death Note",
+            ["seasons"] = new JsonArray(),
+            ["episodes"] = episodes
+        };
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new ProxyResponse(200, "application/json", root.ToJsonString())
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough, mal: mal);
+        using var client = factory.CreateClient();
+
+        using var search = await client.GetAsync("/v1/tvdb/search/en/?term=mal%3A1535");
+        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81356");
+        using var document = JsonDocument.Parse(body);
+
+        var all = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
+        Assert.Equal(regularCount + 1, all.Count);
+        Assert.Equal(0, all[0].GetProperty("seasonNumber").GetInt32());
+
+        var flattened = all.Skip(1).ToList();
+        Assert.All(flattened, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+        Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+    }
+
+    [Fact]
     public async Task Show_PassthroughSeries_WithoutAniListBinding_IsNotFlattened()
     {
         var episodes = new JsonArray();
@@ -784,6 +938,7 @@ public class SkyHookApiIntegrationTests
         FakeTvdbResolver? resolver = null,
         FakeSkyHookPassthrough? passthrough = null,
         FakeAniListApi? aniList = null,
+        FakeMalApi? mal = null,
         bool fallbackEnabled = true)
     {
         return new WebApplicationFactory<Program>()
@@ -821,10 +976,12 @@ public class SkyHookApiIntegrationTests
                     services.RemoveAll<ITvdbToTmdbResolver>();
                     services.RemoveAll<ISkyHookPassthrough>();
                     services.RemoveAll<IAniListApi>();
+                    services.RemoveAll<IMalApi>();
                     services.AddSingleton<ITmdbApi>(tmdb);
                     services.AddSingleton<ITvdbToTmdbResolver>(resolver ?? new FakeTvdbResolver());
                     services.AddSingleton<ISkyHookPassthrough>(passthrough ?? new FakeSkyHookPassthrough());
                     services.AddSingleton<IAniListApi>(aniList ?? new FakeAniListApi());
+                    services.AddSingleton<IMalApi>(mal ?? new FakeMalApi());
                 });
             });
     }

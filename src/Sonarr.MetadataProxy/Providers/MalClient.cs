@@ -1,0 +1,312 @@
+using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Sonarr.MetadataProxy.Models.Mal;
+
+namespace Sonarr.MetadataProxy.Providers;
+
+public sealed class MalClient : IMalApi
+{
+    private const string Endpoint = "https://api.jikan.moe/v4";
+    private const int SearchLimit = 20;
+
+    private readonly HttpClient _http;
+    private readonly ILogger<MalClient> _logger;
+    private readonly JikanRateLimiter _rateLimiter;
+
+    public MalClient(HttpClient http, ILogger<MalClient> logger, JikanRateLimiter rateLimiter)
+    {
+        _http = http;
+        _logger = logger;
+        _rateLimiter = rateLimiter;
+    }
+
+    public async Task<IReadOnlyList<MalAnime>> SearchAsync(string query, CancellationToken cancellationToken)
+    {
+        var url = $"{Endpoint}/anime?q={Uri.EscapeDataString(query)}&type=tv&limit={SearchLimit}&sfw=true";
+        return await ExecuteAsync(url, data => data.EnumerateArray().Select(ParseAnime).ToList(), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<MalAnime?> GetByIdAsync(int malId, CancellationToken cancellationToken)
+    {
+        var results = await ExecuteAsync(
+            $"{Endpoint}/anime/{malId}",
+            data => data.ValueKind == JsonValueKind.Object ? new List<MalAnime> { ParseAnime(data) } : new List<MalAnime>(),
+            cancellationToken,
+            allowNotFound: true).ConfigureAwait(false);
+
+        return results.FirstOrDefault();
+    }
+
+    private async Task<IReadOnlyList<MalAnime>> ExecuteAsync(
+        string url,
+        Func<JsonElement, List<MalAnime>> extract,
+        CancellationToken cancellationToken,
+        bool allowNotFound = false)
+    {
+        await _rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("Accept", "application/json");
+
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (response.StatusCode == HttpStatusCode.NotFound && allowNotFound)
+            {
+                _logger.LogInformation("MAL (Jikan) reported not found for '{Url}'.", url);
+                return new List<MalAnime>();
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("MAL (Jikan) returned {Status}: {Body}", (int)response.StatusCode, Truncate(body));
+                throw new MalApiException($"Jikan API error {response.StatusCode}.");
+            }
+
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.TryGetProperty("data", out var data) ? extract(data) : new List<MalAnime>();
+        }
+        catch (MalApiException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new MalApiException("Jikan request failed.", ex);
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MalApiException("Jikan request timed out.", ex);
+        }
+        catch (JsonException ex)
+        {
+            throw new MalApiException("Jikan response could not be parsed.", ex);
+        }
+    }
+
+    private MalAnime ParseAnime(JsonElement element)
+    {
+        var aired = element.TryGetProperty("aired", out var airedNode) && airedNode.ValueKind == JsonValueKind.Object
+            ? airedNode
+            : default;
+
+        return new MalAnime
+        {
+            Id = GetInt(element, "mal_id"),
+            Title = GetString(element, "title"),
+            TitleEnglish = GetString(element, "title_english"),
+            TitleJapanese = GetString(element, "title_japanese"),
+            Synonyms = GetStringList(element, "title_synonyms"),
+            Episodes = GetNullableInt(element, "episodes"),
+            DurationMinutes = ParseDuration(GetString(element, "duration")),
+            Status = GetString(element, "status"),
+            FirstAirDate = ParseAiredDate(aired, "from"),
+            LastAirDate = ParseAiredDate(aired, "to"),
+            Score = GetNullableDouble(element, "score"),
+            ScoreCount = GetNullableInt(element, "scored_by"),
+            Synopsis = GetString(element, "synopsis"),
+            PosterUrl = GetPosterUrl(element),
+            Genres = GetNameList(element, "genres"),
+            Studio = GetNameList(element, "studios").FirstOrDefault(),
+            Type = GetString(element, "type")
+        };
+    }
+
+    private static int? ParseDuration(string? duration)
+    {
+        if (string.IsNullOrWhiteSpace(duration) || duration.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var hours = Regex.Match(duration, @"(\d+)\s*hour", RegexOptions.IgnoreCase);
+        var minutes = Regex.Match(duration, @"(\d+)\s*min", RegexOptions.IgnoreCase);
+
+        var total = 0;
+        if (hours.Success && int.TryParse(hours.Groups[1].Value, out var h))
+        {
+            total += h * 60;
+        }
+
+        if (minutes.Success && int.TryParse(minutes.Groups[1].Value, out var m))
+        {
+            total += m;
+        }
+
+        return total > 0 ? total : null;
+    }
+
+    private static string? ParseAiredDate(JsonElement aired, string property)
+    {
+        if (aired.ValueKind != JsonValueKind.Object || !aired.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var text = value.GetString();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        if (DateTimeOffset.TryParse(text, out var dateTime))
+        {
+            return dateTime.ToString("yyyy-MM-dd");
+        }
+
+        return text.Length >= 10 ? text[..10] : null;
+    }
+
+    private static string? GetPosterUrl(JsonElement element)
+    {
+        if (!element.TryGetProperty("images", out var images) || images.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!images.TryGetProperty("jpg", out var jpg) || jpg.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return GetString(jpg, "large_image_url") ?? GetString(jpg, "image_url");
+    }
+
+    private static List<string> GetNameList(JsonElement element, string property)
+    {
+        var result = new List<string>();
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object && GetString(item, "name") is { } name)
+            {
+                result.Add(name);
+            }
+        }
+
+        return result;
+    }
+
+    private static int GetInt(JsonElement element, string property)
+    {
+        return GetNullableInt(element, property) ?? 0;
+    }
+
+    private static int? GetNullableInt(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.Number)
+        {
+            return null;
+        }
+
+        return value.TryGetInt32(out var parsed) ? parsed : null;
+    }
+
+    private static double? GetNullableDouble(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.Number)
+        {
+            return null;
+        }
+
+        return value.TryGetDouble(out var parsed) ? parsed : null;
+    }
+
+    private static string? GetString(JsonElement element, string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var text = value.GetString();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private static List<string> GetStringList(JsonElement element, string property)
+    {
+        var result = new List<string>();
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 } text)
+            {
+                result.Add(text);
+            }
+        }
+
+        return result;
+    }
+
+    private static string Truncate(string value, int maxLength = 200)
+    {
+        return value.Length <= maxLength ? value : value[..maxLength] + "...";
+    }
+}
+
+public sealed class JikanRateLimiter
+{
+    private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(333);
+    private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+    private const int MaxRequestsPerWindow = 60;
+
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly Queue<DateTime> _requestedAt = new();
+    private DateTime _lastRequest = DateTime.MinValue;
+
+    public virtual async Task WaitAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var now = DateTime.UtcNow;
+            while (_requestedAt.Count > 0 && now - _requestedAt.Peek() >= Window)
+            {
+                _requestedAt.Dequeue();
+            }
+
+            var delay = TimeSpan.Zero;
+            if (_requestedAt.Count >= MaxRequestsPerWindow)
+            {
+                delay = Window - (now - _requestedAt.Peek());
+            }
+
+            if (_lastRequest != DateTime.MinValue)
+            {
+                var sinceLast = now - _lastRequest;
+                if (sinceLast < MinInterval)
+                {
+                    var gap = MinInterval - sinceLast;
+                    if (gap > delay)
+                    {
+                        delay = gap;
+                    }
+                }
+            }
+
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+
+            _requestedAt.Enqueue(DateTime.UtcNow);
+            _lastRequest = DateTime.UtcNow;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+}

@@ -93,12 +93,25 @@ fi
 # </head> substitution and instead rebuild a complete, minimal index.html that
 # guarantees the mount point AND our picker script. A short background loop then
 # re-protects it in case Sonarr rewrites the file again after its app starts.
+#
+# Short content hash of the override script, used as the cache-busting version in
+# index.html: whenever the mounted JS changes, the hash changes and browsers
+# request a fresh URL instead of reusing the cached script. Clients therefore pick
+# up updates on a normal reload (no manual hard-refresh/cache clear needed).
+js_version() {
+  if [ -f "${UI_DIR}/metadata-proxy-override.js" ]; then
+    md5sum "${UI_DIR}/metadata-proxy-override.js" 2>/dev/null | cut -c1-16
+  else
+    echo "0000000000000000"
+  fi
+}
+
 rebuild_index() {
   local js
   js="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
   [ -n "${js}" ] || js="/index-cf02e6f1e5a4c0f40ef2.js"
   local v
-  v="$(date +%s)"
+  v="$(js_version)"
   local tmp="${INDEX}.mpo.tmp"
   {
     printf '<!doctype html><html lang="en"><head><meta charset="utf-8"/>\n'
@@ -120,7 +133,8 @@ rebuild_index() {
 index_ok() {
   [ -f "${INDEX}" ] \
     && grep -q 'id="root"' "${INDEX}" \
-    && grep -q 'metadata-proxy-override' "${INDEX}"
+    && grep -q 'metadata-proxy-override' "${INDEX}" \
+    && grep -q "metadata-proxy-override.js?v=$(js_version)" "${INDEX}"
 }
 
 if index_ok; then

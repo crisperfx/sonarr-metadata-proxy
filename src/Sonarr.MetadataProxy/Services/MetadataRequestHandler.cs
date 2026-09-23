@@ -18,6 +18,7 @@ public sealed class MetadataRequestHandler
     private readonly ISkyHookPassthrough _passthrough;
     private readonly SkyHookTranslator _translator;
     private readonly AniListSearchService? _aniList;
+    private readonly MalSearchService? _mal;
     private readonly IMetadataProvider? _activeProvider;
     private readonly TmdbMetadataProvider? _tmdbProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
@@ -29,6 +30,7 @@ public sealed class MetadataRequestHandler
         ISkyHookPassthrough passthrough,
         SkyHookTranslator translator,
         AniListSearchService? aniList,
+        MalSearchService? mal,
         IMetadataProvider? activeProvider,
         TmdbMetadataProvider? tmdbProvider,
         ILogger<MetadataRequestHandler> logger)
@@ -39,6 +41,7 @@ public sealed class MetadataRequestHandler
         _passthrough = passthrough;
         _translator = translator;
         _aniList = aniList;
+        _mal = mal;
         _activeProvider = activeProvider;
         _tmdbProvider = tmdbProvider;
         _logger = logger;
@@ -64,6 +67,13 @@ public sealed class MetadataRequestHandler
 
         if (term.Kind is TermKind.AniListId or TermKind.MalId)
         {
+            if (term.Kind == TermKind.MalId && _mal is { IsConfigured: true })
+            {
+                _logger.LogInformation("MAL search source preferred for MAL id '{Term}' via Jikan.", term.Value);
+                var malShows = await _mal.SearchByMalIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
             if (_aniList is { IsConfigured: true })
             {
                 var shows = term.Kind switch
@@ -116,6 +126,24 @@ public sealed class MetadataRequestHandler
                     rawTerm);
                 var shows = await _aniList.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (searchSource == MappingStore.SourceMal)
+            {
+                if (_mal is not { IsConfigured: true })
+                {
+                    _logger.LogInformation(
+                        "Search source preference '{SearchSource}' is set but MAL mapping data is unavailable; falling through to TVDB.",
+                        searchSource);
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                var malShows = await _mal.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceTmdb)
@@ -262,7 +290,7 @@ public sealed class MetadataRequestHandler
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
         var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
 
-        resolution = FlattenIfAniListBound(tvdbId, resolution);
+        resolution = FlattenIfAnimeBound(tvdbId, resolution);
 
         return resolution switch
         {
@@ -272,10 +300,11 @@ public sealed class MetadataRequestHandler
         };
     }
 
-    private ShowResolution FlattenIfAniListBound(int tvdbId, ShowResolution resolution)
+    private ShowResolution FlattenIfAnimeBound(int tvdbId, ShowResolution resolution)
     {
         var anilistId = _mapping.TryGetAniListIdByTvdb(tvdbId);
-        if (anilistId is null)
+        var malId = _mapping.TryGetMalIdByTvdb(tvdbId);
+        if (anilistId is null && malId is null)
         {
             return resolution;
         }
@@ -290,7 +319,7 @@ public sealed class MetadataRequestHandler
 
     private ShowResource FlattenMapped(ShowResource show)
     {
-        _logger.LogInformation("AniList-bound series; flattening to a single season.");
+        _logger.LogInformation("Anime-bound series; flattening to a single season.");
         return SingleSeasonTransformer.Flatten(show);
     }
 
@@ -300,7 +329,7 @@ public sealed class MetadataRequestHandler
         if (flattened is null)
         {
             _logger.LogWarning(
-                "Could not flatten passthrough response for AniList-bound series; returning original response.");
+                "Could not flatten passthrough response for anime-bound series; returning original response.");
             return passed;
         }
 

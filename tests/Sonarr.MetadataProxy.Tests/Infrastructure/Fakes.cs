@@ -1,10 +1,40 @@
 using Sonarr.MetadataProxy.Models.AniList;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
 using Sonarr.MetadataProxy.Passthrough;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
 
 namespace Sonarr.MetadataProxy.Tests.Infrastructure;
+
+public sealed class FakeMalApi : IMalApi
+{
+    public List<MalAnime> SearchResults { get; set; } = new();
+    public Dictionary<int, MalAnime> ById { get; set; } = new();
+    public Exception? Exception { get; set; }
+    public int SearchCallCount { get; private set; }
+
+    public Task<IReadOnlyList<MalAnime>> SearchAsync(string query, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        SearchCallCount++;
+        return Task.FromResult<IReadOnlyList<MalAnime>>(SearchResults);
+    }
+
+    public Task<MalAnime?> GetByIdAsync(int malId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ById.TryGetValue(malId, out var media) ? media : null);
+    }
+
+    private void ThrowIf()
+    {
+        if (Exception is not null)
+        {
+            throw Exception;
+        }
+    }
+}
 
 public sealed class FakeAniListApi : IAniListApi
 {

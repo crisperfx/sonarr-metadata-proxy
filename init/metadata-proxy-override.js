@@ -68,21 +68,17 @@
     return base ? base + '/api/overrides' : null;
   }
 
-  function isMobile() {
-    return (window.innerWidth || document.documentElement.clientWidth) < 768;
-  }
-
   function positionCss() {
     return 'position:fixed;top:0;left:0;bottom:0;z-index:99999;';
   }
 
   function baseCss() {
     return (
-      positionCss() + 'background:#222c3d;color:#fff;' +
-      'border-right:1px solid #334155;padding:10px 12px;' +
-      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:0 0 20px rgba(0,0,0,.55);' +
-      'width:300px;max-width:88vw;overflow:auto;' +
-      'transform:translateX(0);transition:transform .22s ease;' +
+      positionCss() + 'background:#2a2a2a;color:#e1e2e3;' +
+      'border-right:1px solid #393f45;padding:16px 14px;' +
+      'font:13px/1.5 "Open Sans","Segoe UI",sans-serif;box-shadow:4px 0 28px rgba(0,0,0,.55);' +
+      'width:280px;max-width:88vw;overflow:auto;' +
+      'transform:translateX(0);transition:transform .2s ease;' +
       'display:flex;flex-direction:column;'
     );
   }
@@ -90,32 +86,59 @@
   function pillCss() {
     return (
       'position:fixed;left:0;top:38%;z-index:99999;' +
-      'background:#222c3d;color:#fff;border:1px solid #334155;border-left:none;' +
-      'border-radius:0 8px 8px 0;padding:10px 7px;' +
-      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.4);' +
-      'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;'
+      'background:#2a2a2a;color:#e1e2e3;border:1px solid #393f45;border-left:none;' +
+      'border-radius:0 10px 10px 0;padding:14px 8px;' +
+      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:4px 0 18px rgba(0,0,0,.5);' +
+      'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;' +
+      'letter-spacing:.14em;text-transform:uppercase;'
     );
   }
 
-  function buildShell(titleText) {
+  function ensureStylesheet() {
+    if (document.getElementById('mpo-styles')) {
+      return;
+    }
+    var style = document.createElement('style');
+    style.id = 'mpo-styles';
+    style.textContent = [
+      '.mpo-pill:hover{background:#333;color:#fff;}',
+      '.mpo-toggle:hover{background:rgba(255,255,255,.12);color:#fff;border-color:#5d9cec;}',
+      '.mpo-toggle:active{transform:scale(.95);}',
+      '.mpo-select{font:13px/1.5 "Open Sans",sans-serif;color:#ccc;background:#333;border:1px solid #393f45;border-radius:4px;padding:6px 8px;}',
+      '.mpo-select:hover{border-color:#5a6265;}',
+      '.mpo-select:focus{outline:none;border-color:#5d9cec;box-shadow:0 0 0 2px rgba(93,156,236,.25);}',
+      '.mpo-status{font-size:11px;line-height:1.5;color:#909293;}',
+      '.mpo-warn{font-size:11px;line-height:1.5;color:#ffa500;}',
+      '.mpo-btn-primary{font:600 12px/1.5 "Open Sans",sans-serif;color:#fff;background:#5d9cec;border:1px solid #5899eb;border-radius:4px;padding:6px 12px;cursor:pointer;}',
+      '.mpo-btn-primary:hover{background:#4b91ea;}'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function buildShell(titleText, pillText, id) {
     var root = document.createElement('div');
-    root.id = PANEL_ID;
+    root.id = id || PANEL_ID;
     root.style.cssText = baseCss();
 
     var pill = document.createElement('div');
-    pill.style.cssText = 'display:none;font-weight:600;';
-    pill.textContent = 'Metadata \u25B8';
+    pill.className = 'mpo-pill';
+    pill.style.cssText = 'display:none;font:600 12px/1.4 "Open Sans",sans-serif;';
+    pill.textContent = pillText || 'Metadata \u25B8';
 
     var header = document.createElement('div');
     header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
+      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;';
     var title = document.createElement('span');
-    title.style.cssText = 'font-weight:600;';
+    title.className = 'mpo-panel-title';
+    title.style.cssText =
+      'font:600 12px/1.4 "Open Sans",sans-serif;text-transform:uppercase;letter-spacing:.12em;color:#e1e2e3;';
     title.textContent = titleText;
     var toggle = document.createElement('button');
+    toggle.className = 'mpo-toggle';
     toggle.textContent = '\u2013';
     toggle.style.cssText =
-      'padding:2px 8px;background:#334155;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+      'width:22px;height:22px;padding:0;background:transparent;color:#909293;' +
+      'border:1px solid #393f45;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;';
     toggle.setAttribute('aria-label', 'Collapse');
     header.appendChild(title);
     header.appendChild(toggle);
@@ -156,7 +179,7 @@
     var status = el.querySelector('.mpo-status');
     if (status) {
       status.textContent = text;
-      status.style.color = color || '#94a3b8';
+      status.style.color = color || '#909293';
     }
   }
 
@@ -164,13 +187,12 @@
     var shell = buildShell('Metadata source');
 
     var hint = document.createElement('div');
-    hint.style.cssText = 'font-size:11px;color:#94a3b8;margin-bottom:8px;';
+    hint.className = 'mpo-status';
     hint.textContent = message || 'Enter your Sonarr API key first (Settings → General → API Key).';
     shell._mpoBody.appendChild(hint);
 
     var btn = document.createElement('button');
-    btn.style.cssText =
-      'padding:4px 10px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;';
+    btn.className = 'mpo-btn-primary';
     btn.textContent = 'Enter API key';
     btn.addEventListener('click', function () {
       if (setApiKey()) {
@@ -189,12 +211,14 @@
     var shell = buildShell('Metadata: ' + (series.title || series.tvdbId));
 
     var select = document.createElement('select');
-    select.style.cssText = 'width:100%;padding:4px;margin-bottom:6px;';
+    select.className = 'mpo-select';
+    select.style.cssText = 'width:100%;';
     [
       { value: '', label: 'Default' },
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
+      { value: 'anilist', label: 'AniList' },
+      { value: 'mal', label: 'MAL' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -206,14 +230,13 @@
 
     var status = document.createElement('div');
     status.className = 'mpo-status';
-    status.style.cssText = 'font-size:11px;color:#94a3b8;';
     status.textContent = 'TVDB id: ' + series.tvdbId;
     shell._mpoBody.appendChild(status);
 
     var isSynthetic = series.tvdbId >= 1000000000;
     if (isSynthetic) {
       var warn = document.createElement('div');
-      warn.style.cssText = 'font-size:11px;color:#fbbf24;margin-top:4px;';
+      warn.className = 'mpo-warn';
       warn.textContent = 'Let op: deze serie heeft geen echte TVDB-ID. Bij "TVDB" als bron werkt passthrough niet (fallback naar standaard bron).';
       shell._mpoBody.appendChild(warn);
     }
@@ -495,7 +518,7 @@
 
   function normalizeSearchSource(value) {
     var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
-    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist') {
+    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal') {
       return '';
     }
     return v;
@@ -545,13 +568,6 @@
         /* fallback naar localStorage blijft gelden */
       });
   }
-
-  // Forceer dropdown-waarde bij elke hercreatie (bijv. na AJAX-refresh)
-  function forceProviderOnSelect(select) {
-    if (select && SEARCH_PROVIDER) {
-      select.value = SEARCH_PROVIDER;
-    }
-  }
   loadSearchProvider();
 
   function triggerSearchRestart() {
@@ -586,146 +602,60 @@
     });
   }
 
-  function buildMobileSearchPicker() {
-    var ui = document.getElementById(SEARCH_UI_ID);
-    if (ui) {
-      ui.remove();
+  function buildSearchPickerPanel() {
+    var existing = document.getElementById(SEARCH_UI_ID);
+    if (existing) {
+      applySearchProvider(SEARCH_PROVIDER);
+      return existing;
     }
 
-    ui = document.createElement('div');
-    ui.id = SEARCH_UI_ID;
-    ui.style.cssText = baseCss();
-
-    var pill = document.createElement('div');
-    pill.style.cssText = 'display:none;font-weight:600;';
-    pill.textContent = 'Metasources \u25B8';
-
-    var header = document.createElement('div');
-    header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
-    var title = document.createElement('span');
-    title.style.cssText = 'font-weight:600;';
-    title.textContent = 'Search metasource';
-    var toggle = document.createElement('button');
-    toggle.textContent = '\u2013';
-    toggle.style.cssText =
-      'padding:2px 8px;background:#334155;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
-    toggle.setAttribute('aria-label', 'Collapse');
+    var ui = buildShell('Search via', 'Metasources \u25B8', SEARCH_UI_ID);
+    ui._mpoBody.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
 
     var select = document.createElement('select');
-    select.style.cssText = 'width:100%;padding:4px;';
+    select.className = 'mpo-select';
+    select.style.cssText = 'width:100%;';
     select.setAttribute('data-mpo-provider', '1');
-    select.value = SEARCH_PROVIDER;
-    [
-      { value: '', label: 'Default' },
-      { value: 'tmdb', label: 'TMDB' },
-      { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
-    ].forEach(function (opt) {
-      var option = document.createElement('option');
-      option.value = opt.value;
-      option.textContent = opt.label;
-      select.appendChild(option);
-    });
-
-    header.appendChild(title);
-    header.appendChild(toggle);
-    ui.appendChild(pill);
-    ui.appendChild(header);
-    ui.appendChild(select);
-
-    ui.mpoCollapse = function () {
-      ui.dataset.mpoCollapsed = '1';
-      ui.style.cssText = pillCss();
-      header.style.display = 'none';
-      select.style.display = 'none';
-      pill.style.display = '';
-    };
-    ui.mpoExpand = function () {
-      ui.dataset.mpoCollapsed = '';
-      ui.style.cssText = baseCss();
-      header.style.display = '';
-      select.style.display = '';
-      pill.style.display = 'none';
-    };
-    toggle.addEventListener('click', function (e) {
-      e.stopPropagation();
-      ui.mpoCollapse();
-    });
-    pill.addEventListener('click', function () {
-      ui.mpoExpand();
-    });
-
-    select.addEventListener('change', function () {
-      setSearchProvider(this.value);
-    });
-    forceProviderOnSelect(select);
-
-    document.body.appendChild(ui);
-    ui.mpoCollapse();
-    return ui;
-  }
-
-  function attachSearchPicker(input) {
-    if (input.getAttribute('data-mpo-search') === '1') {
-      return;
-    }
-    input.setAttribute('data-mpo-search', '1');
-    input.addEventListener('focus', function () {
-      lastSearchInput = input;
-    });
-    input.addEventListener('input', function () {
-      lastSearchInput = input;
-    });
-
-    if (isMobile()) {
-      buildMobileSearchPicker();
-      return;
-    }
-
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
-
-    var label = document.createElement('span');
-    label.style.cssText = 'font-size:11px;color:#94a3b8;';
-    label.textContent = 'Search via';
-
-    var select = document.createElement('select');
-    select.style.cssText =
-      'padding:3px 6px;font-size:12px;background:#263241;color:#fff;border:1px solid #334155;border-radius:4px;';
-    select.setAttribute('data-mpo-provider', '1');
-    select.value = SEARCH_PROVIDER;
     [
       { value: '', label: 'Automatic' },
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
+      { value: 'anilist', label: 'AniList' },
+      { value: 'mal', label: 'MAL' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
       select.appendChild(option);
     });
-
-    row.appendChild(label);
-    row.appendChild(select);
-    input.parentNode.insertBefore(row, input);
-    row._mpoInput = input;
-    input._mpoRow = row;
-
     select.addEventListener('change', function () {
       setSearchProvider(this.value);
     });
-    forceProviderOnSelect(select);
+    ui._mpoBody.appendChild(select);
+
+    var hint = document.createElement('div');
+    hint.className = 'mpo-status';
+    hint.textContent =
+      'Selects the backend for the Add New lookup. Automatic = TMDB with TVDB fallback; empty results or API errors fall back to TVDB.';
+    ui._mpoBody.appendChild(hint);
+
+    document.body.appendChild(ui);
+    ui.mpoCollapse(true);
+    applySearchProvider(SEARCH_PROVIDER);
+    return ui;
   }
 
-  function removeSearchRow(input) {
-    var row = input._mpoRow;
-    if (row && row.parentNode) {
-      row.parentNode.removeChild(row);
+  function attachSearchPicker(input) {
+    if (input.getAttribute('data-mpo-search') !== '1') {
+      input.setAttribute('data-mpo-search', '1');
+      input.addEventListener('focus', function () {
+        lastSearchInput = input;
+      });
+      input.addEventListener('input', function () {
+        lastSearchInput = input;
+      });
     }
-    input._mpoRow = null;
-    input.removeAttribute('data-mpo-search');
+    buildSearchPickerPanel();
   }
 
   function removeSearchUi() {
@@ -738,29 +668,15 @@
   function refreshSearchPickers() {
     var path = window.location.pathname || '';
     if (path.indexOf('/add/new') !== 0) {
-      removeAllSearchRows();
       removeSearchUi();
       return;
     }
     var candidates = searchInputCandidates();
     if (!candidates.length) {
+      removeSearchUi();
       return;
     }
-    var primary = candidates[0];
-    var existing = document.querySelectorAll('input[data-mpo-search]');
-    for (var j = 0; j < existing.length; j++) {
-      if (existing[j] !== primary) {
-        removeSearchRow(existing[j]);
-      }
-    }
-    attachSearchPicker(primary);
-  }
-
-  function removeAllSearchRows() {
-    var inputs = document.querySelectorAll('input[data-mpo-search]');
-    for (var i = 0; i < inputs.length; i++) {
-      removeSearchRow(inputs[i]);
-    }
+    attachSearchPicker(candidates[0]);
   }
 
   function ensurePortalRoot() {
@@ -776,6 +692,7 @@
   var refreshSearchTimer = null;
   function initSearchPickers() {
     ensurePortalRoot();
+    ensureStylesheet();
     refreshSearchPickers();
     if (!document.body) {
       return;

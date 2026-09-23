@@ -11,7 +11,8 @@
 #
 # The image below is the Docker Hub default. Use the GHCR mirror instead by replacing
 # it with "ghcr.io/crisperfx/sonarr-metadata-proxy:latest", or uncomment "build: ."
-# to build locally.
+# to build locally. To test the in-progress develop build, pin "crisperfx/sonarr-metadata-proxy:develop"
+# instead ("develop" is published by CI from the develop branch and never becomes latest).
 
 services:
   sonarr:

@@ -47,17 +47,17 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 - Sonarr talks to `skyhook.sonarr.tv` exactly as it always does — the DNS alias just makes
   that name resolve to the proxy instead of the real SkyHook. Everything else in Sonarr is
   untouched.
-- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList) with **automatic
+- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList / MAL) with **automatic
   fallback to TVDB** when the chosen source returns no results.
 - **Series details/episodes** come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
   real TVDB when a series cannot be mapped).
-- **Single-season flattening** for AniList-bound series (continuous anime like One Piece):
-  when a series is linked to AniList via search, the proxy automatically serves it as one
+- **Single-season flattening** for AniList- or MAL-bound series (continuous anime like One Piece):
+  when a series is linked to AniList/MAL via search, the proxy automatically serves it as one
   continuous season (both mapped and TVDB passthrough paths).
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
-  the Sonarr web UI (per-series TMDB/TVDB/AniList picker) and a **Search via** provider picker
-  (TMDB / TVDB / AniList) into the Add New search box.
+  the Sonarr web UI (per-series TMDB/TVDB/AniList/MAL picker) and a **Search via** provider picker
+  (TMDB / TVDB / AniList / MAL) into the Add New search box.
 
 ---
 
@@ -403,6 +403,10 @@ When adding a series, the search box gets a **Search via** dropdown:
   maps the hit to a real TVDB id via the bundled Fribb + Anime-Lists datasets.
   Results without a known TVDB mapping get a synthetic TVDB ID and appear in results;
   API failures and series without mapping fall through to TVDB.
+- **MAL** — searches MyAnimeList via the public Jikan API (TV type only), maps the hit to a real
+  TVDB id via the same bundled datasets. Jikan rate limits (60/min, 3/s) are handled internally.
+  Results without a known TVDB mapping get a synthetic TVDB ID; API failures and unmatched
+  series fall through to TVDB.
 
 **Fallback behaviour for all providers (except explicit TVDB):**
 - **Empty results → TVDB fallback** (always).
@@ -410,17 +414,19 @@ When adding a series, the search box gets a **Search via** dropdown:
 - AniList: synthetic TVDB IDs are decomposed to TMDB for detail/episode fetch.
 
 The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
-`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id` (the `mal:`/`anilist:` prefixes
-resolve through AniList when the bundled mapping data is available).
+`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`. The `anilist:` prefix resolves
+through AniList; `mal:` resolves through MAL when the bundled mapping data is
+available, falling back to AniList and then TVDB.
 
-On small screens (under 768 px) the dropdown collapses into a small **Metadata ▸** pill so
-it does not cover the page; tap it to expand, **–** to collapse again.
+Both pickers are styled like the Sonarr sidebar (dark `#2a2a2a` panel) and collapse into a small
+**Metadata ▸** / **Metasources ▸** pill on the left edge so they never cover the page; tap the pill to
+expand, **–** to collapse again.
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, or `anilist` (passthrough only). |
+| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, `anilist`, or `mal` (passthrough only). |
 | `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
 | `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key (wins if both set). |
 | `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
@@ -451,7 +457,8 @@ curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 ## Build / publish (for maintainers)
 
 ```bash
-git tag v0.2.4 && git push origin v0.2.4   # triggers CI: tests + publish to Docker Hub and GHCR (amd64+arm64)
+git push origin develop   # CI: tests + publish as :develop (Docker Hub + GHCR, amd64+arm64)
+git tag v0.2.4 && git push origin v0.2.4   # CI: tests + publish as :<version> (plus sha/ref tags)
 ```
 
 The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
@@ -459,6 +466,11 @@ The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
 `DOCKERHUB_TOKEN` secrets in the repo (Settings → Secrets) (Personal Access Token with
 Read/Write on the Docker Hub repo); GHCR works with the standard `GITHUB_TOKEN` and needs no
 setup. Without `DOCKERHUB_*` secrets only the Docker Hub push fails, the GHCR push succeeds.
+
+Tags by branch/ref:
+- `develop` → pushed only as `:develop` (clearly a dev build, never `latest`).
+- `main` → pushed as `:latest` (plus a `sha-...` tag).
+- `vX.Y.Z` → pushed as `:<version>`, `:X.Y`, `:X` (plus `sha-...` and the tag name itself).
 
 Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadata-proxy`.
 

@@ -74,9 +74,9 @@ public sealed class OverridesController : ControllerBase
 
         var isSynthetic = SyntheticIds.IsSyntheticSeries(request.TvdbId);
 
-        if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList))
+        if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList or MappingStore.SourceMal))
         {
-            return BadRequest(new { error = "source must be 'tmdb', 'tvdb' or 'anilist'" });
+            return BadRequest(new { error = "source must be 'tmdb', 'tvdb', 'anilist' or 'mal'" });
         }
 
         if (isSynthetic && request.Source == MappingStore.SourceTvdb)

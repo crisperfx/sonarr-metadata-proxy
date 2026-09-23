@@ -47,6 +47,38 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void RegisterMalId_StoresMalBindingForTvdbId()
+    {
+        var store = CreateStore();
+
+        store.RegisterMalId(81356, 1535);
+
+        Assert.Equal(1535, store.TryGetMalIdByTvdb(81356));
+    }
+
+    [Fact]
+    public void RegisterMalId_AcceptsSyntheticTvdbIds()
+    {
+        var store = CreateStore();
+        var synthetic = SyntheticIds.SeriesId(1396);
+
+        store.RegisterMalId(synthetic, 1535);
+
+        Assert.Equal(1535, store.TryGetMalIdByTvdb(synthetic));
+    }
+
+    [Fact]
+    public void MalBindings_PersistAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        CreateStore(dir).RegisterMalId(81356, 1535);
+
+        var reloaded = CreateStore(dir);
+
+        Assert.Equal(1535, reloaded.TryGetMalIdByTvdb(81356));
+    }
+
+    [Fact]
     public void RegisterSeries_StoresRealTvdbToTmdbMapping()
     {
         var store = CreateStore();
@@ -129,6 +161,7 @@ public class MappingStoreTests : IDisposable
     [InlineData(MappingStore.SourceTmdb)]
     [InlineData(MappingStore.SourceTvdb)]
     [InlineData(MappingStore.SourceAniList)]
+    [InlineData(MappingStore.SourceMal)]
     public void Override_SetStoresSource(string source)
     {
         var store = CreateStore();
@@ -167,6 +200,7 @@ public class MappingStoreTests : IDisposable
         var store = CreateStore();
         store.RegisterSeries(81189, 1396);
         store.RegisterAniListId(81189, 12345);
+        store.RegisterMalId(81189, 67890);
         store.SetOverride(81189, MappingStore.SourceTmdb);
 
         var removed = store.RemoveOverride(81189);
@@ -175,6 +209,7 @@ public class MappingStoreTests : IDisposable
         Assert.Null(store.GetOverride(81189));
         Assert.Null(store.TryResolveSeriesTmdb(81189));
         Assert.Null(store.TryGetAniListIdByTvdb(81189));
+        Assert.Null(store.TryGetMalIdByTvdb(81189));
     }
 
     [Fact]
@@ -202,6 +237,7 @@ public class MappingStoreTests : IDisposable
     [InlineData(MappingStore.SourceTmdb)]
     [InlineData(MappingStore.SourceTvdb)]
     [InlineData(MappingStore.SourceAniList)]
+    [InlineData(MappingStore.SourceMal)]
     public void SearchSource_SetStoresValue(string source)
     {
         var store = CreateStore();

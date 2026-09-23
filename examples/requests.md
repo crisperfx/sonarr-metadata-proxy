@@ -27,11 +27,12 @@ curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=imdb%3Att0903747"
 curl "http://127.0.0.1:9697/v1/tvdb/shows/en/81189"
 ```
 
-AniList / MAL terms (`anilist:1535`, `mal:1535`) currently pass through to the
-real SkyHook backend because those sources are not implemented yet:
+Anime terms — `anilist:1535` resolves through AniList; `mal:1535` resolves
+through MAL (Jikan) when mapping data is available:
 
 ```bash
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anilist%3A1535"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=mal%3A1535"
 ```
 
 ## Full series object with episodes (what Sonarr fetches on add + every refresh)

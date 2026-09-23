@@ -14,11 +14,13 @@ public sealed class MappingStore
     private readonly Dictionary<int, int> _nextEpisodeSequence = new();
     private readonly Dictionary<int, string> _overrides = new();
     private readonly Dictionary<int, int> _aniListByTvdb = new();
+    private readonly Dictionary<int, int> _malByTvdb = new();
     private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
     public const string SourceAniList = "anilist";
+    public const string SourceMal = "mal";
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
@@ -120,6 +122,33 @@ public sealed class MappingStore
         }
     }
 
+    public int? TryGetMalIdByTvdb(int tvdbId)
+    {
+        lock (_sync)
+        {
+            return _malByTvdb.TryGetValue(tvdbId, out var malId) ? malId : null;
+        }
+    }
+
+    public void RegisterMalId(int tvdbId, int malId)
+    {
+        if (malId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            if (_malByTvdb.ContainsKey(tvdbId))
+            {
+                return;
+            }
+
+            _malByTvdb[tvdbId] = malId;
+            Save();
+        }
+    }
+
     public string? GetOverride(int tvdbId)
     {
         lock (_sync)
@@ -130,9 +159,9 @@ public sealed class MappingStore
 
     public void SetOverride(int tvdbId, string source)
     {
-        if (source is not (SourceTmdb or SourceTvdb or SourceAniList))
+        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceMal))
         {
-            throw new ArgumentException("Source must be 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
+            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
         }
 
         if (tvdbId <= 0)
@@ -154,8 +183,9 @@ public sealed class MappingStore
             var removedOverride = _overrides.Remove(tvdbId);
             var removedMapping = _seriesReal.Remove(tvdbId);
             var removedAniList = _aniListByTvdb.Remove(tvdbId);
+            var removedMal = _malByTvdb.Remove(tvdbId);
 
-            if (!removedOverride && !removedMapping && !removedAniList)
+            if (!removedOverride && !removedMapping && !removedAniList && !removedMal)
             {
                 return false;
             }
@@ -184,9 +214,9 @@ public sealed class MappingStore
     public void SetDefaultSearchSource(string source)
     {
         var normalized = (source ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList)
+        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList and not SourceMal)
         {
-            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
+            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
         }
 
         lock (_sync)
@@ -223,6 +253,7 @@ public sealed class MappingStore
                     _overrides.Clear();
                     _defaultSearchSource = persisted.DefaultSearchSource ?? "";
                     _aniListByTvdb.Clear();
+                    _malByTvdb.Clear();
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -247,6 +278,11 @@ public sealed class MappingStore
                     foreach (var (key, value) in persisted.AniListByTvdb)
                     {
                         _aniListByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.MalByTvdb)
+                    {
+                        _malByTvdb[key] = value;
                     }
                 }
 
@@ -279,6 +315,7 @@ public sealed class MappingStore
                 EpisodeSequences = new Dictionary<int, int>(_nextEpisodeSequence),
                 Overrides = new Dictionary<int, string>(_overrides),
                 AniListByTvdb = new Dictionary<int, int>(_aniListByTvdb),
+                MalByTvdb = new Dictionary<int, int>(_malByTvdb),
                 DefaultSearchSource = _defaultSearchSource
             };
 
@@ -300,6 +337,7 @@ public sealed class MappingStore
         public Dictionary<int, int> EpisodeSequences { get; set; } = new();
         public Dictionary<int, string> Overrides { get; set; } = new();
         public Dictionary<int, int> AniListByTvdb { get; set; } = new();
+        public Dictionary<int, int> MalByTvdb { get; set; } = new();
         public string DefaultSearchSource { get; set; } = "";
     }
 }
