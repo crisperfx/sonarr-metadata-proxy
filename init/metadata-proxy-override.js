@@ -253,7 +253,7 @@
     shell._mpoBody.appendChild(badge);
 
     var status = document.createElement('div');
-    status.className = 'mpo-subtitle';
+    status.className = 'mpo-badge';
     status.textContent = 'TVDB id: ' + series.tvdbId;
     shell._mpoBody.appendChild(status);
 

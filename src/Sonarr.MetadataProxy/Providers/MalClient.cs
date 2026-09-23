@@ -36,7 +36,7 @@ public sealed class MalClient : IMalApi
             cancellationToken,
             allowNotFound: true).ConfigureAwait(false);
 
-        return results.FirstOrDefault();
+        return results?.FirstOrDefault();
     }
 
     public async Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
