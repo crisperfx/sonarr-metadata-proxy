@@ -28,7 +28,7 @@ curl "http://127.0.0.1:9697/v1/tvdb/shows/en/81189"
 ```
 
 Anime terms — `anilist:1535` resolves through AniList; `mal:1535` resolves
-through MAL (Jikan) when mapping data is available:
+through MAL (Tenrai) when mapping data is available:
 
 ```bash
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anilist%3A1535"
