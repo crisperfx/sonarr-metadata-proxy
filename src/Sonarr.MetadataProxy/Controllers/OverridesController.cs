@@ -118,7 +118,7 @@ public sealed class OverridesController : ControllerBase
             return NotFound();
         }
 
-        _logger.LogInformation("Override removed for TVDB id {TvdbId}.", tvdbId);
+        _logger.LogInformation("Override and associated mappings removed for TVDB id {TvdbId}.", tvdbId);
         return NoContent();
     }
 }

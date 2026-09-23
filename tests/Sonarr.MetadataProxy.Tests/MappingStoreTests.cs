@@ -162,6 +162,22 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void Override_Removed_AlsoClearsAssociations()
+    {
+        var store = CreateStore();
+        store.RegisterSeries(81189, 1396);
+        store.RegisterAniListId(81189, 12345);
+        store.SetOverride(81189, MappingStore.SourceTmdb);
+
+        var removed = store.RemoveOverride(81189);
+
+        Assert.True(removed);
+        Assert.Null(store.GetOverride(81189));
+        Assert.Null(store.TryResolveSeriesTmdb(81189));
+        Assert.Null(store.TryGetAniListIdByTvdb(81189));
+    }
+
+    [Fact]
     public void Override_PersistsAcrossStoreInstances()
     {
         var dir = _dataDir;

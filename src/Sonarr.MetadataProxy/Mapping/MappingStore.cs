@@ -151,7 +151,11 @@ public sealed class MappingStore
     {
         lock (_sync)
         {
-            if (!_overrides.Remove(tvdbId))
+            var removedOverride = _overrides.Remove(tvdbId);
+            var removedMapping = _seriesReal.Remove(tvdbId);
+            var removedAniList = _aniListByTvdb.Remove(tvdbId);
+
+            if (!removedOverride && !removedMapping && !removedAniList)
             {
                 return false;
             }
