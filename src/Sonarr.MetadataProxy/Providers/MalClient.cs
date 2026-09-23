@@ -23,7 +23,7 @@ public sealed class MalClient : IMalApi
 
     public async Task<IReadOnlyList<MalAnime>> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        var url = $"{Endpoint}/anime/search?q={Uri.EscapeDataString(query)}&limit={SearchLimit}&type=tv&type=tv_special";
+        var url = $"{Endpoint}/anime?q={Uri.EscapeDataString(query)}&limit={SearchLimit}&type=tv,tv_special";
         return await ExecuteAsync<IReadOnlyList<MalAnime>>(url, data => data.EnumerateArray().Select(ParseAnime).ToList(), cancellationToken)
             .ConfigureAwait(false);
     }
