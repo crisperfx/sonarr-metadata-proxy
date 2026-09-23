@@ -383,8 +383,9 @@ After choosing: **Refresh & Scan** on the series. Overrides are stored in
 `DATA_DIR/mappings/mappings.json` (one single file for all series — not a file per
 series; per-series files would multiply IO, race, and confuse editing/backup).
 Legacy `DATA_DIR/mappings.json` files are migrated into the `mappings/` folder
-automatically on startup. The picker never needs your Sonarr API key: it talks to the
-Sonarr API on the same origin using the browser session you are signed in with, so
+automatically on startup. The picker never stores your Sonarr API key: it reads Sonarr's
+own `window.Sonarr.apiKey` at runtime (only present on authenticated UI pages) and sends it
+as the `X-Api-Key` header to `/api/v3/series`, exactly like Sonarr's own frontend does, so
 nothing secret is embedded in files that end up next to the (public) login page.
 
 **Note for AniList series without a real TVDB ID:**
@@ -455,9 +456,9 @@ Set these in `.env`, or as environment on the container / in your own compose.
 - **Private keys are 0600** — the generated CA and server private keys in
   `DATA_DIR/certs/` (and the `mappings.json` store) are readable only by the proxy
   user. Only `ca.crt` needs to be seen by the Sonarr container.
-- **No secrets in the web UI** — the picker uses your signed-in Sonarr browser
-  session; it never embeds or expects a Sonarr API key, and it sends no credentials
-  anywhere except your same-origin cookie to Sonarr itself.
+- **No secrets in the web UI** — the picker reads Sonarr's `window.Sonarr.apiKey` at
+  runtime (only served to authenticated UI pages) and sends it as the `X-Api-Key` header,
+  matching Sonarr's own frontend; nothing is embedded in static files.
 - **TMDB credentials are not logged** — error messages redact `api_key` (the bearer
   token travels only in a header and is never part of URLs).
 - **Outgoing requests go to fixed hosts only** (TMDB, AniList, Jikan for MAL, SkyHook,

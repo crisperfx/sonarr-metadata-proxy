@@ -7,9 +7,10 @@
 # by the proxy's /api/overrides management API, and a "Search via" provider picker
 # on the Add New search box (tmdb:/tvdb:/anilist:/mal: prefixes).
 #
-# No Sonarr API key is embedded or touched: the picker talks to the Sonarr API on
-# the same origin using your logged-in browser session, so nothing secret ends up
-# in a static file served next to the login page.
+# No Sonarr API key is embedded or stored: the picker reads Sonarr's own
+# window.Sonarr.apiKey at runtime (only served to authenticated UI pages via
+# /initialize.json) and sends it as the X-Api-Key header, matching Sonarr's own
+# frontend, so nothing secret ends up in a static file served next to the login page.
 #
 # Runs at every container start (LinuxServer runs /custom-cont-init.d on each
 # boot, not only at create), so an update or restart re-applies everything.

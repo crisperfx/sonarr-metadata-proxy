@@ -286,15 +286,30 @@
     return '';
   }
 
+  function sonarrSeriesUrl() {
+    if (window.Sonarr && window.Sonarr.apiRoot) {
+      return window.Sonarr.apiRoot.replace(/\/+$/, '') + '/series';
+    }
+    return '/api/v3/series';
+  }
+
   function getSeriesList() {
     var now = Date.now();
     if (seriesCache && now - seriesCacheAt < SERIES_CACHE_TTL_MS) {
       return Promise.resolve(seriesCache);
     }
-    return fetch('/api/v3/series')
+    var options = { headers: {} };
+    if (window.Sonarr && window.Sonarr.apiKey) {
+      options.headers['X-Api-Key'] = window.Sonarr.apiKey;
+    }
+    return fetch(sonarrSeriesUrl(), options)
       .then(function (response) {
         if (!response.ok) {
-          throw new Error('Sonarr API: HTTP ' + response.status + ' — signed in to Sonarr in this browser?');
+          throw new Error(
+            'Sonarr API: HTTP ' + response.status + (window.Sonarr && window.Sonarr.apiKey
+              ? ''
+              : ' — Sonarr API key not available (window.Sonarr.apiKey missing).')
+          );
         }
         return response.json();
       })

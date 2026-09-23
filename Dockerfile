@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv (the TMDB_API_KEY/TMDB_API_TOKEN ENV entries are empty UI placeholders, not secrets)
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
