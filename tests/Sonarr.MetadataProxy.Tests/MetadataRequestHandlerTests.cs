@@ -303,6 +303,53 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
+    public async Task Show_OverrideTmdb_MetadataSourceTvdb_StillUsesTmdb()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true, source: "tvdb");
+        mapping.SetOverride(TestData.BreakingBadTvdbId, MappingStore.SourceTmdb);
+        mapping.RegisterSeries(TestData.BreakingBadTvdbId, TestData.BreakingBadTmdbId);
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+
+        var result = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        Assert.Equal(0, _resolver.CallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Show_NoOverride_MetadataSourceTvdb_FallsThroughToPassthrough()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true, source: "tvdb");
+        mapping.RegisterSeries(TestData.BreakingBadTvdbId, TestData.BreakingBadTmdbId);
+
+        var result = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None);
+
+        Assert.Equal(1, _passthrough.ShowCallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(200, status);
+    }
+
+    [Fact]
+    public async Task Search_TmdbSearchSource_MetadataSourceTvdb_UsesTmdb()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true, source: "tvdb");
+        mapping.SetDefaultSearchSource(MappingStore.SourceTmdb);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+
+        var result = await handler.SearchAsync("breaking bad", CancellationToken.None);
+
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
     public async Task Show_OverrideRemoved_RestoresDefaultResolution()
     {
         var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
@@ -455,7 +502,9 @@ public class MetadataRequestHandlerTests
 
         var mapping = new MappingStore(options, NullLogger<MappingStore>.Instance);
         var translator = new SkyHookTranslator(mapping, NullLogger<SkyHookTranslator>.Instance);
-        var activeProvider = MetadataProviderRegistry.Create(source, new DummyServiceProvider(_tmdb, options));
+        var providerSource = new DummyServiceProvider(_tmdb, options);
+        var activeProvider = MetadataProviderRegistry.Create(source, providerSource);
+        var tmdbProvider = new TmdbMetadataProvider(_tmdb, options, NullLogger<TmdbMetadataProvider>.Instance);
 
         var handler = new MetadataRequestHandler(
             options,
@@ -465,6 +514,7 @@ public class MetadataRequestHandlerTests
             translator,
             aniList,
             activeProvider,
+            tmdbProvider,
             NullLogger<MetadataRequestHandler>.Instance);
 
         return (handler, mapping);

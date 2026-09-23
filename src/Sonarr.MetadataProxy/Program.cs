@@ -122,7 +122,7 @@ app.MapGet("/info", () => Results.Ok(new
     source = options.MetadataSource,
     tmdbConfigured = options.HasTmdbAuth,
     tvdbFallback = options.EnableTvdbFallback,
-    version = "1.1.2"
+    version = "1.1.3"
 }));
 app.MapGet("/", () => Results.Text(
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sonarr Metadata Proxy</title></head>" +

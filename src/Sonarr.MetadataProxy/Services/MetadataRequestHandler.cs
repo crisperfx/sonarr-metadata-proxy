@@ -19,6 +19,7 @@ public sealed class MetadataRequestHandler
     private readonly SkyHookTranslator _translator;
     private readonly AniListSearchService? _aniList;
     private readonly IMetadataProvider? _activeProvider;
+    private readonly TmdbMetadataProvider? _tmdbProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
     public MetadataRequestHandler(
@@ -29,6 +30,7 @@ public sealed class MetadataRequestHandler
         SkyHookTranslator translator,
         AniListSearchService? aniList,
         IMetadataProvider? activeProvider,
+        TmdbMetadataProvider? tmdbProvider,
         ILogger<MetadataRequestHandler> logger)
     {
         _options = options;
@@ -38,8 +40,11 @@ public sealed class MetadataRequestHandler
         _translator = translator;
         _aniList = aniList;
         _activeProvider = activeProvider;
+        _tmdbProvider = tmdbProvider;
         _logger = logger;
     }
+
+    private IMetadataProvider? TmdbOrActive => _tmdbProvider ?? _activeProvider;
 
     public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
     {
@@ -115,7 +120,8 @@ public sealed class MetadataRequestHandler
 
             if (searchSource == MappingStore.SourceTmdb)
             {
-                if (_activeProvider is null || _activeProvider.Name == "tvdb")
+                var provider = TmdbOrActive;
+                if (provider is null || provider.Name == "tvdb")
                 {
                     _logger.LogInformation("TMDB search requested but no TMDB provider configured; falling through to TVDB.");
                     return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
@@ -154,7 +160,8 @@ public sealed class MetadataRequestHandler
 
     private async Task<IResult> SearchTmdbWithFallbackAsync(string rawTerm, CancellationToken cancellationToken)
     {
-        if (_activeProvider is null || _activeProvider.Name == "tvdb")
+        var provider = TmdbOrActive;
+        if (provider is null || provider.Name == "tvdb")
         {
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
@@ -162,7 +169,7 @@ public sealed class MetadataRequestHandler
         IReadOnlyList<SeriesMetadata> results;
         try
         {
-            results = await _activeProvider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
+            results = await provider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
         }
         catch (NotSupportedException)
         {
@@ -357,20 +364,27 @@ public sealed class MetadataRequestHandler
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
-        if (_activeProvider is null || _activeProvider.Name == "tvdb")
+        var provider = _activeProvider;
+        if (sourceOverride == MappingStore.SourceTmdb && _tmdbProvider is not null)
+        {
+            provider = _tmdbProvider;
+            _logger.LogInformation("Source override 'tmdb' active for TVDB id {TvdbId}; using TMDB provider.", tvdbId);
+        }
+
+        if (provider is null || provider.Name == "tvdb")
         {
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
         try
         {
-            var metadata = await _activeProvider.GetSeries(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+            var metadata = await provider.GetSeries(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
             if (!SyntheticIds.IsSyntheticSeries(tvdbId))
             {
                 _mapping.RegisterSeries(tvdbId, tmdbId.Value);
             }
 
-            var seasons = await _activeProvider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+            var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
             var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
             _logger.LogInformation(
                 "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata.",
