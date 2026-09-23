@@ -66,6 +66,24 @@ public sealed class MalClient : IMalApi
             allowNotFound: true).ConfigureAwait(false);
     }
 
+    public async Task<MalAnimeDetails?> GetSeriesDetailsAsync(int malId, CancellationToken cancellationToken)
+    {
+        return await ExecuteAsync<MalAnimeDetails?>(
+            $"{Endpoint}/anime/{malId}/full",
+            data => data.ValueKind == JsonValueKind.Object ? ParseAnimeDetails(data) : null,
+            cancellationToken,
+            allowNotFound: true).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<MalEpisode>> GetEpisodesAsync(int malId, CancellationToken cancellationToken)
+    {
+        return await ExecuteAsync<IReadOnlyList<MalEpisode>>(
+            $"{Endpoint}/anime/{malId}/episodes",
+            data => data.ValueKind == JsonValueKind.Array ? data.EnumerateArray().Select(ParseEpisode).ToList() : new List<MalEpisode>(),
+            cancellationToken,
+            allowNotFound: true).ConfigureAwait(false);
+    }
+
     private async Task<T> ExecuteAsync<T>(
         string url,
         Func<JsonElement, T> extract,
@@ -303,6 +321,98 @@ public sealed class MalClient : IMalApi
     private static string Truncate(string value, int maxLength = 200)
     {
         return value.Length <= maxLength ? value : value[..maxLength] + "...";
+    }
+
+    private MalAnimeDetails ParseAnimeDetails(JsonElement element)
+    {
+        var aired = element.TryGetProperty("aired", out var airedNode) && airedNode.ValueKind == JsonValueKind.Object
+            ? airedNode
+            : default;
+
+        var details = new MalAnimeDetails
+        {
+            Id = GetNullableInt(element, "id") ?? GetNullableInt(element, "mal_id") ?? 0,
+            Title = GetString(element, "title"),
+            TitleEnglish = GetString(element, "title_english"),
+            TitleJapanese = GetString(element, "title_japanese"),
+            Synonyms = GetStringList(element, "title_synonyms") ?? GetStringList(element, "synonyms") ?? new List<string>(),
+            Episodes = GetNullableInt(element, "episodes"),
+            DurationMinutes = ParseDuration(GetString(element, "duration")),
+            Status = GetString(element, "status"),
+            FirstAirDate = ParseAiredDate(aired, "from"),
+            LastAirDate = ParseAiredDate(aired, "to"),
+            Score = GetNullableDouble(element, "score"),
+            ScoreCount = GetNullableInt(element, "scored_by") ?? GetNullableInt(element, "score_count"),
+            Synopsis = GetString(element, "synopsis") ?? GetString(element, "description"),
+            PosterUrl = GetPosterUrl(element),
+            Genres = GetNameList(element, "genres"),
+            Studios = GetNameList(element, "studios"),
+            Type = GetString(element, "type")
+        };
+
+        // Parse seasons
+        if (element.TryGetProperty("seasons", out var seasonsProp) && seasonsProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var season in seasonsProp.EnumerateArray())
+            {
+                if (season.ValueKind == JsonValueKind.Object)
+                {
+                    details.Seasons.Add(new MalSeason
+                    {
+                        Number = GetNullableInt(season, "number") ?? 0,
+                        EpisodeCount = GetNullableInt(season, "episode_count"),
+                        AirDate = GetString(season, "air_date"),
+                        PosterUrl = GetString(season, "poster_url") ?? GetPosterUrl(season)
+                    });
+                }
+            }
+        }
+
+        // Parse external IDs
+        if (element.TryGetProperty("external_ids", out var extProp) && extProp.ValueKind == JsonValueKind.Object)
+        {
+            details.ExternalIds = new MalExternalIds
+            {
+                TvdbId = GetNullableInt(extProp, "tvdb_id"),
+                ImdbId = GetString(extProp, "imdb_id")
+            };
+        }
+
+        // Parse cast
+        if (element.TryGetProperty("cast", out var castProp) && castProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var cast in castProp.EnumerateArray())
+            {
+                if (cast.ValueKind == JsonValueKind.Object)
+                {
+                    details.Cast.Add(new MalCast
+                    {
+                        Name = GetString(cast, "name"),
+                        Character = GetString(cast, "character"),
+                        ImageUrl = GetString(cast, "image_url") ?? GetPosterUrl(cast)
+                    });
+                }
+            }
+        }
+
+        return details;
+    }
+
+    private MalEpisode ParseEpisode(JsonElement element)
+    {
+        return new MalEpisode
+        {
+            Number = GetNullableInt(element, "number") ?? GetNullableInt(element, "episode_number") ?? 0,
+            AbsoluteNumber = GetNullableInt(element, "absolute_number"),
+            Title = GetString(element, "title"),
+            Overview = GetString(element, "overview") ?? GetString(element, "synopsis"),
+            AirDate = GetString(element, "air_date"),
+            RuntimeMinutes = GetNullableInt(element, "duration") ?? GetNullableInt(element, "runtime"),
+            StillUrl = GetString(element, "still_url") ?? GetPosterUrl(element),
+            Score = GetNullableDouble(element, "score"),
+            VoteCount = GetNullableInt(element, "vote_count") ?? GetNullableInt(element, "scored_by"),
+            EpisodeType = GetString(element, "episode_type")
+        };
     }
 }
 

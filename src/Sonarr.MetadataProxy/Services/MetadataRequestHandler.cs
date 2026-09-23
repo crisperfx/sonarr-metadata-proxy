@@ -26,6 +26,8 @@ public sealed class MetadataRequestHandler
     private readonly AniListTvdbMap? _animeMap;
     private readonly IMetadataProvider? _activeProvider;
     private readonly TmdbMetadataProvider? _tmdbProvider;
+    private readonly MalMetadataProvider? _malProvider;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
     public MetadataRequestHandler(
@@ -40,6 +42,8 @@ public sealed class MetadataRequestHandler
         AniListTvdbMap? animeMap,
         IMetadataProvider? activeProvider,
         TmdbMetadataProvider? tmdbProvider,
+        MalMetadataProvider? malProvider,
+        IServiceProvider serviceProvider,
         ILogger<MetadataRequestHandler> logger)
     {
         _options = options;
@@ -53,10 +57,22 @@ public sealed class MetadataRequestHandler
         _animeMap = animeMap;
         _activeProvider = activeProvider;
         _tmdbProvider = tmdbProvider;
+        _malProvider = malProvider;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
     private IMetadataProvider? TmdbOrActive => _tmdbProvider ?? _activeProvider;
+
+    private IMetadataProvider? GetProviderForSource(string? source)
+    {
+        return source switch
+        {
+            MappingStore.SourceMal => _malProvider,
+            MappingStore.SourceTmdb => _tmdbProvider,
+            _ => _activeProvider
+        };
+    }
 
     public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
     {
@@ -505,13 +521,7 @@ public sealed class MetadataRequestHandler
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
-        var provider = _activeProvider;
-        if (sourceOverride == MappingStore.SourceTmdb && _tmdbProvider is not null)
-        {
-            provider = _tmdbProvider;
-            _logger.LogInformation("Source override 'tmdb' active for TVDB id {TvdbId}; using TMDB provider.", tvdbId);
-        }
-
+        var provider = GetProviderForSource(sourceOverride) ?? _activeProvider;
         if (provider is null || provider.Name == "tvdb")
         {
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
@@ -528,8 +538,9 @@ public sealed class MetadataRequestHandler
             var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
             var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
             _logger.LogInformation(
-                "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata.",
-                show.TvdbId);
+                "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via {Provider}.",
+                show.TvdbId,
+                provider.Name);
             return new ShowResolution.Mapped(show);
         }
         catch (NotSupportedException)
@@ -540,6 +551,11 @@ public sealed class MetadataRequestHandler
         catch (TmdbApiException ex)
         {
             _logger.LogError(ex, "Could not map TMDB ID {TmdbId} to TVDB ID.", tmdbId.Value);
+            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (MalApiException ex)
+        {
+            _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", tmdbId.Value);
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
     }
