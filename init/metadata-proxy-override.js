@@ -88,7 +88,17 @@
       '.mpo-status{font-size:11px;line-height:1.5;color:#909293;}',
       '.mpo-warn{font-size:11px;line-height:1.5;color:#ffa500;}',
       '.mpo-btn-primary{font:600 12px/1.5 "Open Sans",sans-serif;color:#fff;background:#5d9cec;border:1px solid #5899eb;border-radius:4px;padding:6px 12px;cursor:pointer;}',
-      '.mpo-btn-primary:hover{background:#4b91ea;}'
+      '.mpo-btn-primary:hover{background:#4b91ea;}',
+      '.mpo-title{font:600 15px/1.3 "Open Sans","Segoe UI",sans-serif;color:#fff;}',
+      '.mpo-subtitle{font-size:11px;line-height:1.5;color:#909293;}',
+      '.mpo-poster{width:100%;border-radius:8px;border:1px solid #393f45;margin:8px 0 4px;display:block;}',
+      '.mpo-badge{display:inline-block;font:600 11px/1 "Open Sans",sans-serif;padding:4px 8px;border-radius:10px;background:#333;border:1px solid #393f45;color:#e1e2e3;letter-spacing:.04em;white-space:nowrap;}',
+      '.mpo-badge-active{background:#173a24;border-color:#2f7a44;color:#7ddf9b;}',
+      '.mpo-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 6px 0 2px;vertical-align:middle;}',
+      '.mpo-dot-on{background:#4ade80;}',
+      '.mpo-dot-off{background:#f87171;}',
+      '.mpo-bullets{margin:0;padding:0 0 0 16px;font-size:11px;line-height:1.7;color:#909293;}',
+      '.mpo-divider{border:none;border-top:1px solid #393f45;margin:10px 0 4px;}'
     ].join('\n');
     (document.head || document.documentElement).appendChild(style);
   }
@@ -183,8 +193,40 @@
     return shell;
   }
 
+  function sourceLabel(v) {
+    v = normalizeSearchSource(v);
+    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : '';
+  }
+
+  function seriesPoster() {
+    if (!series || !series.images) {
+      return null;
+    }
+    for (var i = 0; i < series.images.length; i++) {
+      var im = series.images[i];
+      if (im && im.coverType === 'poster') {
+        return im.remoteUrl || im.url || null;
+      }
+    }
+    return null;
+  }
+
   function buildPickerPanel() {
     var shell = buildShell('Metadata: ' + (series.title || series.tvdbId));
+
+    var title = document.createElement('div');
+    title.className = 'mpo-title';
+    title.textContent = (series.title || '') + (series.year ? ' (' + series.year + ')' : '');
+    shell._mpoBody.appendChild(title);
+
+    var poster = seriesPoster();
+    if (poster) {
+      var img = document.createElement('img');
+      img.className = 'mpo-poster';
+      img.src = poster;
+      img.alt = series.title || '';
+      shell._mpoBody.appendChild(img);
+    }
 
     var select = document.createElement('select');
     select.className = 'mpo-select';
@@ -204,17 +246,33 @@
     select.value = '';
     shell._mpoBody.appendChild(select);
 
+    var badge = document.createElement('span');
+    badge.className = 'mpo-badge';
+    badge.id = 'mpo-series-source-badge';
+    badge.textContent = 'Bron: Default';
+    shell._mpoBody.appendChild(badge);
+
     var status = document.createElement('div');
-    status.className = 'mpo-status';
+    status.className = 'mpo-subtitle';
     status.textContent = 'TVDB id: ' + series.tvdbId;
     shell._mpoBody.appendChild(status);
 
     var isSynthetic = series.tvdbId >= 1000000000;
+    var bullets = [];
     if (isSynthetic) {
-      var warn = document.createElement('div');
-      warn.className = 'mpo-warn';
-      warn.textContent = 'Let op: deze serie heeft geen echte TVDB-ID. Bij "TVDB" als bron werkt passthrough niet (fallback naar standaard bron).';
-      shell._mpoBody.appendChild(warn);
+      bullets.push('Geen echte TVDB-ID — "TVDB" als bron werkt niet (fallback naar standaard bron).');
+    }
+    bullets.push('Na wijzigen: Refresh & Scan op de serie.');
+
+    if (bullets.length) {
+      var list = document.createElement('ul');
+      list.className = 'mpo-bullets';
+      bullets.forEach(function (text) {
+        var li = document.createElement('li');
+        li.textContent = text;
+        list.appendChild(li);
+      });
+      shell._mpoBody.appendChild(list);
     }
 
     select.addEventListener('change', function () {
@@ -222,6 +280,7 @@
       if (selectedSource === 'tvdb' && isSynthetic) {
         setStatus('Waarschuwing: TVDB passthrough werkt niet voor deze serie (geen echte TVDB-ID). Fallback naar standaard bron.', '#fbbf24');
       }
+      updateSeriesBadge(selectedSource);
       saveOverride(series.tvdbId, select.value)
         .then(function (dto) {
           if (dto && dto.source === 'tmdb') {
@@ -241,6 +300,15 @@
 
     document.body.appendChild(shell);
     return select;
+  }
+
+  function updateSeriesBadge(source) {
+    var badge = document.getElementById('mpo-series-source-badge');
+    if (!badge) {
+      return;
+    }
+    badge.textContent = 'Bron: ' + (source ? sourceLabel(source) : 'Default');
+    badge.className = 'mpo-badge' + (source ? ' mpo-badge-active' : '');
   }
 
   function saveOverride(tvdbId, source) {
@@ -293,31 +361,54 @@
     return '/api/v3/series';
   }
 
+  function waitForSonarrKey(maxMs) {
+    var start = Date.now();
+    var done = false;
+    return new Promise(function (resolve) {
+      var finish = function (key) {
+        if (done) {
+          return;
+        }
+        done = true;
+        resolve(key);
+      };
+      (function poll() {
+        if (window.Sonarr && window.Sonarr.apiKey) {
+          return finish(window.Sonarr.apiKey);
+        }
+        if (Date.now() - start >= maxMs) {
+          return finish('');
+        }
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
   function getSeriesList() {
     var now = Date.now();
     if (seriesCache && now - seriesCacheAt < SERIES_CACHE_TTL_MS) {
       return Promise.resolve(seriesCache);
     }
-    var options = { headers: {} };
-    if (window.Sonarr && window.Sonarr.apiKey) {
-      options.headers['X-Api-Key'] = window.Sonarr.apiKey;
-    }
-    return fetch(sonarrSeriesUrl(), options)
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error(
-            'Sonarr API: HTTP ' + response.status + (window.Sonarr && window.Sonarr.apiKey
-              ? ''
-              : ' — Sonarr API key not available (window.Sonarr.apiKey missing).')
-          );
-        }
-        return response.json();
-      })
-      .then(function (list) {
-        seriesCache = list;
-        seriesCacheAt = Date.now();
-        return list;
-      });
+    return waitForSonarrKey(6000).then(function (apiKey) {
+      var options = { headers: {} };
+      if (apiKey) {
+        options.headers['X-Api-Key'] = apiKey;
+      }
+      return fetch(sonarrSeriesUrl(), options);
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error(
+          'Sonarr API: HTTP ' + response.status + (window.Sonarr && window.Sonarr.apiKey
+            ? ''
+            : ' — Sonarr API key not available (window.Sonarr.apiKey missing).')
+        );
+      }
+      return response.json();
+    }).then(function (list) {
+      seriesCache = list;
+      seriesCacheAt = Date.now();
+      return list;
+    });
   }
 
   function findSeries(ident) {
@@ -427,6 +518,7 @@
           })
           .then(function (list) {
             select.value = currentOverride(list, series.tvdbId);
+            updateSeriesBadge(select.value);
           })
           .catch(function (err) {
             setStatus(
@@ -515,6 +607,11 @@
     var selects = document.querySelectorAll('select[data-mpo-provider]');
     for (var i = 0; i < selects.length; i++) {
       selects[i].value = SEARCH_PROVIDER;
+    }
+    var badge = document.getElementById('mpo-current-source');
+    if (badge) {
+      badge.textContent = SEARCH_PROVIDER ? sourceLabel(SEARCH_PROVIDER) : 'Automatic';
+      badge.className = 'mpo-badge' + (SEARCH_PROVIDER ? ' mpo-badge-active' : '');
     }
   }
 
@@ -619,16 +716,83 @@
     });
     ui._mpoBody.appendChild(select);
 
-    var hint = document.createElement('div');
-    hint.className = 'mpo-status';
-    hint.textContent =
-      'Selects the backend for the Add New lookup. Automatic = TMDB with TVDB fallback; empty results or API errors fall back to TVDB.';
-    ui._mpoBody.appendChild(hint);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+
+    var badge = document.createElement('span');
+    badge.className = 'mpo-badge';
+    badge.id = 'mpo-current-source';
+    badge.textContent = 'Automatic';
+    row.appendChild(badge);
+
+    var dot = document.createElement('span');
+    dot.id = 'mpo-proxy-dot';
+    dot.className = 'mpo-dot mpo-dot-off';
+    row.appendChild(dot);
+
+    var dotLabel = document.createElement('span');
+    dotLabel.className = 'mpo-subtitle';
+    dotLabel.id = 'mpo-proxy-label';
+    dotLabel.textContent = 'proxy status\u2026';
+    row.appendChild(dotLabel);
+
+    ui._mpoBody.appendChild(row);
+
+    var list = document.createElement('ul');
+    list.className = 'mpo-bullets';
+    [
+      'Automatic = METADATA_SOURCE (.env), TVDB fallback on empty/error',
+      'Prefixes: tmdb: / tvdb: / anilist: / mal:'
+    ].forEach(function (text) {
+      var li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    ui._mpoBody.appendChild(list);
 
     document.body.appendChild(ui);
     ui.mpoCollapse(true);
     applySearchProvider(SEARCH_PROVIDER);
+    refreshProxyStatus();
     return ui;
+  }
+
+  function refreshProxyStatus() {
+    var dot = document.getElementById('mpo-proxy-dot');
+    var label = document.getElementById('mpo-proxy-label');
+    var base = overridesApiBase();
+    if (!base) {
+      if (dot) {
+        dot.className = 'mpo-dot mpo-dot-off';
+      }
+      if (label) {
+        label.textContent = 'proxy onbereikbaar (stel OVERRIDES_API_URL in)';
+      }
+      return;
+    }
+    fetch(base + '/api/overrides/searchsource')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function () {
+        if (dot) {
+          dot.className = 'mpo-dot mpo-dot-on';
+        }
+        if (label) {
+          label.textContent = 'proxy online';
+        }
+      })
+      .catch(function () {
+        if (dot) {
+          dot.className = 'mpo-dot mpo-dot-off';
+        }
+        if (label) {
+          label.textContent = 'proxy offline';
+        }
+      });
   }
 
   function attachSearchPicker(input) {
@@ -731,6 +895,7 @@
 
   setInterval(tick, POLL_MS);
   setInterval(refreshSearchPickers, POLL_MS);
+  setInterval(refreshProxyStatus, 15000);
   tick();
   refreshSearchPickers();
 })();

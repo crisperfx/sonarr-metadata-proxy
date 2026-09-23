@@ -59,8 +59,8 @@ public sealed class AniListTvdbMap
         if (animeListFile is null || animeListFullFile is null)
         {
             _logger.LogWarning(
-                "AniList mapping data missing (expected anime.json and anime-list-full.xml in '{Dir}' or '{DataDir}'). "
-                + "AniList search will fall through to TVDB.",
+                "Anime mapping data missing (expected anime.json and anime-list-full.xml in '{Dir}' or '{DataDir}'). "
+                + "AniList and MAL lookups will fall through to TVDB.",
                 datamapDir,
                 dataDir);
             return;
@@ -88,7 +88,7 @@ public sealed class AniListTvdbMap
 
         HasData = _anidbToTvdb.Count > 0 && _anilistToAnidb.Count > 0;
         _logger.LogInformation(
-            "AniList mapping data loaded: {AniList} anilist ids, {AniDb} anidb ids, {Tvdb} anidb->tvdb links.",
+            "Anime mapping data loaded (shared AniList/MAL): {AniList} anilist ids, {AniDb} anidb ids, {Tvdb} anidb->tvdb links.",
             _anilistToAnidb.Count,
             _anidbToTvdb.Count,
             HasData ? _anidbToTvdb.Count : 0);
