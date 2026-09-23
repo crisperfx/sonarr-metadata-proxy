@@ -173,7 +173,7 @@ public class MalClientTests
     }
     """;
 
-    private sealed class NoopRateLimiter : JikanRateLimiter
+    private sealed class NoopRateLimiter : TenraiRateLimiter
     {
         public override Task WaitAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

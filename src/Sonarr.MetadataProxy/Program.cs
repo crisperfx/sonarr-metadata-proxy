@@ -52,7 +52,7 @@ builder.Services.AddHttpClient<IMalApi, MalClient>(http =>
     http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
 });
 
-builder.Services.AddSingleton<JikanRateLimiter>();
+builder.Services.AddSingleton<TenraiRateLimiter>();
 builder.Services.AddSingleton<MappingStore>();
 builder.Services.AddSingleton<WikidataTvdbResolver>();
 builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();

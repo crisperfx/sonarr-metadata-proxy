@@ -7,14 +7,14 @@ namespace Sonarr.MetadataProxy.Providers;
 
 public sealed class MalClient : IMalApi
 {
-    private const string Endpoint = "https://api.jikan.moe/v4";
+    private const string Endpoint = "https://api.tenrai.org/v1";
     private const int SearchLimit = 20;
 
     private readonly HttpClient _http;
     private readonly ILogger<MalClient> _logger;
-    private readonly JikanRateLimiter _rateLimiter;
+    private readonly TenraiRateLimiter _rateLimiter;
 
-    public MalClient(HttpClient http, ILogger<MalClient> logger, JikanRateLimiter rateLimiter)
+    public MalClient(HttpClient http, ILogger<MalClient> logger, TenraiRateLimiter rateLimiter)
     {
         _http = http;
         _logger = logger;
@@ -23,7 +23,7 @@ public sealed class MalClient : IMalApi
 
     public async Task<IReadOnlyList<MalAnime>> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        var url = $"{Endpoint}/anime?q={Uri.EscapeDataString(query)}&type=tv&limit={SearchLimit}&sfw=true";
+        var url = $"{Endpoint}/anime/search?q={Uri.EscapeDataString(query)}&limit={SearchLimit}";
         return await ExecuteAsync<IReadOnlyList<MalAnime>>(url, data => data.EnumerateArray().Select(ParseAnime).ToList(), cancellationToken)
             .ConfigureAwait(false);
     }
@@ -58,25 +58,12 @@ public sealed class MalClient : IMalApi
                         continue;
                     }
 
-                    if (item.TryGetProperty("jpg", out var jpg) && jpg.ValueKind == JsonValueKind.Object)
+                    if (item.TryGetProperty("url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String)
                     {
-                        var large = GetString(jpg, "large_image_url");
-                        var medium = GetString(jpg, "image_url");
-                        var url = large ?? medium;
+                        var url = urlProp.GetString();
                         if (!string.IsNullOrWhiteSpace(url))
                         {
                             pictures.Posters.Add(url);
-                        }
-                    }
-
-                    if (item.TryGetProperty("webp", out var webp) && webp.ValueKind == JsonValueKind.Object)
-                    {
-                        var large = GetString(webp, "large_image_url");
-                        var medium = GetString(webp, "image_url");
-                        var url = large ?? medium;
-                        if (!string.IsNullOrWhiteSpace(url))
-                        {
-                            pictures.Backgrounds.Add(url);
                         }
                     }
                 }
@@ -111,26 +98,26 @@ public sealed class MalClient : IMalApi
 
                 if (response.StatusCode == HttpStatusCode.NotFound && allowNotFound)
                 {
-                    _logger.LogInformation("MAL (Jikan) reported not found for '{Url}'.", url);
+                    _logger.LogInformation("MAL (Tenrai) reported not found for '{Url}'.", url);
                     return default!;
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var status = (int)response.StatusCode;
-                    _logger.LogWarning("MAL (Jikan) returned {Status}: {Body}", status, Truncate(body));
+                    _logger.LogWarning("MAL (Tenrai) returned {Status}: {Body}", status, Truncate(body));
 
                     var isRetryable = status == 502 || status == 503 || status == 504;
                     if (isRetryable && attempt < maxRetries)
                     {
                         attempt++;
                         var delay = TimeSpan.FromTicks(baseDelay.Ticks * (1L << (attempt - 1)));
-                        _logger.LogInformation("Retrying Jikan request in {Delay}s (attempt {Attempt}/{MaxRetries}).", delay.TotalSeconds, attempt, maxRetries);
+                        _logger.LogInformation("Retrying Tenrai request in {Delay}s (attempt {Attempt}/{MaxRetries}).", delay.TotalSeconds, attempt, maxRetries);
                         await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                         continue;
                     }
 
-                    throw new MalApiException($"Jikan API error {status}.");
+                    throw new MalApiException($"Tenrai API error {status}.");
                 }
 
                 using var document = JsonDocument.Parse(body);
@@ -142,15 +129,15 @@ public sealed class MalClient : IMalApi
             }
             catch (HttpRequestException ex)
             {
-                throw new MalApiException("Jikan request failed.", ex);
+                throw new MalApiException("Tenrai request failed.", ex);
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new MalApiException("Jikan request timed out.", ex);
+                throw new MalApiException("Tenrai request timed out.", ex);
             }
             catch (JsonException ex)
             {
-                throw new MalApiException("Jikan response could not be parsed.", ex);
+                throw new MalApiException("Tenrai response could not be parsed.", ex);
             }
         }
     }
@@ -163,19 +150,19 @@ public sealed class MalClient : IMalApi
 
         return new MalAnime
         {
-            Id = GetInt(element, "mal_id"),
+            Id = GetInt(element, "id") ?? GetInt(element, "mal_id"),
             Title = GetString(element, "title"),
             TitleEnglish = GetString(element, "title_english"),
             TitleJapanese = GetString(element, "title_japanese"),
-            Synonyms = GetStringList(element, "title_synonyms"),
+            Synonyms = GetStringList(element, "title_synonyms") ?? GetStringList(element, "synonyms"),
             Episodes = GetNullableInt(element, "episodes"),
             DurationMinutes = ParseDuration(GetString(element, "duration")),
             Status = GetString(element, "status"),
             FirstAirDate = ParseAiredDate(aired, "from"),
             LastAirDate = ParseAiredDate(aired, "to"),
             Score = GetNullableDouble(element, "score"),
-            ScoreCount = GetNullableInt(element, "scored_by"),
-            Synopsis = GetString(element, "synopsis"),
+            ScoreCount = GetNullableInt(element, "scored_by") ?? GetNullableInt(element, "score_count"),
+            Synopsis = GetString(element, "synopsis") ?? GetString(element, "description"),
             PosterUrl = GetPosterUrl(element),
             Genres = GetNameList(element, "genres"),
             Studio = GetNameList(element, "studios").FirstOrDefault(),
@@ -230,6 +217,10 @@ public sealed class MalClient : IMalApi
 
     private static string? GetPosterUrl(JsonElement element)
     {
+        if (element.TryGetProperty("poster", out var poster) && poster.ValueKind == JsonValueKind.String)
+        {
+            return poster.GetString();
+        }
         if (!element.TryGetProperty("images", out var images) || images.ValueKind != JsonValueKind.Object)
         {
             return null;
@@ -323,7 +314,7 @@ public sealed class MalClient : IMalApi
     }
 }
 
-public class JikanRateLimiter
+public class TenraiRateLimiter
 {
     private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(333);
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
