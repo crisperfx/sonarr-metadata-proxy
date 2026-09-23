@@ -105,6 +105,17 @@ public sealed class AniListTvdbMap
             }
         }
 
+        if (_tvdbToMal.TryGetValue(81797, out var onePieceMalId))
+        {
+            _logger.LogInformation("One Piece (TVDB 81797) reverse MAL mapping: {MalId} (via AniDB {AniDbId}).", onePieceMalId, _anidbToTvdb.FirstOrDefault(kvp => kvp.Value == 81797).Key);
+        }
+        var anidbOnePiece = _anidbToTvdb.FirstOrDefault(kvp => kvp.Value == 81797).Key;
+        if (anidbOnePiece > 0 && _malToAnidb.Any(kvp => kvp.Value == anidbOnePiece))
+        {
+            var allMal = _malToAnidb.Where(kvp => kvp.Value == anidbOnePiece).Select(kvp => kvp.Key).ToList();
+            _logger.LogInformation("AniDB {AniDbId} (One Piece) maps to MAL IDs: {MalIds}.", anidbOnePiece, string.Join(", ", allMal));
+        }
+
         _logger.LogInformation(
             "Anime mapping data loaded (shared AniList/MAL): {AniList} anilist ids, {AniDb} anidb ids, {Tvdb} anidb->tvdb links, {Mal} tvdb->mal links.",
             _anilistToAnidb.Count,
