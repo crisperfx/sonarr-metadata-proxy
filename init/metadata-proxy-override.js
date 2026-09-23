@@ -900,7 +900,7 @@
 
   setInterval(tick, POLL_MS);
   setInterval(refreshSearchPickers, POLL_MS);
-  setInterval(refreshProxyStatus, 15000);
+  // refreshProxyStatus only when panel is open/visible
   tick();
   refreshSearchPickers();
 })();
