@@ -315,7 +315,7 @@ public sealed class MetadataRequestHandler
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
         var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
 
-        resolution = FlattenIfAnimeBound(tvdbId, resolution);
+        resolution = FlattenIfNoMultiSeason(resolution);
 
         // Enrich with MAL pictures if this is a MAL-bound series
         var malId = GetMalId(tvdbId);
@@ -432,29 +432,23 @@ public sealed class MetadataRequestHandler
         return new ShowResolution.Passthrough(enrichedResponse);
     }
 
-    private ShowResolution FlattenIfAnimeBound(int tvdbId, ShowResolution resolution)
+    private ShowResolution FlattenIfNoMultiSeason(ShowResolution resolution)
     {
-        var sourceOverride = _mapping.GetOverride(tvdbId);
-        var effectiveSource = string.IsNullOrWhiteSpace(sourceOverride) ? _options.MetadataSource : sourceOverride;
-
-        // Only MAL/AniList serve flattened output (no seasons). TVDB and TMDB always
-        // keep their real seasons (numbered or named): never flatten those.
-        if (effectiveSource is not (MappingStore.SourceMal or MappingStore.SourceAniList))
-        {
-            return resolution;
-        }
-
         return resolution switch
         {
-            ShowResolution.Mapped mapped => new ShowResolution.Mapped(FlattenMapped(mapped.Show)),
-            ShowResolution.Passthrough passed => FlattenPassthrough(passed),
+            ShowResolution.Mapped mapped => SingleSeasonTransformer.HasMultipleSeasons(mapped.Show)
+                ? resolution
+                : new ShowResolution.Mapped(FlattenMapped(mapped.Show)),
+            ShowResolution.Passthrough passed => SingleSeasonTransformer.HasMultipleSeasons(passed.Response)
+                ? resolution
+                : FlattenPassthrough(passed),
             _ => resolution
         };
     }
 
     private ShowResource FlattenMapped(ShowResource show)
     {
-        _logger.LogInformation("Anime-bound series; flattening to a single season.");
+        _logger.LogInformation("Metadata carries no seasons or a single season; flattening to a single continuous season.");
         return SingleSeasonTransformer.Flatten(show);
     }
 
@@ -464,7 +458,7 @@ public sealed class MetadataRequestHandler
         if (flattened is null)
         {
             _logger.LogWarning(
-                "Could not flatten passthrough response for anime-bound series; returning original response.");
+                "Could not flatten passthrough response without seasons; returning original response.");
             return passed;
         }
 

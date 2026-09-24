@@ -835,6 +835,49 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Show_PassthroughWithSingleSeasonData_FlattensIntoOne()
+    {
+        var episodes = new JsonArray();
+        for (var i = 1; i <= 20; i++)
+        {
+            episodes.Add(new JsonObject
+            {
+                ["tvdbId"] = 900 + i,
+                ["seasonNumber"] = 1,
+                ["episodeNumber"] = i,
+                ["title"] = "Episode",
+                ["absoluteEpisodeNumber"] = i
+            });
+        }
+
+        var root = new JsonObject
+        {
+            ["tvdbId"] = 81189,
+            ["title"] = "Some Series",
+            ["seasons"] = new JsonArray(),
+            ["episodes"] = episodes
+        };
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new ProxyResponse(200, "application/json", root.ToJsonString())
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81189");
+        using var document = JsonDocument.Parse(body);
+
+        var all = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
+        Assert.Equal(20, all.Count);
+        Assert.All(all, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(Enumerable.Range(1, 20), all.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+
+        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
+        Assert.Equal(new[] { 1 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
+    }
+
+    [Fact]
     public async Task Show_PassthroughSeries_WithoutAniListBinding_IsNotFlattened()
     {
         var episodes = new JsonArray();
@@ -880,7 +923,7 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_MalOverrideWithoutBinding_FlattensPassthroughEpisodesIntoOne()
+    public async Task Show_MalOverrideWithoutBinding_KeepsPassthroughSeasons()
     {
         var episodes = new JsonArray();
         var absolute = 0;
@@ -902,7 +945,7 @@ public class SkyHookApiIntegrationTests
         var root = new JsonObject
         {
             ["tvdbId"] = 81189,
-            ["title"] = "Anime Forced To MAL",
+            ["title"] = "Series",
             ["seasons"] = new JsonArray(),
             ["episodes"] = episodes
         };
@@ -924,15 +967,14 @@ public class SkyHookApiIntegrationTests
 
         var all = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
         Assert.Equal(30, all.Count);
-        Assert.All(all, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, 30), all.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+        Assert.Equal(Enumerable.Range(1, 10).SelectMany(season => Enumerable.Repeat(season, 10)), all.Select(e => e.GetProperty("seasonNumber").GetInt32()));
 
         var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 1 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
-    public async Task Show_AniListOverrideWithoutBinding_FlattensMappedSeasonsIntoOne()
+    public async Task Show_AniListOverrideWithoutBinding_KeepsMappedSeasons()
     {
         var tmdb = new FakeTmdbApi
         {
@@ -958,11 +1000,10 @@ public class SkyHookApiIntegrationTests
 
         var episodes = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
         Assert.Equal(3, episodes.Count);
-        Assert.All(episodes, episode => Assert.Equal(1, episode.GetProperty("seasonNumber").GetInt32()));
-        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("episodeNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 1, 2 }, episodes.Select(e => e.GetProperty("seasonNumber").GetInt32()));
 
         var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 1 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]

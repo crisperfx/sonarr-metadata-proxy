@@ -6,6 +6,40 @@ namespace Sonarr.MetadataProxy.Services;
 
 public static class SingleSeasonTransformer
 {
+    public static bool HasMultipleSeasons(ShowResource show)
+    {
+        return show.Episodes
+            .Select(episode => episode.SeasonNumber)
+            .Where(seasonNumber => seasonNumber > 0)
+            .Distinct()
+            .Count() > 1;
+    }
+
+    public static bool HasMultipleSeasons(ProxyResponse response)
+    {
+        JsonNode? body;
+        try
+        {
+            body = JsonNode.Parse(response.Body);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+
+        if (body is not JsonObject root || root["episodes"] is not JsonArray episodes)
+        {
+            return false;
+        }
+
+        return episodes
+            .OfType<JsonObject>()
+            .Select(episode => episode["seasonNumber"]?.GetValue<int>() ?? 0)
+            .Where(seasonNumber => seasonNumber > 0)
+            .Distinct()
+            .Count() > 1;
+    }
+
     public static ShowResource Flatten(ShowResource show)
     {
         var specials = new List<EpisodeResource>();
