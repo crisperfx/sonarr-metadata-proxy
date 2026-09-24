@@ -1,4 +1,5 @@
 using Sonarr.MetadataProxy.Models.AniList;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
 
 namespace Sonarr.MetadataProxy.Tests.Infrastructure;
@@ -154,6 +155,30 @@ public static class TestData
             CountryOfOrigin = "JP",
             Studio = "Madhouse",
             AlternativeTitles = new List<string> { "Death Note (2006)" }
+        };
+    }
+
+    public static MalAnime DeathNoteMal()
+    {
+        return new MalAnime
+        {
+            Id = 1535,
+            Title = "Death Note",
+            TitleEnglish = "Death Note",
+            TitleJapanese = "\u30c7\u30b9\u30ce\u30fc\u30c8",
+            Synonyms = new List<string> { "Death Note (2006)" },
+            Episodes = 37,
+            DurationMinutes = 23,
+            Status = "Finished Airing",
+            FirstAirDate = "2006-10-04",
+            LastAirDate = "2007-06-27",
+            Score = 8.6,
+            ScoreCount = 12345,
+            Synopsis = "A high school student finds a notebook that kills anyone whose name is written in it.",
+            PosterUrl = "https://cdn.myanimelist.net/images/anime/9/9453l.jpg",
+            Genres = new List<string> { "Mystery", "Psychological" },
+            Studio = "Madhouse",
+            Type = "TV"
         };
     }
 }

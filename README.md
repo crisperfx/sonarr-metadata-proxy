@@ -47,17 +47,18 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 - Sonarr talks to `skyhook.sonarr.tv` exactly as it always does — the DNS alias just makes
   that name resolve to the proxy instead of the real SkyHook. Everything else in Sonarr is
   untouched.
-- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList) with **automatic
+- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList / MAL) with **automatic
   fallback to TVDB** when the chosen source returns no results.
 - **Series details/episodes** come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
   real TVDB when a series cannot be mapped).
-- **Single-season flattening** for AniList-bound series (continuous anime like One Piece):
-  when a series is linked to AniList via search, the proxy automatically serves it as one
-  continuous season (both mapped and TVDB passthrough paths).
+- **Single-season flattening** for anime forces (continuous anime like One Piece): when a
+  series is linked to AniList/MAL via search **or** its per-series source is set to
+  AniList/MAL, the proxy serves it as one continuous season (both mapped and TVDB
+  passthrough paths).
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
-  the Sonarr web UI (per-series TMDB/TVDB/AniList picker) and a **Search via** provider picker
-  (TMDB / TVDB / AniList) into the Add New search box.
+  the Sonarr web UI (per-series TMDB/TVDB/AniList/MAL picker) and a **Search via** provider picker
+  (TMDB / TVDB / AniList / MAL) into the Add New search box.
 
 ---
 
@@ -129,7 +130,7 @@ The complete stack (this is the whole `docker-compose.yml`):
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
 #   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI
-#     plus a "Search via" provider picker (TMDB / TVDB / AniList) into the add-series search.
+#     plus a "Search via" provider picker (TMDB / TVDB / AniList / MAL) into the add-series search.
 #
 # Usage:
 #   cp .env.example .env      # set TMDB_API_KEY (and CORS_ALLOWED_ORIGINS if needed)
@@ -274,8 +275,8 @@ is not recreated). On a shared custom network the IP stays stable too.
 1. Start/restart the proxy and wait until it is fully UP;
 2. Start Sonarr — on startup it installs the CA and patches its web UI
    (log line `[sonarr-metadata-proxy] index.html patched...`);
-3. **Restart Sonarr once more** — now `config.xml` exists, so your Sonarr API key is
-   embedded in the picker and there is never a key prompt.
+3. **Restart Sonarr once more** — the patched UI (`index.html` + picker script)
+   is now active in the browser.
 
 **Step 5 — Test**
 
@@ -335,10 +336,10 @@ restart then embeds them.
 
 **When can you skip the pull?** For purely *configuration* changes:
 
-- changed `OVERRIDES_API_URL`, `CORS_ALLOWED_ORIGINS`, or your API key → **no new image
-  needed**, just `docker restart sonarr`. The Sonarr hook re-embeds the current environment
-  on every start (and re-patches `index.html` with a cache-busting `?v=`, so no hard refresh
-  is ever required).
+- changed `OVERRIDES_API_URL` or `CORS_ALLOWED_ORIGINS` → **no new image
+  needed**, just `docker restart sonarr`. The Sonarr hook re-applies the current
+  environment on every start (and re-patches `index.html` with a cache-busting `?v=`,
+  so no hard refresh is ever required).
 
 Your data (`mappings/`, `certs/`) is never touched. Do not edit the seed files by hand —
 the image version wins; configure behaviour via environment variables.
@@ -366,22 +367,26 @@ LAN / port-forward use.
 
 ## Per-series source selection ("Metadata source")
 
-Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList**.
+Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList / MAL**.
 
 - **Automatic** = the default source from `METADATA_SOURCE`.
 - **TMDB** = always use TMDB servers for this series.
 - **TVDB** = always use the real SkyHook/TVDB for this series.
 - **AniList** = serve this series as a single continuous season (AniList-bound flattening).
-  Works when the series was discovered via AniList search (AniList ↔ TVDB binding created
-  on first search). Applies to both mapped and TVDB passthrough paths.
+  Applies to both mapped and TVDB passthrough paths — no search binding required, selecting
+  AniList here is enough to flatten.
+- **MAL** = serve this series as a single continuous season (MAL-bound flattening).
+  Applies to both mapped and TVDB passthrough paths — no `mal:`-search binding required,
+  selecting MAL here is enough to flatten.
 
 After choosing: **Refresh & Scan** on the series. Overrides are stored in
 `DATA_DIR/mappings/mappings.json` (one single file for all series — not a file per
 series; per-series files would multiply IO, race, and confuse editing/backup).
 Legacy `DATA_DIR/mappings.json` files are migrated into the `mappings/` folder
-automatically on startup. You might be asked once for your Sonarr API key
-(Settings → General); it is usually read automatically from `/config/config.xml`
-by the init hook, so there is normally no prompt.
+automatically on startup. The picker never stores your Sonarr API key: it reads Sonarr's
+own `window.Sonarr.apiKey` at runtime (only present on authenticated UI pages) and sends it
+as the `X-Api-Key` header to `/api/v3/series`, exactly like Sonarr's own frontend does, so
+nothing secret is embedded in files that end up next to the (public) login page.
 
 **Note for AniList series without a real TVDB ID:**
 When you select **TVDB** in the dropdown for a series that only has a synthetic TVDB ID
@@ -403,6 +408,10 @@ When adding a series, the search box gets a **Search via** dropdown:
   maps the hit to a real TVDB id via the bundled Fribb + Anime-Lists datasets.
   Results without a known TVDB mapping get a synthetic TVDB ID and appear in results;
   API failures and series without mapping fall through to TVDB.
+- **MAL** — searches MyAnimeList via the public Tenrai API (TV type + TV Specials only), maps the hit to a real
+  TVDB id via the same bundled datasets. Tenrai rate limits are handled internally.
+  Results without a known TVDB mapping get a synthetic TVDB ID; API failures and unmatched
+  series fall through to TVDB.
 
 **Fallback behaviour for all providers (except explicit TVDB):**
 - **Empty results → TVDB fallback** (always).
@@ -410,17 +419,48 @@ When adding a series, the search box gets a **Search via** dropdown:
 - AniList: synthetic TVDB IDs are decomposed to TMDB for detail/episode fetch.
 
 The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
-`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id` (the `mal:`/`anilist:` prefixes
-resolve through AniList when the bundled mapping data is available).
+`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`. The `anilist:` prefix resolves
+through AniList; `mal:` resolves through MAL when the bundled mapping data is
+available, falling back to AniList and then TVDB.
 
-On small screens (under 768 px) the dropdown collapses into a small **Metadata ▸** pill so
-it does not cover the page; tap it to expand, **–** to collapse again.
+Both pickers are styled like the Sonarr sidebar (dark `#2a2a2a` panel) and collapse into a small
+**Metadata ▸** / **Metasources ▸** pill on the left edge so they never cover the page; tap the pill to
+expand, **–** to collapse again.
+
+### Search provider picker ("Search via")
+
+When adding a series, the search box gets a **Search via** dropdown:
+
+- **Automatic** — uses the default source from `METADATA_SOURCE` (TMDB or TVDB).
+  TMDB searches fall back to TVDB on empty results; TVDB is direct.
+- **TMDB only** — prefixes your query with `tmdb:` so the proxy searches TMDB and
+  falls back to TVDB on empty results (e.g. to force a TMDB id, type `tmdb:1396`).
+- **TVDB (SkyHook)** — prefixes with `tvdb:`, forcing the TVDB listing
+  (e.g. `tvdb:breaking bad` or an id `tvdb:81189`). No fallback.
+- **AniList** — searches AniList for anime (format TV / TV_SHORT only, excludes movies/specials/OVAs),
+  maps the hit to a real TVDB id via the bundled Fribb + Anime-Lists datasets.
+  Results without a known TVDB mapping get a synthetic TVDB ID and appear in results;
+  API failures and series without mapping fall through to TVDB.
+- **MAL** — searches MyAnimeList via the public Tenrai API (TV + TV Specials only), maps the hit to a real
+  TVDB id via the same bundled datasets. Tenrai rate limits are handled internally.
+  Results without a known TVDB mapping get a synthetic TVDB ID; API failures and unmatched
+  series fall through to TVDB.
+
+**Fallback behaviour for all providers (except explicit TVDB):**
+- **Empty results → TVDB fallback** (always).
+- **API errors → TVDB fallback**.
+- AniList: synthetic TVDB IDs are decomposed to TMDB for detail/episode fetch.
+
+The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
+`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`. The `anilist:` prefix resolves
+through AniList; `mal:` resolves through MAL when the bundled mapping data is
+available, falling back to AniList and then TVDB.
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, or `anilist` (passthrough only). |
+| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, `anilist`, or `mal` (passthrough only). |
 | `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
 | `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key (wins if both set). |
 | `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
@@ -434,6 +474,33 @@ it does not cover the page; tap it to expand, **–** to collapse again.
 | `ANILIST_DATAMAP_DIR` | `/app/datamaps` | Folder with the AniList↔AniDB↔TVDB datasets (`anime.json` + `anime-list-full.xml`); baked into the image, override only to point at your own copies. |
 
 Set these in `.env`, or as environment on the container / in your own compose.
+
+## Security
+
+- **Runs unprivileged** — the container starts as root only to fix the data volume
+  ownership, then drops to the unprivileged `app` user (`runuser`). The app process
+  has no special capabilities beyond binding port 443 for TLS (granted via `setcap`);
+  the compose template also drops all kernel capabilities except the few needed
+  (`CHOWN`, `FOWNER`, `SETUID`, `SETGID`, `NET_BIND_SERVICE`, `DAC_OVERRIDE`).
+- **Private keys are 0600** — the generated CA and server private keys in
+  `DATA_DIR/certs/` (and the `mappings.json` store) are readable only by the proxy
+  user. Only `ca.crt` needs to be seen by the Sonarr container.
+- **No secrets in the web UI** — the picker reads Sonarr's `window.Sonarr.apiKey` at
+  runtime (only served to authenticated UI pages) and sends it as the `X-Api-Key` header,
+  matching Sonarr's own frontend; nothing is embedded in static files.
+- **TMDB credentials are not logged** — error messages redact `api_key` (the bearer
+  token travels only in a header and is never part of URLs).
+- **Outgoing requests go to fixed hosts only** (TMDB, AniList, Tenrai for MAL, SkyHook,
+  Cloudflare DoH, Wikidata); user input is limited to IDs and escaped search terms, so
+  there is no SSRF from the public endpoints.
+- **CORS is closed by default** — `/api/overrides` only answers cross-origin browsers
+  listed in `CORS_ALLOWED_ORIGINS` (same-origin requests always work).
+
+> The management API on `9697` is **unauthenticated by design** (the in-browser picker
+> uses it) and `9697:9697` is published on your LAN. Anyone on the network can read and
+> change overrides, and searches against it consume your TMDB quota. Do not expose
+> `9697` to the internet; keep it behind your firewall / reverse proxy if your network
+> is not fully trusted.
 
 ## Management API
 
@@ -451,7 +518,8 @@ curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 ## Build / publish (for maintainers)
 
 ```bash
-git tag v0.2.4 && git push origin v0.2.4   # triggers CI: tests + publish to Docker Hub and GHCR (amd64+arm64)
+git push origin develop   # CI: tests + publish as :develop (Docker Hub + GHCR, amd64+arm64)
+git tag v0.2.4 && git push origin v0.2.4   # CI: tests + publish as :0.2.4 (single tag)
 ```
 
 The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
@@ -460,10 +528,16 @@ The workflow pushes to `crisperfx/sonarr-metadata-proxy` (Docker Hub) and
 Read/Write on the Docker Hub repo); GHCR works with the standard `GITHUB_TOKEN` and needs no
 setup. Without `DOCKERHUB_*` secrets only the Docker Hub push fails, the GHCR push succeeds.
 
+Tags by branch/ref (one build, one tag per event — no `sha-...` or minor-version tags):
+- `develop` → published only as `:develop` (clearly a dev build, never `latest`).
+- `main` → published only as `:latest`.
+- `vX.Y.Z` → published only as `:X.Y.Z` (e.g. `git tag v1.1.3` → image `crisperfx/sonarr-metadata-proxy:1.1.3`).
+
 Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadata-proxy`.
 
 ## Limitations
 
 - AniList search filters to `format: [TV, TV_SHORT]` (excludes movies, specials, OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
+- MAL search filters to `type: [tv, tv_special]` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.

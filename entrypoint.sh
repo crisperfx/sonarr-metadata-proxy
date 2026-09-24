@@ -33,4 +33,11 @@ for f in 01-install-ca.sh 50-sonarr-override-ui.sh metadata-proxy-override.js; d
   fi
 done
 
+# Run the proxy as the unprivileged 'app' user (fixes ownership of the data
+# volume from older root-run containers on each start).
+if [ "$(id -u)" = "0" ]; then
+  chown -R app:app "${DATA}" 2>/dev/null || true
+  exec runuser -u app -- /usr/share/dotnet/dotnet Sonarr.MetadataProxy.dll
+fi
+
 exec dotnet Sonarr.MetadataProxy.dll

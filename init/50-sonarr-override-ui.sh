@@ -3,9 +3,14 @@
 #
 # This copies metadata-proxy-override.js (mounted next to this script) into the
 # Sonarr UI directory and patches index.html so the script is loaded. The script
-# adds a small per-series overlay: Automatisch / TMDB / TVDB, backed by the
-# proxy's /api/overrides management API, and a "Search via" provider picker on
-# the Add New search box (tmdb:/tvdb: prefixes).
+# adds a small per-series overlay: Automatisch / TMDB / TVDB / AniList / MAL, backed
+# by the proxy's /api/overrides management API, and a "Search via" provider picker
+# on the Add New search box (tmdb:/tvdb:/anilist:/mal: prefixes).
+#
+# No Sonarr API key is embedded or stored: the picker reads Sonarr's own
+# window.Sonarr.apiKey at runtime (only served to authenticated UI pages via
+# /initialize.json) and sends it as the X-Api-Key header, matching Sonarr's own
+# frontend, so nothing secret ends up in a static file served next to the login page.
 #
 # Runs at every container start (LinuxServer runs /custom-cont-init.d on each
 # boot, not only at create), so an update or restart re-applies everything.
@@ -44,28 +49,6 @@ if [ -f "${SRC}" ]; then
   chmod 644 "${UI_DIR}/metadata-proxy-override.js"
   echo "[sonarr-metadata-proxy] Copied override UI script to ${UI_DIR}/metadata-proxy-override.js"
 
-  SONARR_CONFIG="/config/config.xml"
-  if [ -f "${SONARR_CONFIG}" ]; then
-    API_KEY="$(sed -n 's:.*<ApiKey>\([^<]*\)</ApiKey>.*:\1:p' "${SONARR_CONFIG}" | head -1)"
-  else
-    API_KEY=""
-  fi
-
-  if [ -n "${API_KEY}" ]; then
-    # Busybox-safe replace of the FIRST occurrence only (no g flag, no GNU 0,
-    # addressing). The placeholder lives on exactly one line of the JS; the
-    # runtime check uses the indexOf('__SONARR_') prefix test which the pattern
-    # below does not touch, so the check stays intact no matter what.
-    sed -i "s/__SONARR_API_KEY__/${API_KEY}/" "${UI_DIR}/metadata-proxy-override.js"
-    if grep -q '__SONARR_API_KEY__' "${UI_DIR}/metadata-proxy-override.js"; then
-      echo "[sonarr-metadata-proxy] WARNING: __SONARR_API_KEY__ placeholder still present; API key was not embedded."
-    else
-      echo "[sonarr-metadata-proxy] Embedded Sonarr API key into override UI script."
-    fi
-  else
-    echo "[sonarr-metadata-proxy] No Sonarr API key found in ${SONARR_CONFIG}; key panel stays in UI."
-  fi
-
   # Optional: reverse-proxy setup. When Sonarr is reached from a browser through
   # an HTTPS reverse proxy (e.g. Synology), the legacy fallback "http://<host>:9697"
   # is blocked as mixed content and never reaches the proxy. OVERRIDES_API_URL makes
@@ -93,12 +76,25 @@ fi
 # </head> substitution and instead rebuild a complete, minimal index.html that
 # guarantees the mount point AND our picker script. A short background loop then
 # re-protects it in case Sonarr rewrites the file again after its app starts.
+#
+# Short content hash of the override script, used as the cache-busting version in
+# index.html: whenever the mounted JS changes, the hash changes and browsers
+# request a fresh URL instead of reusing the cached script. Clients therefore pick
+# up updates on a normal reload (no manual hard-refresh/cache clear needed).
+js_version() {
+  if [ -f "${UI_DIR}/metadata-proxy-override.js" ]; then
+    md5sum "${UI_DIR}/metadata-proxy-override.js" 2>/dev/null | cut -c1-16
+  else
+    echo "0000000000000000"
+  fi
+}
+
 rebuild_index() {
   local js
   js="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
   [ -n "${js}" ] || js="/index-cf02e6f1e5a4c0f40ef2.js"
   local v
-  v="$(date +%s)"
+  v="$(js_version)"
   local tmp="${INDEX}.mpo.tmp"
   {
     printf '<!doctype html><html lang="en"><head><meta charset="utf-8"/>\n'
@@ -120,7 +116,8 @@ rebuild_index() {
 index_ok() {
   [ -f "${INDEX}" ] \
     && grep -q 'id="root"' "${INDEX}" \
-    && grep -q 'metadata-proxy-override' "${INDEX}"
+    && grep -q 'metadata-proxy-override' "${INDEX}" \
+    && grep -q "metadata-proxy-override.js?v=$(js_version)" "${INDEX}"
 }
 
 if index_ok; then

@@ -38,30 +38,55 @@ public sealed class SkyHookTranslator
         return show;
     }
 
-    private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
+private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
     {
-        var tmdbId = int.Parse(metadata.ProviderId);
-        var effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId ?? SyntheticIds.SeriesId(tmdbId);
+        // Priority for TVDB ID:
+        // 1. overrideTvdbId (from per-series override)
+        // 2. metadata.ExternalIds.TvdbId (from TMDB external_ids)
+        // 3. Synthetic ID from TMDB ID (from ProviderId or ExternalIds.TmdbId)
+        // 4. 0 (fallback)
 
-        if (metadata.ExternalIds.TvdbId.HasValue)
+        int? effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId;
+
+        // Determine TMDB ID for synthetic ID generation
+        int? tmdbId = metadata.ExternalIds.TmdbId;
+        if (!tmdbId.HasValue && int.TryParse(metadata.ProviderId, out var parsedProviderId))
         {
-            _mapping.RegisterSeries(metadata.ExternalIds.TvdbId.Value, tmdbId);
+            tmdbId = parsedProviderId;
+        }
+
+        // If no TVDB ID yet, synthesize from TMDB ID
+        if (!effectiveTvdbId.HasValue && tmdbId.HasValue)
+        {
+            effectiveTvdbId = SyntheticIds.SeriesId(tmdbId.Value);
+        }
+
+        var finalTvdbId = effectiveTvdbId ?? 0;
+
+        // Register mapping if we have both TVDB and TMDB
+        if (metadata.ExternalIds.TvdbId.HasValue && tmdbId.HasValue)
+        {
+            _mapping.RegisterSeries(metadata.ExternalIds.TvdbId.Value, tmdbId.Value);
             _logger.LogInformation("TVDB mapping found for TMDB {TmdbId}: TVDB {TvdbId}.", tmdbId, metadata.ExternalIds.TvdbId.Value);
         }
-        else
+        else if (finalTvdbId > 0 && tmdbId.HasValue && !metadata.ExternalIds.TvdbId.HasValue)
         {
             _logger.LogInformation(
                 "No TVDB mapping exists for TMDB {TmdbId}. Using synthetic TVDB id {TvdbId}.",
                 tmdbId,
-                effectiveTvdbId);
+                finalTvdbId);
+        }
+        else if (finalTvdbId == 0)
+        {
+            _logger.LogWarning("No TVDB ID available for series {Title}.", metadata.Title);
         }
 
         var show = new ShowResource
         {
-            TvdbId = effectiveTvdbId,
+            TvdbId = finalTvdbId,
             Title = metadata.Title,
             Overview = metadata.Overview,
-            Slug = Slugify(metadata.Title, effectiveTvdbId),
+            Slug = Slugify(metadata.Title, finalTvdbId),
             OriginalCountry = metadata.OriginalCountryCode,
             OriginalLanguage = metadata.OriginalLanguageCode,
             FirstAired = metadata.FirstAirDate,
@@ -95,7 +120,7 @@ public sealed class SkyHookTranslator
         }));
 
         AddImage(show.Images, "poster", metadata.PosterPath, PosterWidth);
-        AddImage(show.Images, "fanart", metadata.BackdropPath, BackdropWidth);
+        AddImage(show.Images, "fanart", metadata.BackdropPath ?? metadata.PosterPath, BackdropWidth);
 
         show.Seasons.AddRange(metadata.Seasons.Select(season => new SeasonResource
         {
@@ -162,10 +187,14 @@ public sealed class SkyHookTranslator
             return;
         }
 
+        var url = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? path
+            : $"https://image.tmdb.org/t/p/w{width}{path}";
+
         images.Add(new ImageResource
         {
             CoverType = coverType,
-            Url = $"https://image.tmdb.org/t/p/w{width}{path}"
+            Url = url
         });
     }
 

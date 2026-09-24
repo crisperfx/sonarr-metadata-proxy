@@ -107,6 +107,7 @@ public sealed class TmdbClient : ITmdbApi
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        var loggedUri = RedactQuery(requestUri);
 
         try
         {
@@ -116,14 +117,14 @@ public sealed class TmdbClient : ITmdbApi
             if (!response.IsSuccessStatusCode)
             {
                 throw new TmdbApiException(
-                    $"TMDB API returned {(int)response.StatusCode} for {requestUri}. {Truncate(body, 200)}",
+                    $"TMDB API returned {(int)response.StatusCode} for {loggedUri}. {Truncate(body, 200)}",
                     (int)response.StatusCode);
             }
 
             var result = JsonSerializer.Deserialize<T>(body, _jsonOptions);
             if (result is null)
             {
-                throw new TmdbApiException($"TMDB API returned an empty payload for {requestUri}.", 0);
+                throw new TmdbApiException($"TMDB API returned an empty payload for {loggedUri}.", 0);
             }
 
             return result;
@@ -134,8 +135,21 @@ public sealed class TmdbClient : ITmdbApi
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            throw new TmdbApiException($"Failed to reach TMDB API for {requestUri}.", ex);
+            throw new TmdbApiException($"Failed to reach TMDB API for {loggedUri}.", ex);
         }
+    }
+
+    private static string RedactQuery(string requestUri)
+    {
+        var queryIndex = requestUri.IndexOf('?');
+        if (queryIndex < 0)
+        {
+            return requestUri;
+        }
+
+        return requestUri.Contains("api_key=", StringComparison.Ordinal)
+            ? requestUri[..queryIndex] + "?api_key=<hidden>"
+            : requestUri;
     }
 
     private void ThrowIfUnauthorized()

@@ -1,5 +1,8 @@
+using System.Linq;
+using System.Text.Json.Nodes;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Metadata;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Passthrough;
@@ -18,8 +21,13 @@ public sealed class MetadataRequestHandler
     private readonly ISkyHookPassthrough _passthrough;
     private readonly SkyHookTranslator _translator;
     private readonly AniListSearchService? _aniList;
+    private readonly MalSearchService? _mal;
+    private readonly IMalApi? _malApi;
+    private readonly AniListTvdbMap? _animeMap;
     private readonly IMetadataProvider? _activeProvider;
     private readonly TmdbMetadataProvider? _tmdbProvider;
+    private readonly MalMetadataProvider? _malProvider;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
     public MetadataRequestHandler(
@@ -29,8 +37,13 @@ public sealed class MetadataRequestHandler
         ISkyHookPassthrough passthrough,
         SkyHookTranslator translator,
         AniListSearchService? aniList,
+        MalSearchService? mal,
+        IMalApi? malApi,
+        AniListTvdbMap? animeMap,
         IMetadataProvider? activeProvider,
         TmdbMetadataProvider? tmdbProvider,
+        MalMetadataProvider? malProvider,
+        IServiceProvider serviceProvider,
         ILogger<MetadataRequestHandler> logger)
     {
         _options = options;
@@ -39,12 +52,27 @@ public sealed class MetadataRequestHandler
         _passthrough = passthrough;
         _translator = translator;
         _aniList = aniList;
+        _mal = mal;
+        _malApi = malApi;
+        _animeMap = animeMap;
         _activeProvider = activeProvider;
         _tmdbProvider = tmdbProvider;
+        _malProvider = malProvider;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
     private IMetadataProvider? TmdbOrActive => _tmdbProvider ?? _activeProvider;
+
+    private IMetadataProvider? GetProviderForSource(string? source)
+    {
+        return source switch
+        {
+            MappingStore.SourceMal => _malProvider,
+            MappingStore.SourceTmdb => _tmdbProvider,
+            _ => _activeProvider
+        };
+    }
 
     public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
     {
@@ -64,6 +92,13 @@ public sealed class MetadataRequestHandler
 
         if (term.Kind is TermKind.AniListId or TermKind.MalId)
         {
+            if (term.Kind == TermKind.MalId && _mal is { IsConfigured: true })
+            {
+                _logger.LogInformation("MAL search source preferred for MAL id '{Term}' via Jikan.", term.Value);
+                var malShows = await _mal.SearchByMalIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
             if (_aniList is { IsConfigured: true })
             {
                 var shows = term.Kind switch
@@ -116,6 +151,24 @@ public sealed class MetadataRequestHandler
                     rawTerm);
                 var shows = await _aniList.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (searchSource == MappingStore.SourceMal)
+            {
+                if (_mal is not { IsConfigured: true })
+                {
+                    _logger.LogInformation(
+                        "Search source preference '{SearchSource}' is set but MAL mapping data is unavailable; falling through to TVDB.",
+                        searchSource);
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                var malShows = await _mal.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceTmdb)
@@ -262,7 +315,14 @@ public sealed class MetadataRequestHandler
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
         var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
 
-        resolution = FlattenIfAniListBound(tvdbId, resolution);
+        resolution = FlattenIfNoMultiSeason(resolution);
+
+        // Enrich with MAL pictures if this is a MAL-bound series
+        var malId = GetMalId(tvdbId);
+        if (malId.HasValue && _malApi is not null)
+        {
+            resolution = await EnrichWithMalPicturesAsync(resolution, malId.Value, cancellationToken).ConfigureAwait(false);
+        }
 
         return resolution switch
         {
@@ -272,25 +332,142 @@ public sealed class MetadataRequestHandler
         };
     }
 
-    private ShowResolution FlattenIfAniListBound(int tvdbId, ShowResolution resolution)
+    private int? GetMalId(int tvdbId)
     {
-        var anilistId = _mapping.TryGetAniListIdByTvdb(tvdbId);
-        if (anilistId is null)
+        var persisted = _mapping.TryGetMalIdByTvdb(tvdbId);
+        var staticMap = _animeMap?.TryGetMalIdByTvdb(tvdbId);
+        
+        if (persisted.HasValue && staticMap.HasValue)
         {
+            return Math.Min(persisted.Value, staticMap.Value);
+        }
+        
+        return persisted ?? staticMap;
+    }
+
+    private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pictures = await _malApi!.GetPicturesAsync(malId, cancellationToken).ConfigureAwait(false);
+            if (pictures is null || (pictures.Posters.Count == 0 && pictures.Backgrounds.Count == 0))
+            {
+                return resolution;
+            }
+
+            _logger.LogInformation("Enriching TVDB {TvdbId} with MAL pictures (posters: {Count}, backgrounds: {BgCount}).", malId, pictures.Posters.Count, pictures.Backgrounds.Count);
+
+            return resolution switch
+            {
+                ShowResolution.Mapped mapped => new ShowResolution.Mapped(InjectMalImages(mapped.Show, pictures)),
+                ShowResolution.Passthrough passed => InjectMalImagesPassthrough(passed, pictures),
+                _ => resolution
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch MAL pictures for MAL id {MalId}.", malId);
             return resolution;
         }
+    }
 
+    private ShowResource InjectMalImages(ShowResource show, MalPictures pictures)
+    {
+        // Prepend MAL poster as primary poster if available
+        if (pictures.Posters.Count > 0)
+        {
+            show.Images.Insert(0, new ImageResource { CoverType = "poster", Url = pictures.Posters[0] });
+        }
+
+        // Add MAL backgrounds as fanart (fall back to the poster when no backgrounds exist)
+        var backgrounds = pictures.Backgrounds.Take(3).ToList();
+        var fallbackPoster = show.Images.FirstOrDefault(image => image.CoverType == "poster" && !string.IsNullOrWhiteSpace(image.Url));
+        if (backgrounds.Count == 0 && fallbackPoster is not null)
+        {
+            backgrounds.Add(fallbackPoster.Url!);
+        }
+
+        foreach (var bg in backgrounds)
+        {
+            show.Images.Add(new ImageResource { CoverType = "fanart", Url = bg });
+        }
+
+        return show;
+    }
+
+    private ShowResolution InjectMalImagesPassthrough(ShowResolution.Passthrough passed, MalPictures pictures)
+    {
+        JsonNode? body;
+        try
+        {
+            body = JsonNode.Parse(passed.Response.Body);
+        }
+        catch (Exception)
+        {
+            return passed;
+        }
+
+        if (body is not JsonObject root)
+        {
+            return passed;
+        }
+
+        var imagesArray = root["images"] as JsonArray ?? new JsonArray();
+        root["images"] = imagesArray;
+
+        // Add MAL poster as first poster
+        if (pictures.Posters.Count > 0)
+        {
+            imagesArray.Insert(0, new JsonObject
+            {
+                ["coverType"] = "poster",
+                ["url"] = pictures.Posters[0]
+            });
+        }
+
+        // Add MAL backgrounds as fanart (fall back to the poster when no backgrounds exist)
+        var backgrounds = pictures.Backgrounds.Take(3).ToList();
+        if (backgrounds.Count == 0)
+        {
+            var existingPoster = imagesArray.OfType<JsonObject>()
+                .FirstOrDefault(image => image["coverType"]?.GetValue<string>() == "poster" &&
+                                         image["url"]?.GetValue<string>() is { Length: > 0 });
+            if (existingPoster is not null)
+            {
+                backgrounds.Add(existingPoster["url"]!.GetValue<string>());
+            }
+        }
+
+        foreach (var bg in backgrounds)
+        {
+            imagesArray.Add(new JsonObject
+            {
+                ["coverType"] = "fanart",
+                ["url"] = bg
+            });
+        }
+
+        var enrichedResponse = new ProxyResponse(passed.Response.StatusCode, passed.Response.ContentType, root.ToJsonString());
+        return new ShowResolution.Passthrough(enrichedResponse);
+    }
+
+    private ShowResolution FlattenIfNoMultiSeason(ShowResolution resolution)
+    {
         return resolution switch
         {
-            ShowResolution.Mapped mapped => new ShowResolution.Mapped(FlattenMapped(mapped.Show)),
-            ShowResolution.Passthrough passed => FlattenPassthrough(passed),
+            ShowResolution.Mapped mapped => SingleSeasonTransformer.HasMultipleSeasons(mapped.Show)
+                ? resolution
+                : new ShowResolution.Mapped(FlattenMapped(mapped.Show)),
+            ShowResolution.Passthrough passed => SingleSeasonTransformer.HasMultipleSeasons(passed.Response)
+                ? resolution
+                : FlattenPassthrough(passed),
             _ => resolution
         };
     }
 
     private ShowResource FlattenMapped(ShowResource show)
     {
-        _logger.LogInformation("AniList-bound series; flattening to a single season.");
+        _logger.LogInformation("Metadata carries no seasons or a single season; flattening to a single continuous season.");
         return SingleSeasonTransformer.Flatten(show);
     }
 
@@ -300,7 +477,7 @@ public sealed class MetadataRequestHandler
         if (flattened is null)
         {
             _logger.LogWarning(
-                "Could not flatten passthrough response for AniList-bound series; returning original response.");
+                "Could not flatten passthrough response without seasons; returning original response.");
             return passed;
         }
 
@@ -317,6 +494,33 @@ public sealed class MetadataRequestHandler
                 sourceOverride,
                 tvdbId);
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (sourceOverride == MappingStore.SourceMal)
+        {
+            var malId = GetMalId(tvdbId);
+            if (malId.HasValue && _malProvider is not null)
+            {
+                _logger.LogInformation("Source override MAL active for TVDB id {TvdbId}; using MAL provider with MAL id {MalId}.", tvdbId, malId.Value);
+                try
+                {
+                    var metadata = await _malProvider.GetSeriesWithTvdbId(malId.Value.ToString(), tvdbId, cancellationToken).ConfigureAwait(false);
+                    var seasons = await _malProvider.GetSeasons(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                    // Register MAL ID and any static AniList ID
+                    var staticAniListId = _mapping.TryGetAniListIdByTvdb(tvdbId);
+                    _mapping.RegisterIds(tvdbId, malId: malId.Value, anilistId: staticAniListId);
+
+                    _logger.LogInformation("TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via MAL.", show.TvdbId);
+                    return new ShowResolution.Mapped(show);
+                }
+                catch (MalApiException ex)
+                {
+                    _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", malId.Value);
+                }
+            }
+            _logger.LogWarning("MAL override for TVDB id {TvdbId} but no MAL ID found or provider unavailable. Falling back.", tvdbId);
         }
 
         int? tmdbId = null;
@@ -364,33 +568,36 @@ public sealed class MetadataRequestHandler
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
-        var provider = _activeProvider;
-        if (sourceOverride == MappingStore.SourceTmdb && _tmdbProvider is not null)
-        {
-            provider = _tmdbProvider;
-            _logger.LogInformation("Source override 'tmdb' active for TVDB id {TvdbId}; using TMDB provider.", tvdbId);
-        }
-
+        var provider = GetProviderForSource(sourceOverride) ?? _activeProvider;
         if (provider is null || provider.Name == "tvdb")
         {
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
-        try
-        {
-            var metadata = await provider.GetSeries(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
-            if (!SyntheticIds.IsSyntheticSeries(tvdbId))
+try
             {
-                _mapping.RegisterSeries(tvdbId, tmdbId.Value);
-            }
+                var metadata = await provider.GetSeries(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                if (!SyntheticIds.IsSyntheticSeries(tvdbId))
+                {
+                    _mapping.RegisterSeries(tvdbId, tmdbId.Value);
+                }
 
-            var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
-            var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
-            _logger.LogInformation(
-                "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata.",
-                show.TvdbId);
-            return new ShowResolution.Mapped(show);
-        }
+                // Register MAL/AniList IDs from static mapping if available
+                var staticMalId = _animeMap?.TryGetMalIdByTvdb(tvdbId);
+                var staticAniListId = _mapping.TryGetAniListIdByTvdb(tvdbId);
+                if (staticMalId.HasValue || staticAniListId.HasValue)
+                {
+                    _mapping.RegisterIds(tvdbId, tmdbId.Value, staticMalId, staticAniListId);
+                }
+
+                var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+                _logger.LogInformation(
+                    "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via {Provider}.",
+                    show.TvdbId,
+                    provider.Name);
+                return new ShowResolution.Mapped(show);
+            }
         catch (NotSupportedException)
         {
             _logger.LogInformation("Provider {Source} cannot resolve this series. Falling through to TVDB.", _options.MetadataSource);
@@ -399,6 +606,11 @@ public sealed class MetadataRequestHandler
         catch (TmdbApiException ex)
         {
             _logger.LogError(ex, "Could not map TMDB ID {TmdbId} to TVDB ID.", tmdbId.Value);
+            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (MalApiException ex)
+        {
+            _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", tmdbId.Value);
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
     }

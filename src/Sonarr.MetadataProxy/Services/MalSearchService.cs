@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
-using Sonarr.MetadataProxy.Models.AniList;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
@@ -10,31 +10,31 @@ using Sonarr.MetadataProxy.Translation;
 namespace Sonarr.MetadataProxy.Services;
 
 /// <summary>
-/// AniList search front-end. Finds anime by title/alias through AniList, maps the
-/// result to a real TheTVDB id (via the bundled Fribb + Anime-Lists datasets) and
-/// returns Sonarr-compatible search results. Details are NOT fetched here: once
+/// MyAnimeList search front-end (Jikan v4). Finds anime by title/alias through MAL,
+/// maps the result to a real TheTVDB id (via the bundled Fribb + Anime-Lists datasets)
+/// and returns Sonarr-compatible search results. Details are NOT fetched here: once
 /// Sonarr asks for a series it does so by TVDB id, which the normal mapping and
 /// TMDB/TVDB pipeline handles.
 /// </summary>
-public sealed class AniListSearchService
+public sealed class MalSearchService
 {
-    private readonly IAniListApi _api;
+    private readonly IMalApi _api;
     private readonly AniListTvdbMap _map;
-    private readonly AniListTranslator _translator;
+    private readonly MalTranslator _translator;
     private readonly MappingStore _mapping;
-    private readonly ILogger<AniListSearchService> _logger;
+    private readonly ILogger<MalSearchService> _logger;
     private readonly TimeSpan _cacheTtl;
     private readonly ConcurrentDictionary<string, CachedResult> _cache = new();
 
     private sealed record CachedResult(DateTimeOffset StoredAt, IReadOnlyList<ShowResource> Shows);
 
-    public AniListSearchService(
-        IAniListApi api,
+    public MalSearchService(
+        IMalApi api,
         AniListTvdbMap map,
-        AniListTranslator translator,
+        MalTranslator translator,
         MappingStore mapping,
         ProxyOptions options,
-        ILogger<AniListSearchService> logger)
+        ILogger<MalSearchService> logger)
     {
         _api = api;
         _map = map;
@@ -51,32 +51,16 @@ public sealed class AniListSearchService
         return GetAsync("search:" + query.ToLowerInvariant(), async () =>
         {
             var media = await _api.SearchAsync(query, cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("Source: ANILIST. AniList result count: {Count}.", media.Count);
+            _logger.LogInformation("Source: MAL. Jikan result count: {Count}.", media.Count);
             return TranslateAll(media);
-        }, cancellationToken);
-    }
-
-    public Task<IReadOnlyList<ShowResource>?> SearchByAniListIdAsync(int anilistId, CancellationToken cancellationToken)
-    {
-        return GetAsync("id:" + anilistId, async () =>
-        {
-            var media = await _api.GetByIdAsync(anilistId, cancellationToken).ConfigureAwait(false);
-            return media is null ? Array.Empty<ShowResource>() : TranslateAll(new[] { media });
         }, cancellationToken);
     }
 
     public Task<IReadOnlyList<ShowResource>?> SearchByMalIdAsync(int malId, CancellationToken cancellationToken)
     {
-        return GetAsync("mal:" + malId, async () =>
+        return GetAsync("id:" + malId, async () =>
         {
-            var anilistId = _map.TryGetAniListId(malId);
-            if (anilistId is not > 0)
-            {
-                _logger.LogInformation("No AniDB/AniList link known for MAL id {MalId}.", malId);
-                return Array.Empty<ShowResource>();
-            }
-
-            var media = await _api.GetByIdAsync(anilistId.Value, cancellationToken).ConfigureAwait(false);
+            var media = await _api.GetByIdAsync(malId, cancellationToken).ConfigureAwait(false);
             return media is null ? Array.Empty<ShowResource>() : TranslateAll(new[] { media });
         }, cancellationToken);
     }
@@ -102,48 +86,43 @@ public sealed class AniListSearchService
             _cache[key] = new CachedResult(DateTimeOffset.UtcNow, shows);
             return shows;
         }
-        catch (AniListApiException ex)
+        catch (MalApiException ex)
         {
-            _logger.LogWarning(ex, "AniList search failed for '{Key}'. Falling back to TVDB.", key);
+            _logger.LogWarning(ex, "MAL (Jikan) search failed for '{Key}'. Falling back to TVDB.", key);
             return null;
         }
     }
 
-    private IReadOnlyList<ShowResource> TranslateAll(IReadOnlyList<AniListMedia> media)
+    private IReadOnlyList<ShowResource> TranslateAll(IReadOnlyList<MalAnime> media)
     {
         var results = new List<ShowResource>();
         foreach (var item in media)
         {
-            var rawTvdbId = _map.TryGetTvdbId(item.Id);
+            var rawTvdbId = _map.TryGetMalTvdbId(item.Id);
             bool hasRealTvdbMapping = rawTvdbId is > 0;
 
             int tvdbId;
             if (rawTvdbId is not > 0)
             {
                 tvdbId = SyntheticIds.SeriesId(item.Id);
-                _logger.LogInformation("No TVDB mapping for AniList {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId);
+                _logger.LogInformation("No TVDB mapping for MAL {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId);
             }
             else
             {
                 tvdbId = rawTvdbId.Value;
-                _logger.LogInformation("TVDB mapping found for AniList {AniListId}: TVDB {TvdbId}.", item.Id, tvdbId);
+                _logger.LogInformation("TVDB mapping found for MAL {MalId}: TVDB {TvdbId}.", item.Id, tvdbId);
             }
 
-            // Register AniList ID + TVDB reverse mapping
-            _mapping.RegisterAniListId(tvdbId, item.Id);
-            _mapping.RegisterIds(tvdbId, anilistId: item.Id);
-
-            // If we can find MAL ID via static mapping, register it too
-            var malId = _map.TryGetMalIdByTvdb(tvdbId);
-            if (malId is > 0)
+            // Register MAL ID + TVDB reverse mapping
+            _mapping.RegisterMalId(tvdbId, item.Id);
+            
+            // If we can find AniList ID via static mapping, register it too
+            var anilistId = _map.TryGetAniListId(item.Id);
+            if (anilistId is > 0)
             {
-                _mapping.RegisterIds(tvdbId, malId: malId.Value, anilistId: item.Id);
+                _mapping.RegisterIds(tvdbId, malId: item.Id, anilistId: anilistId.Value);
             }
 
-            if (!hasRealTvdbMapping)
-            {
-                _logger.LogInformation("Including AniList {AniListId} ('{Title}') with synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId);
-            }
             var show = _translator.ToSearchResult(item, tvdbId);
             if (!hasRealTvdbMapping)
             {
@@ -152,14 +131,14 @@ public sealed class AniListSearchService
             results.Add(show);
         }
 
-        var realCount = media.Count(m => _map.TryGetTvdbId(m.Id) is > 0);
-        var syntheticCount = media.Count(m => _map.TryGetTvdbId(m.Id) is not > 0);
+        var realCount = media.Count(m => _map.TryGetMalTvdbId(m.Id) is > 0);
+        var syntheticCount = media.Count(m => _map.TryGetMalTvdbId(m.Id) is not > 0);
         _logger.LogInformation("TranslateAll returning {Count} results ({Real} real mappings, {Synthetic} synthetic).", results.Count, realCount, syntheticCount);
         return results;
     }
 
-    private static string TitleOf(AniListMedia media)
+    private static string TitleOf(MalAnime media)
     {
-        return media.TitleEnglish ?? media.TitleRomaji ?? media.TitleNative ?? "";
+        return media.TitleEnglish ?? media.Title ?? media.TitleJapanese ?? "";
     }
 }

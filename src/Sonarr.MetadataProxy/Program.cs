@@ -46,14 +46,24 @@ builder.Services.AddHttpClient<IAniListApi, AniListClient>(http =>
     http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
 });
 
+builder.Services.AddHttpClient<IMalApi, MalClient>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(20);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
+});
+
+builder.Services.AddSingleton<TenraiRateLimiter>();
 builder.Services.AddSingleton<MappingStore>();
 builder.Services.AddSingleton<WikidataTvdbResolver>();
 builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();
 builder.Services.AddSingleton<ITmdbApi, TmdbClient>();
 builder.Services.AddSingleton<TmdbMetadataProvider>();
+builder.Services.AddSingleton<MalMetadataProvider>();
 builder.Services.AddSingleton<AniListTvdbMap>();
 builder.Services.AddSingleton<AniListTranslator>();
 builder.Services.AddSingleton<AniListSearchService>();
+builder.Services.AddSingleton<MalTranslator>();
+builder.Services.AddSingleton<MalSearchService>();
 builder.Services.AddSingleton<IMetadataProvider>(
     serviceProvider => MetadataProviderRegistry.Create(options.MetadataSource, serviceProvider));
 builder.Services.AddSingleton<RuntimeDnsResolver>();
@@ -122,7 +132,7 @@ app.MapGet("/info", () => Results.Ok(new
     source = options.MetadataSource,
     tmdbConfigured = options.HasTmdbAuth,
     tvdbFallback = options.EnableTvdbFallback,
-    version = "1.1.3"
+    version = "1.1.4"
 }));
 app.MapGet("/", () => Results.Text(
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sonarr Metadata Proxy</title></head>" +

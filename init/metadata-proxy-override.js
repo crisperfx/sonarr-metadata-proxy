@@ -3,10 +3,8 @@
 
   var PROXY_PORT = 9697;
   var OVERRIDES_API_URL = '__OVERRIDES_API_URL__';
-  var LS_KEY = 'sonarrMetadataOverride.apiKey';
   var PANEL_ID = 'metadata-override-ui';
   var POLL_MS = 2000;
-  var EMBEDDED_KEY = '__SONARR_API_KEY__';
 
   if (window.__metadataOverrideInstalled) {
     return;
@@ -19,26 +17,6 @@
   var seriesCache = null;
   var seriesCacheAt = 0;
   var SERIES_CACHE_TTL_MS = 10 * 60 * 1000;
-
-  function getApiKey() {
-    if (EMBEDDED_KEY && EMBEDDED_KEY.indexOf('__SONARR_') !== 0) {
-      return EMBEDDED_KEY;
-    }
-    return localStorage.getItem(LS_KEY);
-  }
-
-  function setApiKey() {
-    var key = window
-      .prompt(
-        'Metadata source: enter your Sonarr API key (Settings → General → API Key). ' +
-          'It is only stored in your browser (localStorage).'
-      )
-      .trim();
-    if (key) {
-      localStorage.setItem(LS_KEY, key);
-    }
-    return key || null;
-  }
 
   function seriesIdentifier() {
     var parts = window.location.pathname.split('/').filter(Boolean);
@@ -68,21 +46,17 @@
     return base ? base + '/api/overrides' : null;
   }
 
-  function isMobile() {
-    return (window.innerWidth || document.documentElement.clientWidth) < 768;
-  }
-
   function positionCss() {
     return 'position:fixed;top:0;left:0;bottom:0;z-index:99999;';
   }
 
   function baseCss() {
     return (
-      positionCss() + 'background:#222c3d;color:#fff;' +
-      'border-right:1px solid #334155;padding:10px 12px;' +
-      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:0 0 20px rgba(0,0,0,.55);' +
-      'width:300px;max-width:88vw;overflow:auto;' +
-      'transform:translateX(0);transition:transform .22s ease;' +
+      positionCss() + 'background:#2a2a2a;color:#e1e2e3;' +
+      'border-right:1px solid #393f45;padding:16px 14px;' +
+      'font:13px/1.5 "Open Sans","Segoe UI",sans-serif;box-shadow:4px 0 28px rgba(0,0,0,.55);' +
+      'width:280px;max-width:88vw;overflow:auto;' +
+      'transform:translateX(0);transition:transform .2s ease;' +
       'display:flex;flex-direction:column;'
     );
   }
@@ -90,32 +64,69 @@
   function pillCss() {
     return (
       'position:fixed;left:0;top:38%;z-index:99999;' +
-      'background:#222c3d;color:#fff;border:1px solid #334155;border-left:none;' +
-      'border-radius:0 8px 8px 0;padding:10px 7px;' +
-      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.4);' +
-      'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;'
+      'background:#2a2a2a;color:#e1e2e3;border:1px solid #393f45;border-left:none;' +
+      'border-radius:0 10px 10px 0;padding:14px 8px;' +
+      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:4px 0 18px rgba(0,0,0,.5);' +
+      'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;' +
+      'letter-spacing:.14em;text-transform:uppercase;'
     );
   }
 
-  function buildShell(titleText) {
+  function ensureStylesheet() {
+    if (document.getElementById('mpo-styles')) {
+      return;
+    }
+    var style = document.createElement('style');
+    style.id = 'mpo-styles';
+    style.textContent = [
+      '.mpo-pill:hover{background:#333;color:#fff;}',
+      '.mpo-toggle:hover{background:rgba(255,255,255,.12);color:#fff;border-color:#5d9cec;}',
+      '.mpo-toggle:active{transform:scale(.95);}',
+      '.mpo-select{font:13px/1.5 "Open Sans",sans-serif;color:#ccc;background:#333;border:1px solid #393f45;border-radius:4px;padding:6px 8px;}',
+      '.mpo-select:hover{border-color:#5a6265;}',
+      '.mpo-select:focus{outline:none;border-color:#5d9cec;box-shadow:0 0 0 2px rgba(93,156,236,.25);}',
+      '.mpo-status{font-size:11px;line-height:1.5;color:#909293;}',
+      '.mpo-warn{font-size:11px;line-height:1.5;color:#ffa500;}',
+      '.mpo-btn-primary{font:600 12px/1.5 "Open Sans",sans-serif;color:#fff;background:#5d9cec;border:1px solid #5899eb;border-radius:4px;padding:6px 12px;cursor:pointer;}',
+      '.mpo-btn-primary:hover{background:#4b91ea;}',
+      '.mpo-title{font:600 15px/1.3 "Open Sans","Segoe UI",sans-serif;color:#fff;}',
+      '.mpo-subtitle{font-size:11px;line-height:1.5;color:#909293;}',
+      '.mpo-poster{width:100%;border-radius:8px;border:1px solid #393f45;margin:8px 0 4px;display:block;}',
+      '.mpo-badge{margin-top: 5px;margin-bottom: 5px;display:inline-block;font:600 11px/1 "Open Sans",sans-serif;padding:4px 8px;border-radius:10px;background:#333;border:1px solid #393f45;color:#e1e2e3;letter-spacing:.04em;white-space:nowrap;}',
+      '.mpo-badge-active{background:#173a24;border-color:#2f7a44;color:#7ddf9b;}',
+      '.mpo-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 6px 0 2px;vertical-align:middle;}',
+      '.mpo-dot-on{background:#4ade80;}',
+      '.mpo-dot-off{background:#f87171;}',
+      '.mpo-bullets{margin:0;padding:0 0 0 16px;font-size:11px;line-height:1.7;color:#909293;}',
+      '.mpo-divider{border:none;border-top:1px solid #393f45;margin:10px 0 4px;}'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function buildShell(titleText, pillText, id) {
     var root = document.createElement('div');
-    root.id = PANEL_ID;
+    root.id = id || PANEL_ID;
     root.style.cssText = baseCss();
 
     var pill = document.createElement('div');
-    pill.style.cssText = 'display:none;font-weight:600;';
-    pill.textContent = 'Metadata \u25B8';
+    pill.className = 'mpo-pill';
+    pill.style.cssText = 'display:none;font:600 12px/1.4 "Open Sans",sans-serif;';
+    pill.textContent = pillText || 'Metadata \u25B8';
 
     var header = document.createElement('div');
     header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
+      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;';
     var title = document.createElement('span');
-    title.style.cssText = 'font-weight:600;';
+    title.className = 'mpo-panel-title';
+    title.style.cssText =
+      'font:600 12px/1.4 "Open Sans",sans-serif;text-transform:uppercase;letter-spacing:.12em;color:#e1e2e3;';
     title.textContent = titleText;
     var toggle = document.createElement('button');
+    toggle.className = 'mpo-toggle';
     toggle.textContent = '\u2013';
     toggle.style.cssText =
-      'padding:2px 8px;background:#334155;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+      'width:22px;height:22px;padding:0;background:transparent;color:#909293;' +
+      'border:1px solid #393f45;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;';
     toggle.setAttribute('aria-label', 'Collapse');
     header.appendChild(title);
     header.appendChild(toggle);
@@ -156,27 +167,24 @@
     var status = el.querySelector('.mpo-status');
     if (status) {
       status.textContent = text;
-      status.style.color = color || '#94a3b8';
+      status.style.color = color || '#909293';
     }
   }
 
-  function buildKeyPanel(message) {
+  function buildNoticePanel(message) {
     var shell = buildShell('Metadata source');
 
     var hint = document.createElement('div');
-    hint.style.cssText = 'font-size:11px;color:#94a3b8;margin-bottom:8px;';
-    hint.textContent = message || 'Enter your Sonarr API key first (Settings → General → API Key).';
+    hint.className = 'mpo-status';
+    hint.textContent = message || 'Could not load the series. Make sure you are signed in to Sonarr in this browser.';
     shell._mpoBody.appendChild(hint);
 
     var btn = document.createElement('button');
-    btn.style.cssText =
-      'padding:4px 10px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;';
-    btn.textContent = 'Enter API key';
+    btn.className = 'mpo-btn-primary';
+    btn.textContent = 'Retry';
     btn.addEventListener('click', function () {
-      if (setApiKey()) {
-        shell.remove();
-        tick(true);
-      }
+      shell.remove();
+      tick(true);
     });
     shell._mpoBody.appendChild(btn);
 
@@ -185,16 +193,50 @@
     return shell;
   }
 
+  function sourceLabel(v) {
+    v = normalizeSearchSource(v);
+    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : '';
+  }
+
+  function seriesPoster() {
+    if (!series || !series.images) {
+      return null;
+    }
+    for (var i = 0; i < series.images.length; i++) {
+      var im = series.images[i];
+      if (im && im.coverType === 'poster') {
+        return im.remoteUrl || im.url || null;
+      }
+    }
+    return null;
+  }
+
   function buildPickerPanel() {
-    var shell = buildShell('Metadata: ' + (series.title || series.tvdbId));
+    var shell = buildShell('Metadata source settings');
+
+    var title = document.createElement('div');
+    title.className = 'mpo-title';
+    title.textContent = (series.title || '') + (series.year ? ' (' + series.year + ')' : '');
+    shell._mpoBody.appendChild(title);
+
+    var poster = seriesPoster();
+    if (poster) {
+      var img = document.createElement('img');
+      img.className = 'mpo-poster';
+      img.src = poster;
+      img.alt = series.title || '';
+      shell._mpoBody.appendChild(img);
+    }
 
     var select = document.createElement('select');
-    select.style.cssText = 'width:100%;padding:4px;margin-bottom:6px;';
+    select.className = 'mpo-select';
+    select.style.cssText = 'width:100%;';
     [
       { value: '', label: 'Default' },
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
+      { value: 'anilist', label: 'AniList' },
+      { value: 'mal', label: 'MAL' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -204,18 +246,33 @@
     select.value = '';
     shell._mpoBody.appendChild(select);
 
+    var badge = document.createElement('span');
+    badge.className = 'mpo-badge';
+    badge.id = 'mpo-series-source-badge';
+    badge.textContent = 'Bron: Default';
+    shell._mpoBody.appendChild(badge);
+
     var status = document.createElement('div');
-    status.className = 'mpo-status';
-    status.style.cssText = 'font-size:11px;color:#94a3b8;';
+    status.className = 'mpo-badge';
     status.textContent = 'TVDB id: ' + series.tvdbId;
     shell._mpoBody.appendChild(status);
 
     var isSynthetic = series.tvdbId >= 1000000000;
+    var bullets = [];
     if (isSynthetic) {
-      var warn = document.createElement('div');
-      warn.style.cssText = 'font-size:11px;color:#fbbf24;margin-top:4px;';
-      warn.textContent = 'Let op: deze serie heeft geen echte TVDB-ID. Bij "TVDB" als bron werkt passthrough niet (fallback naar standaard bron).';
-      shell._mpoBody.appendChild(warn);
+      bullets.push('Geen echte TVDB-ID — "TVDB" als bron werkt niet (fallback naar standaard bron).');
+    }
+    bullets.push('After changing the source: Refresh & Scan on the serie.');
+
+    if (bullets.length) {
+      var list = document.createElement('ul');
+      list.className = 'mpo-bullets';
+      bullets.forEach(function (text) {
+        var li = document.createElement('li');
+        li.textContent = text;
+        list.appendChild(li);
+      });
+      shell._mpoBody.appendChild(list);
     }
 
     select.addEventListener('change', function () {
@@ -223,6 +280,7 @@
       if (selectedSource === 'tvdb' && isSynthetic) {
         setStatus('Waarschuwing: TVDB passthrough werkt niet voor deze serie (geen echte TVDB-ID). Fallback naar standaard bron.', '#fbbf24');
       }
+      updateSeriesBadge(selectedSource);
       saveOverride(series.tvdbId, select.value)
         .then(function (dto) {
           if (dto && dto.source === 'tmdb') {
@@ -242,6 +300,15 @@
 
     document.body.appendChild(shell);
     return select;
+  }
+
+  function updateSeriesBadge(source) {
+    var badge = document.getElementById('mpo-series-source-badge');
+    if (!badge) {
+      return;
+    }
+    badge.textContent = 'Bron: ' + (source ? sourceLabel(source) : 'Default');
+    badge.className = 'mpo-badge' + (source ? ' mpo-badge-active' : '');
   }
 
   function saveOverride(tvdbId, source) {
@@ -287,26 +354,64 @@
     return '';
   }
 
-  function getSeriesList(key) {
+  function sonarrSeriesUrl() {
+    if (window.Sonarr && window.Sonarr.apiRoot) {
+      return window.Sonarr.apiRoot.replace(/\/+$/, '') + '/series';
+    }
+    return '/api/v3/series';
+  }
+
+  function waitForSonarrKey(maxMs) {
+    var start = Date.now();
+    var done = false;
+    return new Promise(function (resolve) {
+      var finish = function (key) {
+        if (done) {
+          return;
+        }
+        done = true;
+        resolve(key);
+      };
+      (function poll() {
+        if (window.Sonarr && window.Sonarr.apiKey) {
+          return finish(window.Sonarr.apiKey);
+        }
+        if (Date.now() - start >= maxMs) {
+          return finish('');
+        }
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
+  function getSeriesList() {
     var now = Date.now();
     if (seriesCache && now - seriesCacheAt < SERIES_CACHE_TTL_MS) {
       return Promise.resolve(seriesCache);
     }
-    return fetch('/api/v3/series?apikey=' + encodeURIComponent(key))
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error('Sonarr API: HTTP ' + response.status + ' — klopt je API-key?');
-        }
-        return response.json();
-      })
-      .then(function (list) {
-        seriesCache = list;
-        seriesCacheAt = Date.now();
-        return list;
-      });
+    return waitForSonarrKey(6000).then(function (apiKey) {
+      var options = { headers: {} };
+      if (apiKey) {
+        options.headers['X-Api-Key'] = apiKey;
+      }
+      return fetch(sonarrSeriesUrl(), options);
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error(
+          'Sonarr API: HTTP ' + response.status + (window.Sonarr && window.Sonarr.apiKey
+            ? ''
+            : ' — Sonarr API key not available (window.Sonarr.apiKey missing).')
+        );
+      }
+      return response.json();
+    }).then(function (list) {
+      seriesCache = list;
+      seriesCacheAt = Date.now();
+      return list;
+    });
   }
 
-  function findSeries(key, ident) {
+  function findSeries(ident) {
     var slug = String(ident.slug || ident.id);
     var normalized = slug.replace(/[^a-z0-9]+/g, '-');
 
@@ -336,10 +441,10 @@
     }
 
     function fail() {
-      throw new Error('Series not found via "' + slug + '" (check your API key and that the series exists).');
+      throw new Error('Series not found via "' + slug + '" (signed in to Sonarr in this browser?).');
     }
 
-    return getSeriesList(key).then(function (list) {
+    return getSeriesList().then(function (list) {
       var found = pick(list);
       if (found) {
         return found;
@@ -347,7 +452,7 @@
       if (seriesCache && Date.now() - seriesCacheAt < SERIES_CACHE_TTL_MS) {
         seriesCache = null;
         seriesCacheAt = 0;
-        return getSeriesList(key).then(function (fresh) {
+        return getSeriesList().then(function (fresh) {
           var refound = pick(fresh);
           if (refound) {
             return refound;
@@ -386,12 +491,7 @@
       return;
     }
 
-    if (!getApiKey()) {
-      buildKeyPanel();
-      return;
-    }
-
-    findSeries(getApiKey(), ident)
+    findSeries(ident)
       .then(function (data) {
         if (!data || !data.tvdbId) {
           throw new Error('No tvdbId received from Sonarr');
@@ -411,15 +511,21 @@
 
         fetch(url)
           .then(function (proxyResponse) {
+            console.debug('[metadata-proxy-override] overrides list fetch:', url, proxyResponse.status);
             if (!proxyResponse.ok) {
               throw new Error('HTTP ' + proxyResponse.status);
             }
             return proxyResponse.json();
           })
           .then(function (list) {
-            select.value = currentOverride(list, series.tvdbId);
+            console.debug('[metadata-proxy-override] overrides list:', list);
+            var overrideSource = currentOverride(list, series.tvdbId);
+            console.debug('[metadata-proxy-override] current override for', series.tvdbId, ':', overrideSource);
+            select.value = overrideSource;
+            updateSeriesBadge(select.value);
           })
           .catch(function (err) {
+            console.error('[metadata-proxy-override] overrides fetch failed:', err);
             setStatus(
               'overrides API unreachable: ' + proxyUrl() + ' (' + err.message + ')',
               '#f87171'
@@ -429,7 +535,7 @@
       .catch(function (err) {
         console.debug('[metadata-proxy-override]', err);
         el = null;
-        buildKeyPanel('Error: ' + err.message);
+        buildNoticePanel('Error: ' + err.message);
       });
   }
 
@@ -495,7 +601,7 @@
 
   function normalizeSearchSource(value) {
     var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
-    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist') {
+    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal') {
       return '';
     }
     return v;
@@ -506,6 +612,11 @@
     var selects = document.querySelectorAll('select[data-mpo-provider]');
     for (var i = 0; i < selects.length; i++) {
       selects[i].value = SEARCH_PROVIDER;
+    }
+    var badge = document.getElementById('mpo-current-source');
+    if (badge) {
+      badge.textContent = SEARCH_PROVIDER ? sourceLabel(SEARCH_PROVIDER) : 'Automatic';
+      badge.className = 'mpo-badge' + (SEARCH_PROVIDER ? ' mpo-badge-active' : '');
     }
   }
 
@@ -545,13 +656,6 @@
         /* fallback naar localStorage blijft gelden */
       });
   }
-
-  // Forceer dropdown-waarde bij elke hercreatie (bijv. na AJAX-refresh)
-  function forceProviderOnSelect(select) {
-    if (select && SEARCH_PROVIDER) {
-      select.value = SEARCH_PROVIDER;
-    }
-  }
   loadSearchProvider();
 
   function triggerSearchRestart() {
@@ -586,146 +690,127 @@
     });
   }
 
-  function buildMobileSearchPicker() {
-    var ui = document.getElementById(SEARCH_UI_ID);
-    if (ui) {
-      ui.remove();
+  function buildSearchPickerPanel() {
+    var existing = document.getElementById(SEARCH_UI_ID);
+    if (existing) {
+      applySearchProvider(SEARCH_PROVIDER);
+      return existing;
     }
 
-    ui = document.createElement('div');
-    ui.id = SEARCH_UI_ID;
-    ui.style.cssText = baseCss();
-
-    var pill = document.createElement('div');
-    pill.style.cssText = 'display:none;font-weight:600;';
-    pill.textContent = 'Metasources \u25B8';
-
-    var header = document.createElement('div');
-    header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
-    var title = document.createElement('span');
-    title.style.cssText = 'font-weight:600;';
-    title.textContent = 'Search metasource';
-    var toggle = document.createElement('button');
-    toggle.textContent = '\u2013';
-    toggle.style.cssText =
-      'padding:2px 8px;background:#334155;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
-    toggle.setAttribute('aria-label', 'Collapse');
+    var ui = buildShell('Search via', 'Metasources \u25B8', SEARCH_UI_ID);
+    ui._mpoBody.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
 
     var select = document.createElement('select');
-    select.style.cssText = 'width:100%;padding:4px;';
+    select.className = 'mpo-select';
+    select.style.cssText = 'width:100%;';
     select.setAttribute('data-mpo-provider', '1');
-    select.value = SEARCH_PROVIDER;
-    [
-      { value: '', label: 'Default' },
-      { value: 'tmdb', label: 'TMDB' },
-      { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
-    ].forEach(function (opt) {
-      var option = document.createElement('option');
-      option.value = opt.value;
-      option.textContent = opt.label;
-      select.appendChild(option);
-    });
-
-    header.appendChild(title);
-    header.appendChild(toggle);
-    ui.appendChild(pill);
-    ui.appendChild(header);
-    ui.appendChild(select);
-
-    ui.mpoCollapse = function () {
-      ui.dataset.mpoCollapsed = '1';
-      ui.style.cssText = pillCss();
-      header.style.display = 'none';
-      select.style.display = 'none';
-      pill.style.display = '';
-    };
-    ui.mpoExpand = function () {
-      ui.dataset.mpoCollapsed = '';
-      ui.style.cssText = baseCss();
-      header.style.display = '';
-      select.style.display = '';
-      pill.style.display = 'none';
-    };
-    toggle.addEventListener('click', function (e) {
-      e.stopPropagation();
-      ui.mpoCollapse();
-    });
-    pill.addEventListener('click', function () {
-      ui.mpoExpand();
-    });
-
-    select.addEventListener('change', function () {
-      setSearchProvider(this.value);
-    });
-    forceProviderOnSelect(select);
-
-    document.body.appendChild(ui);
-    ui.mpoCollapse();
-    return ui;
-  }
-
-  function attachSearchPicker(input) {
-    if (input.getAttribute('data-mpo-search') === '1') {
-      return;
-    }
-    input.setAttribute('data-mpo-search', '1');
-    input.addEventListener('focus', function () {
-      lastSearchInput = input;
-    });
-    input.addEventListener('input', function () {
-      lastSearchInput = input;
-    });
-
-    if (isMobile()) {
-      buildMobileSearchPicker();
-      return;
-    }
-
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
-
-    var label = document.createElement('span');
-    label.style.cssText = 'font-size:11px;color:#94a3b8;';
-    label.textContent = 'Search via';
-
-    var select = document.createElement('select');
-    select.style.cssText =
-      'padding:3px 6px;font-size:12px;background:#263241;color:#fff;border:1px solid #334155;border-radius:4px;';
-    select.setAttribute('data-mpo-provider', '1');
-    select.value = SEARCH_PROVIDER;
     [
       { value: '', label: 'Automatic' },
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
-      { value: 'anilist', label: 'AniList' }
+      { value: 'anilist', label: 'AniList' },
+      { value: 'mal', label: 'MAL' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
       select.appendChild(option);
     });
-
-    row.appendChild(label);
-    row.appendChild(select);
-    input.parentNode.insertBefore(row, input);
-    row._mpoInput = input;
-    input._mpoRow = row;
-
     select.addEventListener('change', function () {
       setSearchProvider(this.value);
     });
-    forceProviderOnSelect(select);
+    ui._mpoBody.appendChild(select);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+
+    var badge = document.createElement('span');
+    badge.className = 'mpo-badge';
+    badge.id = 'mpo-current-source';
+    badge.textContent = 'Automatic';
+    row.appendChild(badge);
+
+    var dot = document.createElement('span');
+    dot.id = 'mpo-proxy-dot';
+    dot.className = 'mpo-dot mpo-dot-off';
+    row.appendChild(dot);
+
+    var dotLabel = document.createElement('span');
+    dotLabel.className = 'mpo-subtitle';
+    dotLabel.id = 'mpo-proxy-label';
+    dotLabel.textContent = 'proxy status\u2026';
+    row.appendChild(dotLabel);
+
+    ui._mpoBody.appendChild(row);
+
+    var list = document.createElement('ul');
+    list.className = 'mpo-bullets';
+    [
+      'Automatic = METADATA_SOURCE (.env), TVDB fallback on empty/error',
+      'Prefixes: tmdb: / tvdb: / anilist: / mal:'
+    ].forEach(function (text) {
+      var li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    ui._mpoBody.appendChild(list);
+
+    document.body.appendChild(ui);
+    ui.mpoCollapse(true);
+    applySearchProvider(SEARCH_PROVIDER);
+    refreshProxyStatus();
+    return ui;
   }
 
-  function removeSearchRow(input) {
-    var row = input._mpoRow;
-    if (row && row.parentNode) {
-      row.parentNode.removeChild(row);
+  function refreshProxyStatus() {
+    var dot = document.getElementById('mpo-proxy-dot');
+    var label = document.getElementById('mpo-proxy-label');
+    var base = overridesApiBase();
+    if (!base) {
+      if (dot) {
+        dot.className = 'mpo-dot mpo-dot-off';
+      }
+      if (label) {
+        label.textContent = 'proxy onbereikbaar (stel OVERRIDES_API_URL in)';
+      }
+      return;
     }
-    input._mpoRow = null;
-    input.removeAttribute('data-mpo-search');
+    fetch(base + '/api/overrides/searchsource')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function () {
+        if (dot) {
+          dot.className = 'mpo-dot mpo-dot-on';
+        }
+        if (label) {
+          label.textContent = 'proxy online';
+        }
+      })
+      .catch(function () {
+        if (dot) {
+          dot.className = 'mpo-dot mpo-dot-off';
+        }
+        if (label) {
+          label.textContent = 'proxy offline';
+        }
+      });
+  }
+
+  function attachSearchPicker(input) {
+    if (input.getAttribute('data-mpo-search') !== '1') {
+      input.setAttribute('data-mpo-search', '1');
+      input.addEventListener('focus', function () {
+        lastSearchInput = input;
+      });
+      input.addEventListener('input', function () {
+        lastSearchInput = input;
+      });
+    }
+    buildSearchPickerPanel();
   }
 
   function removeSearchUi() {
@@ -738,29 +823,15 @@
   function refreshSearchPickers() {
     var path = window.location.pathname || '';
     if (path.indexOf('/add/new') !== 0) {
-      removeAllSearchRows();
       removeSearchUi();
       return;
     }
     var candidates = searchInputCandidates();
     if (!candidates.length) {
+      removeSearchUi();
       return;
     }
-    var primary = candidates[0];
-    var existing = document.querySelectorAll('input[data-mpo-search]');
-    for (var j = 0; j < existing.length; j++) {
-      if (existing[j] !== primary) {
-        removeSearchRow(existing[j]);
-      }
-    }
-    attachSearchPicker(primary);
-  }
-
-  function removeAllSearchRows() {
-    var inputs = document.querySelectorAll('input[data-mpo-search]');
-    for (var i = 0; i < inputs.length; i++) {
-      removeSearchRow(inputs[i]);
-    }
+    attachSearchPicker(candidates[0]);
   }
 
   function ensurePortalRoot() {
@@ -776,6 +847,7 @@
   var refreshSearchTimer = null;
   function initSearchPickers() {
     ensurePortalRoot();
+    ensureStylesheet();
     refreshSearchPickers();
     if (!document.body) {
       return;
@@ -828,6 +900,7 @@
 
   setInterval(tick, POLL_MS);
   setInterval(refreshSearchPickers, POLL_MS);
+  // refreshProxyStatus only when panel is open/visible
   tick();
   refreshSearchPickers();
 })();

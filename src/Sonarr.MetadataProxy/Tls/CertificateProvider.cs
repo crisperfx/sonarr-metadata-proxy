@@ -38,6 +38,8 @@ public sealed class CertificateProvider
             File.Exists(serverCertPath) && File.Exists(serverKeyPath))
         {
             _logger.LogInformation("Loading existing proxy certificates from {Directory}.", certDirectory);
+            UnixPermissions.PrivateFile(caKeyPath);
+            UnixPermissions.PrivateFile(serverKeyPath);
             _leaf = X509Certificate2.CreateFromPemFile(serverCertPath, serverKeyPath);
             return _leaf;
         }
@@ -101,6 +103,8 @@ public sealed class CertificateProvider
         WritePrivateKeyPem(caKeyPath, caCertificate.GetRSAPrivateKey()!);
         File.WriteAllText(serverCertPath, leafWithKey.ExportCertificatePem());
         WritePrivateKeyPem(serverKeyPath, leafWithKey.GetRSAPrivateKey()!);
+        UnixPermissions.PrivateFile(caKeyPath);
+        UnixPermissions.PrivateFile(serverKeyPath);
 
         _logger.LogInformation(
             "Wrote CA and server certificate to {Directory}. Trust {Ca} inside the Sonarr container to enable TLS interception.",

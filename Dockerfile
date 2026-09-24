@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv (the TMDB_API_KEY/TMDB_API_TOKEN ENV entries are empty UI placeholders, not secrets)
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
@@ -12,11 +13,17 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
 USER root
+# Non-root user for the runtime (the entrypoint drops privileges via runuser).
+# setcap lets that user bind port 443 for the intercepted skyhook.sonarr.tv.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends curl libcap2-bin \
+    && rm -rf /var/lib/apt/lists/* \
+    && (id -u app >/dev/null 2>&1 || useradd --uid 1654 --create-home --shell /usr/sbin/nologin app) \
+    && mkdir -p /home/app \
+    && chown app:app /home/app \
+    && setcap 'cap_net_bind_service=+ep' /usr/share/dotnet/dotnet
 
-COPY --from=build /app/publish .
+COPY --chown=app:app --from=build /app/publish .
 
 # AniList -> AniDB -> TVDB mapping datasets (baked at build time so the proxy can
 # translate AniList search hits into real TheTVDB ids without any extra service).

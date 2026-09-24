@@ -11,10 +11,10 @@ public static class MetadataProviderRegistry
         {
             case "tmdb":
                 return serviceProvider.GetRequiredService<TmdbMetadataProvider>();
+            case "mal":
+                return serviceProvider.GetRequiredService<MalMetadataProvider>();
             case "anilist":
                 return new NotImplementedProvider("anilist");
-            case "mal":
-                return new NotImplementedProvider("mal");
             case "imdb":
                 return new NotImplementedProvider("imdb");
             case "tvdb":

@@ -1,10 +1,61 @@
 using Sonarr.MetadataProxy.Models.AniList;
+using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
 using Sonarr.MetadataProxy.Passthrough;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
 
 namespace Sonarr.MetadataProxy.Tests.Infrastructure;
+
+public sealed class FakeMalApi : IMalApi
+{
+    public List<MalAnime> SearchResults { get; set; } = new();
+    public Dictionary<int, MalAnime> ById { get; set; } = new();
+    public Dictionary<int, MalPictures> PicturesById { get; set; } = new();
+    public Dictionary<int, MalAnimeDetails> DetailsById { get; set; } = new();
+    public Dictionary<int, List<MalEpisode>> EpisodesById { get; set; } = new();
+    public Exception? Exception { get; set; }
+    public int SearchCallCount { get; private set; }
+
+    public Task<IReadOnlyList<MalAnime>> SearchAsync(string query, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        SearchCallCount++;
+        return Task.FromResult<IReadOnlyList<MalAnime>>(SearchResults);
+    }
+
+    public Task<MalAnime?> GetByIdAsync(int malId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ById.TryGetValue(malId, out var media) ? media : null);
+    }
+
+    public Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(PicturesById.TryGetValue(malId, out var pics) ? pics : null);
+    }
+
+    public Task<MalAnimeDetails?> GetSeriesDetailsAsync(int malId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(DetailsById.TryGetValue(malId, out var details) ? details : null);
+    }
+
+    public Task<IReadOnlyList<MalEpisode>> GetEpisodesAsync(int malId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(EpisodesById.TryGetValue(malId, out var episodes) ? (IReadOnlyList<MalEpisode>)episodes : Array.Empty<MalEpisode>());
+    }
+
+    private void ThrowIf()
+    {
+        if (Exception is not null)
+        {
+            throw Exception;
+        }
+    }
+}
 
 public sealed class FakeAniListApi : IAniListApi
 {

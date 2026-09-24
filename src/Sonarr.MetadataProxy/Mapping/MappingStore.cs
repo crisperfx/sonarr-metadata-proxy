@@ -14,11 +14,15 @@ public sealed class MappingStore
     private readonly Dictionary<int, int> _nextEpisodeSequence = new();
     private readonly Dictionary<int, string> _overrides = new();
     private readonly Dictionary<int, int> _aniListByTvdb = new();
+    private readonly Dictionary<int, int> _malByTvdb = new();
+    private readonly Dictionary<int, int> _tvdbByMal = new();
+    private readonly Dictionary<int, int> _tvdbByAniList = new();
     private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
     public const string SourceAniList = "anilist";
+    public const string SourceMal = "mal";
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
@@ -120,6 +124,125 @@ public sealed class MappingStore
         }
     }
 
+    public int? TryGetMalIdByTvdb(int tvdbId)
+    {
+        lock (_sync)
+        {
+            return _malByTvdb.TryGetValue(tvdbId, out var malId) ? malId : null;
+        }
+    }
+
+    public void RegisterMalId(int tvdbId, int malId)
+    {
+        if (malId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            var changed = false;
+
+            // Always keep the minimum MAL ID for a TVDB ID
+            if (!_malByTvdb.ContainsKey(tvdbId) || malId < _malByTvdb[tvdbId])
+            {
+                var oldMalId = _malByTvdb.GetValueOrDefault(tvdbId, 0);
+                _malByTvdb[tvdbId] = malId;
+                changed = true;
+
+                // Update reverse mapping for new MAL ID
+                if (!_tvdbByMal.ContainsKey(malId))
+                {
+                    _tvdbByMal[malId] = tvdbId;
+                    changed = true;
+                }
+
+                // If we replaced an old MAL ID, clean up reverse mapping for old one
+                // (only if no other TVDB ID maps to it)
+                if (oldMalId > 0 && oldMalId != malId)
+                {
+                    if (_tvdbByMal.TryGetValue(oldMalId, out var mappedTvdbId) && mappedTvdbId == tvdbId)
+                    {
+                        _tvdbByMal.Remove(oldMalId);
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
+    public int? TryGetTvdbByMalId(int malId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByMal.TryGetValue(malId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public int? TryGetTvdbByAniListId(int anilistId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByAniList.TryGetValue(anilistId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public void RegisterIds(int tvdbId, int? tmdbId = null, int? malId = null, int? anilistId = null)
+    {
+        if (tvdbId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            var changed = false;
+
+            if (tmdbId.HasValue && !SyntheticIds.IsSyntheticSeries(tvdbId) && !_seriesReal.ContainsKey(tvdbId))
+            {
+                _seriesReal[tvdbId] = tmdbId.Value;
+                changed = true;
+            }
+
+            if (malId.HasValue && malId.Value > 0)
+            {
+                if (!_malByTvdb.ContainsKey(tvdbId))
+                {
+                    _malByTvdb[tvdbId] = malId.Value;
+                    changed = true;
+                }
+                if (!_tvdbByMal.ContainsKey(malId.Value))
+                {
+                    _tvdbByMal[malId.Value] = tvdbId;
+                    changed = true;
+                }
+            }
+
+            if (anilistId.HasValue && anilistId.Value > 0)
+            {
+                if (!_aniListByTvdb.ContainsKey(tvdbId))
+                {
+                    _aniListByTvdb[tvdbId] = anilistId.Value;
+                    changed = true;
+                }
+                if (!_tvdbByAniList.ContainsKey(anilistId.Value))
+                {
+                    _tvdbByAniList[anilistId.Value] = tvdbId;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
     public string? GetOverride(int tvdbId)
     {
         lock (_sync)
@@ -130,9 +253,9 @@ public sealed class MappingStore
 
     public void SetOverride(int tvdbId, string source)
     {
-        if (source is not (SourceTmdb or SourceTvdb or SourceAniList))
+        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceMal))
         {
-            throw new ArgumentException("Source must be 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
+            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
         }
 
         if (tvdbId <= 0)
@@ -154,8 +277,9 @@ public sealed class MappingStore
             var removedOverride = _overrides.Remove(tvdbId);
             var removedMapping = _seriesReal.Remove(tvdbId);
             var removedAniList = _aniListByTvdb.Remove(tvdbId);
+            var removedMal = _malByTvdb.Remove(tvdbId);
 
-            if (!removedOverride && !removedMapping && !removedAniList)
+            if (!removedOverride && !removedMapping && !removedAniList && !removedMal)
             {
                 return false;
             }
@@ -184,9 +308,9 @@ public sealed class MappingStore
     public void SetDefaultSearchSource(string source)
     {
         var normalized = (source ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList)
+        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList and not SourceMal)
         {
-            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb' or 'anilist'.", nameof(source));
+            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
         }
 
         lock (_sync)
@@ -223,6 +347,9 @@ public sealed class MappingStore
                     _overrides.Clear();
                     _defaultSearchSource = persisted.DefaultSearchSource ?? "";
                     _aniListByTvdb.Clear();
+                    _malByTvdb.Clear();
+                    _tvdbByMal.Clear();
+                    _tvdbByAniList.Clear();
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -247,6 +374,21 @@ public sealed class MappingStore
                     foreach (var (key, value) in persisted.AniListByTvdb)
                     {
                         _aniListByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.MalByTvdb)
+                    {
+                        _malByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByMal)
+                    {
+                        _tvdbByMal[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByAniList)
+                    {
+                        _tvdbByAniList[key] = value;
                     }
                 }
 
@@ -279,13 +421,18 @@ public sealed class MappingStore
                 EpisodeSequences = new Dictionary<int, int>(_nextEpisodeSequence),
                 Overrides = new Dictionary<int, string>(_overrides),
                 AniListByTvdb = new Dictionary<int, int>(_aniListByTvdb),
+                MalByTvdb = new Dictionary<int, int>(_malByTvdb),
+                TvdbByMal = new Dictionary<int, int>(_tvdbByMal),
+                TvdbByAniList = new Dictionary<int, int>(_tvdbByAniList),
                 DefaultSearchSource = _defaultSearchSource
             };
 
             var json = JsonSerializer.Serialize(persisted, new JsonSerializerOptions { WriteIndented = true });
             var temp = _filePath + ".tmp";
             File.WriteAllText(temp, json);
+            UnixPermissions.PrivateFile(temp);
             File.Move(temp, _filePath, true);
+            UnixPermissions.PrivateFile(_filePath);
         }
         catch (Exception ex)
         {
@@ -300,6 +447,9 @@ public sealed class MappingStore
         public Dictionary<int, int> EpisodeSequences { get; set; } = new();
         public Dictionary<int, string> Overrides { get; set; } = new();
         public Dictionary<int, int> AniListByTvdb { get; set; } = new();
+        public Dictionary<int, int> MalByTvdb { get; set; } = new();
+        public Dictionary<int, int> TvdbByMal { get; set; } = new();
+        public Dictionary<int, int> TvdbByAniList { get; set; } = new();
         public string DefaultSearchSource { get; set; } = "";
     }
 }
