@@ -122,8 +122,8 @@ public sealed class MalMetadataProvider : IMetadataProvider
             FirstAirDate = NormalizeDate(result.FirstAirDate),
             OriginalCountryCode = "JP",
             OriginalLanguageCode = "ja",
-            VoteAverage = result.Score,
-            VoteCount = result.ScoreCount,
+            VoteAverage = result.Score ?? 0,
+            VoteCount = result.ScoreCount ?? 0,
             PosterPath = result.PosterUrl,
             BackdropPath = null,
             ExternalIds = new ExternalIdSet(null, null, result.Id)
@@ -138,7 +138,7 @@ public sealed class MalMetadataProvider : IMetadataProvider
             .Select(s => new SeasonSummaryMetadata
             {
                 SeasonNumber = s.Number,
-                EpisodeCount = s.EpisodeCount,
+                EpisodeCount = s.EpisodeCount ?? 0,
                 AirDate = NormalizeDate(s.AirDate),
                 PosterPath = s.PosterUrl
             })
@@ -164,12 +164,12 @@ public sealed class MalMetadataProvider : IMetadataProvider
             FirstAirDate = NormalizeDate(details.FirstAirDate),
             LastAirDate = NormalizeDate(details.LastAirDate),
             Status = MapStatus(details.Status),
-            RuntimeMinutes = details.DurationMinutes,
+            RuntimeMinutes = details.DurationMinutes ?? 0,
             Network = details.Studios.FirstOrDefault(),
             OriginalCountryCode = "JP",
             OriginalLanguageCode = "ja",
-            VoteAverage = details.Score,
-            VoteCount = details.ScoreCount,
+            VoteAverage = details.Score ?? 0,
+            VoteCount = details.ScoreCount ?? 0,
             Genres = details.Genres,
             PosterPath = details.PosterUrl,
             BackdropPath = null,
@@ -191,10 +191,10 @@ public sealed class MalMetadataProvider : IMetadataProvider
             Title = episode.Title,
             Overview = episode.Overview,
             AirDate = NormalizeDate(episode.AirDate),
-            RuntimeMinutes = episode.RuntimeMinutes,
+            RuntimeMinutes = episode.RuntimeMinutes ?? 0,
             ImageUrl = episode.StillUrl,
-            VoteAverage = episode.Score,
-            VoteCount = episode.VoteCount,
+            VoteAverage = episode.Score ?? 0,
+            VoteCount = episode.VoteCount ?? 0,
             EpisodeType = episode.EpisodeType
         };
     }

@@ -329,6 +329,16 @@ public sealed class MalClient : IMalApi
             ? airedNode
             : default;
 
+        MalExternalIds? externalIds = null;
+        if (element.TryGetProperty("external_ids", out var extProp) && extProp.ValueKind == JsonValueKind.Object)
+        {
+            externalIds = new MalExternalIds
+            {
+                TvdbId = GetNullableInt(extProp, "tvdb_id"),
+                ImdbId = GetString(extProp, "imdb_id")
+            };
+        }
+
         var details = new MalAnimeDetails
         {
             Id = GetNullableInt(element, "id") ?? GetNullableInt(element, "mal_id") ?? 0,
@@ -347,7 +357,8 @@ public sealed class MalClient : IMalApi
             PosterUrl = GetPosterUrl(element),
             Genres = GetNameList(element, "genres"),
             Studios = GetNameList(element, "studios"),
-            Type = GetString(element, "type")
+            Type = GetString(element, "type"),
+            ExternalIds = externalIds
         };
 
         // Parse seasons
@@ -366,16 +377,6 @@ public sealed class MalClient : IMalApi
                     });
                 }
             }
-        }
-
-        // Parse external IDs
-        if (element.TryGetProperty("external_ids", out var extProp) && extProp.ValueKind == JsonValueKind.Object)
-        {
-            details.ExternalIds = new MalExternalIds
-            {
-                TvdbId = GetNullableInt(extProp, "tvdb_id"),
-                ImdbId = GetString(extProp, "imdb_id")
-            };
         }
 
         // Parse cast
