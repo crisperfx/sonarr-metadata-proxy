@@ -38,7 +38,7 @@ public sealed class MalMetadataProvider : IMetadataProvider
             return Array.Empty<SeriesMetadata>();
         }
 
-        return new[] { MapSeries(details) };
+        return new[] { MapSeries(details, malId) };
     }
 
     public async Task<IReadOnlyList<SeriesMetadata>> SearchByImdbId(string imdbId, CancellationToken cancellationToken)
@@ -132,10 +132,20 @@ public sealed class MalMetadataProvider : IMetadataProvider
 
     private EpisodeMetadata MapEpisodeWithAdjustedNumbers(MalEpisode episode, int episodeNumber)
     {
-        var mapped = MapEpisode(episode);
-        mapped.EpisodeNumber = episodeNumber;
-        mapped.AbsoluteEpisodeNumber = episode.AbsoluteNumber ?? episodeNumber;
-        return mapped;
+        var baseMapped = MapEpisode(episode);
+        return new EpisodeMetadata
+        {
+            EpisodeNumber = episodeNumber,
+            AbsoluteEpisodeNumber = episode.AbsoluteNumber ?? episodeNumber,
+            Title = baseMapped.Title,
+            Overview = baseMapped.Overview,
+            AirDate = baseMapped.AirDate,
+            RuntimeMinutes = baseMapped.RuntimeMinutes,
+            ImageUrl = baseMapped.ImageUrl,
+            VoteAverage = baseMapped.VoteAverage,
+            VoteCount = baseMapped.VoteCount,
+            EpisodeType = baseMapped.EpisodeType
+        };
     }
 
     private async Task<IReadOnlyList<SeriesMetadata>> BuildSearchResults(

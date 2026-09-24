@@ -73,7 +73,7 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
             OriginalCountry = metadata.OriginalCountryCode,
             OriginalLanguage = metadata.OriginalLanguageCode,
             FirstAired = metadata.FirstAirDate,
-            LastAired = metadata.LastAired,
+            LastAired = metadata.LastAirDate,
             TmdbId = tmdbId > 0 ? tmdbId : null,
             ImdbId = metadata.ExternalIds.ImdbId,
             Status = metadata.Status,
