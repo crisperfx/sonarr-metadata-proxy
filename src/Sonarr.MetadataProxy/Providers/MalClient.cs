@@ -102,10 +102,11 @@ public sealed class MalClient : IMalApi
             $"{Endpoint}/anime/{malId}/episodes?page={page}",
             document =>
             {
-                var batch = document.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+                var root = document.RootElement;
+                var batch = root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
                     ? data.EnumerateArray().Select(ParseEpisode).ToList()
                     : new List<MalEpisode>();
-                var lastPage = (document.TryGetProperty("pagination", out var pagination) && pagination.TryGetProperty("last_visible_page", out var last) && last.ValueKind == JsonValueKind.Number)
+                var lastPage = (root.TryGetProperty("pagination", out var pagination) && pagination.TryGetProperty("last_visible_page", out var last) && last.ValueKind == JsonValueKind.Number)
                     ? last.GetInt32()
                     : page;
                 return (batch, lastPage);
@@ -122,7 +123,7 @@ public sealed class MalClient : IMalApi
     {
         return (await ExecuteCoreAsync(
             url,
-            document => extract(document.TryGetProperty("data", out var data) ? data : default),
+            document => extract(document.RootElement.TryGetProperty("data", out var data) ? data : default),
             cancellationToken,
             allowNotFound).ConfigureAwait(false)).Result;
     }
@@ -184,7 +185,7 @@ public sealed class MalClient : IMalApi
 
                 using var document = JsonDocument.Parse(body);
                 var result = extract(document);
-                var data = document.TryGetProperty("data", out var dataElement) ? dataElement.Clone() : default;
+                var data = document.RootElement.TryGetProperty("data", out var dataElement) ? dataElement.Clone() : default;
                 return (result, data);
             }
             catch (MalApiException)
