@@ -35,13 +35,12 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
  your browser                    Docker network
       │  http://<ip>:8989                │
       ▼                                  ▼
- ┌───────────┐  metadata request   ┌────────────────┐   TMDB/AniList/MAL  ┌────────┐
- │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ───────────────────▶ │ TMDB   │
- │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀──────────────────── │ AniList│
- └───────────┘                      │   9697)       │                      │ MAL    │
-      ▲                             └────────────────┘                      └────────┘
-      ▲                             └────────────────┘
-      │ picker dropdown (overrides)
+ ┌───────────┐  metadata request   ┌────────────────┐  metadata data   ┌────────┐
+ │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ────────────────▶ │ TMDB   │
+ │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀──────────────── │ AniList│
+ └───────────┘                      │   9697)       │                   │ MAL    │
+      ▲                             └────────────────┘                   │ TVDB   │
+      │ picker dropdown (overrides)                                      └────────┘
       └────────────────── /api/overrides
 ```
 
