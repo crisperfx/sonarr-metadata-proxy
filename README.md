@@ -16,7 +16,7 @@ A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, 
 
 1. **Docker** (with Compose v2) or a Docker UI on your NAS/PC (Synology Container Manager, Portainer, Dockhand, etc.)
 2. **A free TMDB API key** — <https://www.themoviedb.org/settings/api> → *API* → *Create* → *Developer*. This is the only secret you must fill in.
-3. **Sonarr** — the compose example below starts one fresh. Already running Sonarr? See [Option C](#option-c--you-already-run-sonarr).
+3. **Sonarr** — the compose example below starts one fresh. Already running Sonarr? Edit or change your existing stack.
 
 ---
 
