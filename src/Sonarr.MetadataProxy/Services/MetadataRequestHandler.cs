@@ -379,8 +379,14 @@ public sealed class MetadataRequestHandler
             show.Images.Insert(0, new ImageResource { CoverType = "poster", Url = pictures.Posters[0] });
         }
 
-        // Add MAL backgrounds as fanart
-        foreach (var bg in pictures.Backgrounds.Take(3))
+        // Add MAL backgrounds as fanart (fall back to the poster when no backgrounds exist)
+        var backgrounds = pictures.Backgrounds.Take(3).ToList();
+        if (backgrounds.Count == 0 && show.Images.Any(image => image.CoverType == "poster" && !string.IsNullOrWhiteSpace(image.Url)))
+        {
+            backgrounds.Add(show.Images.First(image => image.CoverType == "poster" && !string.IsNullOrWhiteSpace(image.Url)).Url);
+        }
+
+        foreach (var bg in backgrounds)
         {
             show.Images.Add(new ImageResource { CoverType = "fanart", Url = bg });
         }
@@ -418,8 +424,20 @@ public sealed class MetadataRequestHandler
             });
         }
 
-        // Add MAL backgrounds
-        foreach (var bg in pictures.Backgrounds.Take(3))
+        // Add MAL backgrounds as fanart (fall back to the poster when no backgrounds exist)
+        var backgrounds = pictures.Backgrounds.Take(3).ToList();
+        if (backgrounds.Count == 0)
+        {
+            var existingPoster = imagesArray.OfType<JsonObject>()
+                .FirstOrDefault(image => image["coverType"]?.GetValue<string>() == "poster" &&
+                                         image["url"]?.GetValue<string>() is { Length: > 0 });
+            if (existingPoster is not null)
+            {
+                backgrounds.Add(existingPoster["url"]!.GetValue<string>());
+            }
+        }
+
+        foreach (var bg in backgrounds)
         {
             imagesArray.Add(new JsonObject
             {

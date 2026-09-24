@@ -50,9 +50,9 @@ public sealed class AniListTranslator
         if (!string.IsNullOrWhiteSpace(media.PosterUrl))
         {
             show.Images.Add(new ImageResource { CoverType = "poster", Url = media.PosterUrl });
+            show.Images.Add(new ImageResource { CoverType = "fanart", Url = !string.IsNullOrWhiteSpace(media.BannerUrl) ? media.BannerUrl : media.PosterUrl });
         }
-
-        if (!string.IsNullOrWhiteSpace(media.BannerUrl))
+        else if (!string.IsNullOrWhiteSpace(media.BannerUrl))
         {
             show.Images.Add(new ImageResource { CoverType = "fanart", Url = media.BannerUrl });
         }

@@ -120,7 +120,7 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
         }));
 
         AddImage(show.Images, "poster", metadata.PosterPath, PosterWidth);
-        AddImage(show.Images, "fanart", metadata.BackdropPath, BackdropWidth);
+        AddImage(show.Images, "fanart", metadata.BackdropPath ?? metadata.PosterPath, BackdropWidth);
 
         show.Seasons.AddRange(metadata.Seasons.Select(season => new SeasonResource
         {

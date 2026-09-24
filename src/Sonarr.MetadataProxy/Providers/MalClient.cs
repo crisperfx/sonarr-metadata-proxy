@@ -42,28 +42,51 @@ public sealed class MalClient : IMalApi
     public async Task<MalPictures?> GetPicturesAsync(int malId, CancellationToken cancellationToken)
     {
         return await ExecuteAsync<MalPictures?>(
-            $"{Endpoint}/anime/{malId}",
+            $"{Endpoint}/anime/{malId}/pictures",
             data =>
             {
                 var pictures = new MalPictures();
-                if (data.ValueKind != JsonValueKind.Object)
+                if (data.ValueKind != JsonValueKind.Array)
                 {
                     return pictures;
                 }
 
-                // Poster from images.jpg.large_image_url (same as Jikan format)
-                var posterUrl = GetPosterUrl(data);
-                if (!string.IsNullOrWhiteSpace(posterUrl))
+                foreach (var picture in data.EnumerateArray())
                 {
-                    pictures.Posters.Add(posterUrl);
+                    var largeUrl = GetLargeImageUrl(picture);
+                    if (string.IsNullOrWhiteSpace(largeUrl))
+                    {
+                        continue;
+                    }
+
+                    if (pictures.Posters.Count == 0)
+                    {
+                        pictures.Posters.Add(largeUrl);
+                    }
+
+                    pictures.Backgrounds.Add(largeUrl);
+                    if (pictures.Backgrounds.Count >= 6)
+                    {
+                        break;
+                    }
                 }
 
-                // Backgrounds: if Tenrai provides them in a different field, add here
-                // For now, poster is the main one we need
                 return pictures;
             },
             cancellationToken,
             allowNotFound: true).ConfigureAwait(false);
+    }
+
+    private static string? GetLargeImageUrl(JsonElement picture)
+    {
+        if (!picture.TryGetProperty("jpg", out var jpg) || jpg.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return jpg.TryGetProperty("large_image_url", out var url) && url.ValueKind == JsonValueKind.String
+            ? url.GetString()
+            : null;
     }
 
     public async Task<MalAnimeDetails?> GetSeriesDetailsAsync(int malId, CancellationToken cancellationToken)
