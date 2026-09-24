@@ -33,7 +33,7 @@ public sealed class AniListClient : IAniListApi
     {
         var variables = new { id = anilistId };
         var results = await ExecuteAsync(
-            "query ($id: Int) { Media(id: $id, type: ANIME) { " + MediaFields + " } }",
+            "query ($id: Int) { Media(id: $id, type: ANIME) { " + DetailsFields + " } }",
             variables,
             data => data.TryGetProperty("Media", out var media) && media.ValueKind == JsonValueKind.Object
                 ? new List<AniListMedia> { ParseMedia(media) }
@@ -43,15 +43,20 @@ public sealed class AniListClient : IAniListApi
         return results.FirstOrDefault();
     }
 
-    private const string MediaFields =
+    private const string SearchFields =
         "id idMal title { romaji english native } synonyms format episodes duration status "
         + "startDate { year month day } endDate { year month day } seasonYear averageScore meanScore "
         + "description(asHtml: false) coverImage { extraLarge large medium } bannerImage genres "
         + "countryOfOrigin studios(isMain: true) { nodes { name } }";
 
+    private const string DetailsFields =
+        SearchFields
+        + " characters(page: 1, perPage: 20, sort: [ROLE, RELEVANCE]) { edges { role node { name { full } image { large } } "
+        + "voiceActors(language: JAPANESE, sort: [RELEVANCE]) { name { full } image { large } } } }";
+
     private const string SearchQuery =
         "query ($term: String, $perPage: Int) { Page(page: 1, perPage: $perPage) { media(search: $term, type: ANIME, format_in: [TV, TV_SHORT]) { "
-        + MediaFields
+        + SearchFields
         + " } } }";
 
     private async Task<TResult> ExecuteAsync<TResult>(
@@ -141,8 +146,74 @@ public sealed class AniListClient : IAniListApi
             Genres = genres,
             CountryOfOrigin = GetString(element, "countryOfOrigin"),
             Studio = studio,
-            AlternativeTitles = alternativeTitles
+            AlternativeTitles = alternativeTitles,
+            Cast = GetCast(element)
         };
+    }
+
+    private List<AniListCast> GetCast(JsonElement element)
+    {
+        var result = new List<AniListCast>();
+        if (!element.TryGetProperty("characters", out var characters) || characters.ValueKind != JsonValueKind.Object)
+        {
+            return result;
+        }
+
+        if (!characters.TryGetProperty("edges", out var edges) || edges.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        foreach (var edge in edges.EnumerateArray())
+        {
+            if (edge.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var character = GetDeepString(edge, "node", "name", "full") ?? GetDeepString(edge, "node", "name");
+            if (character is null)
+            {
+                continue;
+            }
+
+            var voiceActor = GetNodes(edge, "voiceActors").FirstOrDefault();
+            var name = GetDeepString(voiceActor, "name", "full") ?? character;
+            var image = GetDeepString(voiceActor, "image", "large") ?? GetDeepString(edge, "node", "image", "large");
+
+            result.Add(new AniListCast
+            {
+                Name = name,
+                Character = character,
+                ImageUrl = image
+            });
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<JsonElement> GetNodes(JsonElement parent, string property)
+    {
+        if (parent.ValueKind != JsonValueKind.Object || !parent.TryGetProperty(property, out var nodes) || nodes.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<JsonElement>();
+        }
+
+        return nodes.EnumerateArray().ToList();
+    }
+
+    private static string? GetDeepString(JsonElement parent, params string[] path)
+    {
+        var current = parent;
+        foreach (var segment in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
+            {
+                return null;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
     }
 
     private static List<string> BuildAlternativeTitles(string? english, string? romaji, string? native, List<string> synonyms)

@@ -27,6 +27,7 @@ public sealed class MetadataRequestHandler
     private readonly IMetadataProvider? _activeProvider;
     private readonly TmdbMetadataProvider? _tmdbProvider;
     private readonly MalMetadataProvider? _malProvider;
+    private readonly AniListMetadataProvider? _aniListProvider;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
@@ -43,6 +44,7 @@ public sealed class MetadataRequestHandler
         IMetadataProvider? activeProvider,
         TmdbMetadataProvider? tmdbProvider,
         MalMetadataProvider? malProvider,
+        AniListMetadataProvider? aniListProvider,
         IServiceProvider serviceProvider,
         ILogger<MetadataRequestHandler> logger)
     {
@@ -58,6 +60,7 @@ public sealed class MetadataRequestHandler
         _activeProvider = activeProvider;
         _tmdbProvider = tmdbProvider;
         _malProvider = malProvider;
+        _aniListProvider = aniListProvider;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -69,6 +72,7 @@ public sealed class MetadataRequestHandler
         return source switch
         {
             MappingStore.SourceMal => _malProvider,
+            MappingStore.SourceAniList => _aniListProvider,
             MappingStore.SourceTmdb => _tmdbProvider,
             _ => _activeProvider
         };
@@ -234,6 +238,16 @@ public sealed class MetadataRequestHandler
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
+        catch (MalApiException ex)
+        {
+            _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AniListApiException ex)
+        {
+            _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
 
         if (results.Count == 0)
         {
@@ -343,6 +357,23 @@ public sealed class MetadataRequestHandler
         }
         
         return persisted ?? staticMap;
+    }
+
+    private int? GetAniListId(int tvdbId)
+    {
+        var persisted = _mapping.TryGetAniListIdByTvdb(tvdbId);
+        int? staticAniList = null;
+        if (_animeMap?.TryGetMalIdByTvdb(tvdbId) is { } staticMalId)
+        {
+            staticAniList = _animeMap.TryGetAniListId(staticMalId);
+        }
+
+        if (persisted.HasValue && staticAniList.HasValue)
+        {
+            return Math.Min(persisted.Value, staticAniList.Value);
+        }
+
+        return persisted ?? staticAniList;
     }
 
     private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)
@@ -523,6 +554,37 @@ public sealed class MetadataRequestHandler
             _logger.LogWarning("MAL override for TVDB id {TvdbId} but no MAL ID found or provider unavailable. Falling back.", tvdbId);
         }
 
+        if (sourceOverride == MappingStore.SourceAniList)
+        {
+            var anilistId = GetAniListId(tvdbId);
+            if (anilistId.HasValue && _aniListProvider is not null)
+            {
+                _logger.LogInformation("Source override ANILIST active for TVDB id {TvdbId}; using AniList provider with AniList id {AniListId}.", tvdbId, anilistId.Value);
+                try
+                {
+                    var metadata = await _aniListProvider.GetSeriesWithTvdbId(anilistId.Value.ToString(), tvdbId, cancellationToken).ConfigureAwait(false);
+                    var seasons = await _aniListProvider.GetSeasons(anilistId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                    // Register AniList ID and any static MAL ID
+                    var staticMalId = _animeMap?.TryGetMalIdByTvdb(tvdbId);
+                    _mapping.RegisterIds(tvdbId, malId: staticMalId, anilistId: anilistId.Value);
+
+                    _logger.LogInformation("TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via AniList.", show.TvdbId);
+                    return new ShowResolution.Mapped(show);
+                }
+                catch (AniListApiException ex)
+                {
+                    _logger.LogError(ex, "AniList API error for AniList ID {AniListId}.", anilistId.Value);
+                }
+                catch (MalApiException ex)
+                {
+                    _logger.LogError(ex, "MAL API error while fetching episodes for AniList ID {AniListId}.", anilistId.Value);
+                }
+            }
+            _logger.LogWarning("AniList override for TVDB id {TvdbId} but no AniList ID found or provider unavailable. Falling back.", tvdbId);
+        }
+
         int? tmdbId = null;
 
         if (SyntheticIds.IsSyntheticSeries(tvdbId))
@@ -568,7 +630,9 @@ public sealed class MetadataRequestHandler
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
-        var provider = GetProviderForSource(sourceOverride) ?? _activeProvider;
+        var provider = sourceOverride is MappingStore.SourceMal or MappingStore.SourceAniList && !SyntheticIds.IsSyntheticSeries(tvdbId)
+            ? _activeProvider
+            : GetProviderForSource(sourceOverride) ?? _activeProvider;
         if (provider is null || provider.Name == "tvdb")
         {
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
@@ -611,6 +675,11 @@ try
         catch (MalApiException ex)
         {
             _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", tmdbId.Value);
+            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AniListApiException ex)
+        {
+            _logger.LogError(ex, "AniList API error for AniList ID {AniListId}.", tmdbId.Value);
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
     }
