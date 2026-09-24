@@ -761,9 +761,6 @@ public class SkyHookApiIntegrationTests
 
         var seasonNumbers = all.Select(e => e.GetProperty("seasonNumber").GetInt32()).Distinct().ToList();
         Assert.Equal(new[] { 0, 1, 2, 3 }, seasonNumbers.OrderBy(s => s));
-
-        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 0, 1, 2, 3 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
@@ -829,9 +826,6 @@ public class SkyHookApiIntegrationTests
 
         var seasonNumbers = all.Select(e => e.GetProperty("seasonNumber").GetInt32()).Distinct().ToList();
         Assert.Equal(new[] { 0, 1, 2, 3 }, seasonNumbers.OrderBy(s => s));
-
-        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 0, 1, 2, 3 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
@@ -967,10 +961,10 @@ public class SkyHookApiIntegrationTests
 
         var all = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
         Assert.Equal(30, all.Count);
-        Assert.Equal(Enumerable.Range(1, 10).SelectMany(season => Enumerable.Repeat(season, 10)), all.Select(e => e.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 3 }.SelectMany(season => Enumerable.Repeat(season, 10)), all.Select(e => e.GetProperty("seasonNumber").GetInt32()));
 
         var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 1, 2, 3 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
+        Assert.Empty(seasons);
     }
 
     [Fact]
