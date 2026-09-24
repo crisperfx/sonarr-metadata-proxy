@@ -35,10 +35,11 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
  your browser                    Docker network
       │  http://<ip>:8989                │
       ▼                                  ▼
- ┌───────────┐  metadata request   ┌────────────────┐   TMDB/AniList data   ┌──────┐
- │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ────────────────────▶ │ TMDB │
- │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀───────────────────── │ AniList│
- └───────────┘                      │   9697)       │                       └──────┘
+ ┌───────────┐  metadata request   ┌────────────────┐   TMDB/AniList/MAL  ┌────────┐
+ │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ───────────────────▶ │ TMDB   │
+ │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀──────────────────── │ AniList│
+ └───────────┘                      │   9697)       │                      │ MAL    │
+      ▲                             └────────────────┘                      └────────┘
       ▲                             └────────────────┘
       │ picker dropdown (overrides)
       └────────────────── /api/overrides
@@ -71,7 +72,7 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 
 | Provider | Search behaviour | No results → fallback | Details / episodes |
 |---|---|---|---|
-| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb` or `tvdb`). If `tmdb`: TMDB search → TVDB on empty. | → TVDB | TMDB primary, TVDB fallback on mapping failure |
+| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb`, `tvdb`, `anilist`, or `mal`). | → TVDB | TMDB primary, TVDB fallback on mapping failure |
 | **TMDB only** | `tmdb:` prefix; searches TMDB, maps to TVDB via internal map | → TVDB | TMDB primary, TVDB fallback |
 | **TVDB (SkyHook)** | `tvdb:` prefix; direct SkyHook passthrough | *(none — source is TVDB)* | Real TVDB |
 | **AniList** | Searches AniList (format TV / TV_SHORT only), maps via bundled Fribb + Anime-Lists datasets to TVDB; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary (via synthetic ID → TMDB), TVDB fallback |
@@ -124,8 +125,8 @@ docker compose up -d
 **Step 4 — use it**
 
 - Open Sonarr at `http://<your-ip>:8989` → **Add Series** → search → metadata from TMDB.
-- Go to a series page → **Metadata source** dropdown → specify **TMDB** or **TVDB**
-  per series → **Refresh & Scan**.
+- Go to a series page → **Metadata source** dropdown → specify **TMDB**, **TVDB**,
+  **AniList**, or **MAL** per series → **Refresh & Scan**.
 
 The complete stack (this is the whole `docker-compose.yml`):
 
@@ -135,8 +136,7 @@ The complete stack (this is the whole `docker-compose.yml`):
 # This wires an UNMODIFIED stock Sonarr to the proxy:
 #   - the proxy answers skyhook.sonarr.tv (network alias) and serves TMDB metadata,
 #   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
-#   - the CA install hook makes Sonarr trust the proxy's TLS certificate,
-#   - the override-UI hook injects the per-series TMDB/TVDB picker into Sonarr's web UI
+#   - the override-UI hook injects the per-series TMDB/TVDB/AniList/MAL picker into Sonarr's web UI
 #     plus a "Search via" provider picker (TMDB / TVDB / AniList / MAL) into the add-series search.
 #
 # Usage:
@@ -407,8 +407,8 @@ The series will then fall back to the default source (TMDB via synthetic ID deco
 
 When adding a series, the search box gets a **Search via** dropdown:
 
-- **Automatic** — uses the default source from `METADATA_SOURCE` (TMDB or TVDB).
-  TMDB searches fall back to TVDB on empty results; TVDB is direct.
+- **Automatic** — uses the default source from `METADATA_SOURCE`
+  (`tmdb`, `tvdb`, `anilist`, or `mal`). Searches fall back to TVDB on empty results; TVDB is direct.
 - **TMDB only** — prefixes your query with `tmdb:` so the proxy searches TMDB and
   falls back to TVDB on empty results (e.g. to force a TMDB id, type `tmdb:1396`).
 - **TVDB (SkyHook)** — prefixes with `tvdb:`, forcing the TVDB listing
