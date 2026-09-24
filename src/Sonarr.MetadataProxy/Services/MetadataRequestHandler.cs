@@ -476,6 +476,28 @@ public sealed class MetadataRequestHandler
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
+        if (sourceOverride == MappingStore.SourceMal)
+        {
+            var malId = GetMalId(tvdbId);
+            if (malId.HasValue && _malProvider is not null)
+            {
+                _logger.LogInformation("Source override MAL active for TVDB id {TvdbId}; using MAL provider with MAL id {MalId}.", tvdbId, malId.Value);
+                try
+                {
+                    var metadata = await _malProvider.GetSeries(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var seasons = await _malProvider.GetSeasons(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+                    _logger.LogInformation("TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via MAL.", show.TvdbId);
+                    return new ShowResolution.Mapped(show);
+                }
+                catch (MalApiException ex)
+                {
+                    _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", malId.Value);
+                }
+            }
+            _logger.LogWarning("MAL override for TVDB id {TvdbId} but no MAL ID found or provider unavailable. Falling back.", tvdbId);
+        }
+
         int? tmdbId = null;
 
         if (SyntheticIds.IsSyntheticSeries(tvdbId))

@@ -162,10 +162,14 @@ public sealed class SkyHookTranslator
             return;
         }
 
+        var url = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? path
+            : $"https://image.tmdb.org/t/p/w{width}{path}";
+
         images.Add(new ImageResource
         {
             CoverType = coverType,
-            Url = $"https://image.tmdb.org/t/p/w{width}{path}"
+            Url = url
         });
     }
 

@@ -96,7 +96,7 @@ public sealed class AniListTvdbMap
 
         var anidbToMal = _malToAnidb
             .GroupBy(kvp => kvp.Value)
-            .ToDictionary(g => g.Key, g => g.First().Key);
+            .ToDictionary(g => g.Key, g => g.Min(kvp => kvp.Key));
         foreach (var (anidbId, tvdbId) in _anidbToTvdb)
         {
             if (anidbToMal.TryGetValue(anidbId, out var malId))
