@@ -4,7 +4,7 @@ A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, 
 
 # Screenshots interface
 
-| **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Choice 3**<br>Description |
+| **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Overview**<br>Single and add/new search |
 |:---:|:---:|:---:|
 | <img width="100%" src="https://github.com/user-attachments/assets/a236e426-c8fb-497f-a75a-6cdda9199a1f" /> | <img width="100%" src="https://github.com/user-attachments/assets/1df71bbe-4e2e-41f8-a69b-390eefb116a0" /> | <img width="100%" src="https://github.com/user-attachments/assets/4db02036-5d82-4b79-8475-c22b4ac1d979" /> |
 
