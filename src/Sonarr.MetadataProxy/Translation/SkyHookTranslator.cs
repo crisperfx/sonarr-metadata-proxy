@@ -40,41 +40,58 @@ public sealed class SkyHookTranslator
 
 private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
     {
-        // If caller provided explicit TVDB ID (e.g. from override), use it directly
-        var effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId ?? 0;
-        
-        // Parse TMDB ID from ProviderId only if it looks like a TMDB ID (ExternalIds.TvdbId not set)
-        var tmdbId = metadata.ExternalIds.TvdbId.HasValue ? 0 : 
-            (int.TryParse(metadata.ProviderId, out var parsed) ? parsed : 0);
+        // Priority for TVDB ID:
+        // 1. overrideTvdbId (from per-series override)
+        // 2. metadata.ExternalIds.TvdbId (from TMDB external_ids)
+        // 3. Synthetic ID from TMDB ID (from ProviderId or ExternalIds.TmdbId)
+        // 4. 0 (fallback)
 
-        if (metadata.ExternalIds.TvdbId.HasValue)
+        int? effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId;
+
+        // Determine TMDB ID for synthetic ID generation
+        int? tmdbId = metadata.ExternalIds.TmdbId;
+        if (!tmdbId.HasValue && int.TryParse(metadata.ProviderId, out var parsedProviderId))
         {
-            _mapping.RegisterSeries(metadata.ExternalIds.TvdbId.Value, tmdbId);
+            tmdbId = parsedProviderId;
+        }
+
+        // If no TVDB ID yet, synthesize from TMDB ID
+        if (!effectiveTvdbId.HasValue && tmdbId.HasValue)
+        {
+            effectiveTvdbId = SyntheticIds.SeriesId(tmdbId.Value);
+        }
+
+        var finalTvdbId = effectiveTvdbId ?? 0;
+
+        // Register mapping if we have both TVDB and TMDB
+        if (metadata.ExternalIds.TvdbId.HasValue && tmdbId.HasValue)
+        {
+            _mapping.RegisterSeries(metadata.ExternalIds.TvdbId.Value, tmdbId.Value);
             _logger.LogInformation("TVDB mapping found for TMDB {TmdbId}: TVDB {TvdbId}.", tmdbId, metadata.ExternalIds.TvdbId.Value);
         }
-        else if (effectiveTvdbId > 0)
+        else if (finalTvdbId > 0 && tmdbId.HasValue && !metadata.ExternalIds.TvdbId.HasValue)
         {
             _logger.LogInformation(
-                "No TVDB mapping exists for TMDB {TmdbId}. Using TVDB id {TvdbId} from override/external IDs.",
+                "No TVDB mapping exists for TMDB {TmdbId}. Using synthetic TVDB id {TvdbId}.",
                 tmdbId,
-                effectiveTvdbId);
+                finalTvdbId);
         }
-        else
+        else if (finalTvdbId == 0)
         {
             _logger.LogWarning("No TVDB ID available for series {Title}.", metadata.Title);
         }
 
         var show = new ShowResource
         {
-            TvdbId = effectiveTvdbId,
+            TvdbId = finalTvdbId,
             Title = metadata.Title,
             Overview = metadata.Overview,
-            Slug = Slugify(metadata.Title, effectiveTvdbId),
+            Slug = Slugify(metadata.Title, finalTvdbId),
             OriginalCountry = metadata.OriginalCountryCode,
             OriginalLanguage = metadata.OriginalLanguageCode,
             FirstAired = metadata.FirstAirDate,
             LastAired = metadata.LastAirDate,
-            TmdbId = tmdbId > 0 ? tmdbId : null,
+            TmdbId = tmdbId,
             ImdbId = metadata.ExternalIds.ImdbId,
             Status = metadata.Status,
             Runtime = metadata.RuntimeMinutes,
