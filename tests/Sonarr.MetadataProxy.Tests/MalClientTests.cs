@@ -138,6 +138,37 @@ public class MalClientTests
         Assert.Empty(results);
     }
 
+    [Fact]
+    public async Task GetEpisodesAsync_ParsesMalIdAndAired()
+    {
+        var json = """
+        {
+          "data": [
+            {
+              "mal_id": 62,
+              "title": "The First Line of Defense?",
+              "aired": "2001-03-21T01:00:00+01:00",
+              "duration": 1477,
+              "score": 4.17,
+              "synopsis": "As the Straw Hats ride down Reverse Mountain..."
+            }
+          ]
+        }
+        """;
+
+        var client = new MalClient(
+            new HttpClient(new StubHandler(json)),
+            NullLogger<MalClient>.Instance,
+            new NoopRateLimiter());
+
+        var episodes = await client.GetEpisodesAsync(21, CancellationToken.None);
+
+        var first = Assert.Single(episodes);
+        Assert.Equal(62, first.Number);
+        Assert.Equal(62, first.AbsoluteNumber);
+        Assert.Equal("2001-03-21", first.AirDate);
+    }
+
     private const string JikanSearchResponse = """
     {
       "data": [

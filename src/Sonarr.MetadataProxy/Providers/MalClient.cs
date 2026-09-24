@@ -299,6 +299,16 @@ public sealed class MalClient : IMalApi
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
+    private static string? GetDatePart(string? dateTime)
+    {
+        if (string.IsNullOrWhiteSpace(dateTime) || dateTime.Length < 10)
+        {
+            return null;
+        }
+
+        return dateTime[..10];
+    }
+
     private static List<string> GetStringList(JsonElement element, string property)
     {
         var result = new List<string>();
@@ -403,11 +413,11 @@ public sealed class MalClient : IMalApi
     {
         return new MalEpisode
         {
-            Number = GetNullableInt(element, "number") ?? GetNullableInt(element, "episode_number") ?? 0,
-            AbsoluteNumber = GetNullableInt(element, "absolute_number"),
+            Number = GetNullableInt(element, "mal_id") ?? GetNullableInt(element, "number") ?? GetNullableInt(element, "episode_number") ?? 0,
+            AbsoluteNumber = GetNullableInt(element, "mal_id") ?? GetNullableInt(element, "absolute_number"),
             Title = GetString(element, "title"),
             Overview = GetString(element, "overview") ?? GetString(element, "synopsis"),
-            AirDate = GetString(element, "air_date"),
+            AirDate = GetDatePart(GetString(element, "aired") ?? GetString(element, "air_date")),
             RuntimeMinutes = GetNullableInt(element, "duration") ?? GetNullableInt(element, "runtime"),
             StillUrl = GetString(element, "still_url") ?? GetPosterUrl(element),
             Score = GetNullableDouble(element, "score"),
