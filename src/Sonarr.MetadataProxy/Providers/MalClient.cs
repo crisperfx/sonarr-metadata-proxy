@@ -77,9 +77,39 @@ public sealed class MalClient : IMalApi
 
     public async Task<IReadOnlyList<MalEpisode>> GetEpisodesAsync(int malId, CancellationToken cancellationToken)
     {
-        return await ExecuteAsync<IReadOnlyList<MalEpisode>>(
-            $"{Endpoint}/anime/{malId}/episodes",
-            data => data.ValueKind == JsonValueKind.Array ? data.EnumerateArray().Select(ParseEpisode).ToList() : new List<MalEpisode>(),
+        var episodes = new List<MalEpisode>();
+        var page = 1;
+        while (true)
+        {
+            var (batch, lastPage) = await FetchEpisodesPageAsync(malId, page, cancellationToken).ConfigureAwait(false);
+            episodes.AddRange(batch);
+
+            if (page >= lastPage)
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        return episodes;
+    }
+
+    private async Task<(IReadOnlyList<MalEpisode> Episodes, int LastPage)> FetchEpisodesPageAsync(
+        int malId, int page, CancellationToken cancellationToken)
+    {
+        return await ExecuteWithMetaAsync<(List<MalEpisode>, int)>(
+            $"{Endpoint}/anime/{malId}/episodes?page={page}",
+            document =>
+            {
+                var batch = document.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+                    ? data.EnumerateArray().Select(ParseEpisode).ToList()
+                    : new List<MalEpisode>();
+                var lastPage = (document.TryGetProperty("pagination", out var pagination) && pagination.TryGetProperty("last_visible_page", out var last) && last.ValueKind == JsonValueKind.Number)
+                    ? last.GetInt32()
+                    : page;
+                return (batch, lastPage);
+            },
             cancellationToken,
             allowNotFound: true).ConfigureAwait(false);
     }
@@ -89,6 +119,28 @@ public sealed class MalClient : IMalApi
         Func<JsonElement, T> extract,
         CancellationToken cancellationToken,
         bool allowNotFound = false)
+    {
+        return (await ExecuteCoreAsync(
+            url,
+            document => extract(document.TryGetProperty("data", out var data) ? data : default),
+            cancellationToken,
+            allowNotFound).ConfigureAwait(false)).Result;
+    }
+
+    private async Task<T> ExecuteWithMetaAsync<T>(
+        string url,
+        Func<JsonDocument, T> extract,
+        CancellationToken cancellationToken,
+        bool allowNotFound = false)
+    {
+        return (await ExecuteCoreAsync(url, extract, cancellationToken, allowNotFound).ConfigureAwait(false)).Result;
+    }
+
+    private async Task<(T Result, JsonElement Data)> ExecuteCoreAsync<T>(
+        string url,
+        Func<JsonDocument, T> extract,
+        CancellationToken cancellationToken,
+        bool allowNotFound)
     {
         await _rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -109,7 +161,7 @@ public sealed class MalClient : IMalApi
                 if (response.StatusCode == HttpStatusCode.NotFound && allowNotFound)
                 {
                     _logger.LogInformation("MAL (Tenrai) reported not found for '{Url}'.", url);
-                    return default!;
+                    return (default!, default);
                 }
 
                 if (!response.IsSuccessStatusCode)
@@ -131,7 +183,9 @@ public sealed class MalClient : IMalApi
                 }
 
                 using var document = JsonDocument.Parse(body);
-                return document.RootElement.TryGetProperty("data", out var data) ? extract(data) : default!;
+                var result = extract(document);
+                var data = document.TryGetProperty("data", out var dataElement) ? dataElement.Clone() : default;
+                return (result, data);
             }
             catch (MalApiException)
             {

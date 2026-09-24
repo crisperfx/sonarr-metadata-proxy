@@ -84,47 +84,27 @@ public sealed class MalMetadataProvider : IMetadataProvider
         var episodes = await _api.GetEpisodesAsync(malId, cancellationToken).ConfigureAwait(false);
 
         // Log episode structure for debugging
-        _logger.LogInformation("MAL {MalId} episodes: count={Count}, sample Number={Num}, AbsoluteNumber={AbsNum}", 
-            malId, episodes.Count, 
-            episodes.FirstOrDefault()?.Number, 
+        _logger.LogInformation("MAL {MalId} episodes: count={Count}, sample Number={Num}, AbsoluteNumber={AbsNum}",
+            malId, episodes.Count,
+            episodes.FirstOrDefault()?.Number,
             episodes.FirstOrDefault()?.AbsoluteNumber);
 
-        // Check if episodes have season numbers or only absolute numbers
-        var hasSeasonNumbers = episodes.Any(e => e.Number > 0);
-        
-        List<SeasonMetadata> seasons;
-        if (hasSeasonNumbers)
-        {
-            // Traditional season structure
-            seasons = episodes
-                .Where(e => e.Number > 0)
-                .GroupBy(e => e.Number)
-                .Select(g => new SeasonMetadata
-                {
-                    SeasonNumber = g.Key,
-                    Episodes = g.Select(MapEpisode).ToList()
-                })
-                .OrderBy(s => s.SeasonNumber)
-                .ToList();
-        }
-        else
-        {
-            // Long-running anime (One Piece, etc.) - all episodes in season 1 with absolute numbers
-            var allEpisodes = episodes
-                .Where(e => e.AbsoluteNumber.HasValue || e.Number > 0)
-                .OrderBy(e => e.AbsoluteNumber ?? e.Number)
-                .Select((e, idx) => MapEpisodeWithAdjustedNumbers(e, idx + 1))
-                .ToList();
+        // MAL has no seasons - episodes are continuous (absolute numbers).
+        // All episodes go into season 1 with adjusted sequential numbers.
+        var allEpisodes = episodes
+            .Where(e => e.AbsoluteNumber.HasValue || e.Number > 0)
+            .OrderBy(e => e.AbsoluteNumber ?? e.Number)
+            .Select((e, idx) => MapEpisodeWithAdjustedNumbers(e, idx + 1))
+            .ToList();
 
-            seasons = new List<SeasonMetadata>
+        var seasons = new List<SeasonMetadata>
+        {
+            new SeasonMetadata
             {
-                new SeasonMetadata
-                {
-                    SeasonNumber = 1,
-                    Episodes = allEpisodes
-                }
-            };
-        }
+                SeasonNumber = 1,
+                Episodes = allEpisodes
+            }
+        };
 
         _logger.LogInformation("MAL {MalId} seasons: {SeasonCount}", malId, seasons.Count);
         return seasons;
