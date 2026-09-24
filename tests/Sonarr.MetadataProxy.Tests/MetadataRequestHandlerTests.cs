@@ -519,6 +519,8 @@ public class MetadataRequestHandlerTests
             null,
             activeProvider,
             tmdbProvider,
+            null,
+            TestServiceProvider,
             NullLogger<MetadataRequestHandler>.Instance);
 
         return (handler, mapping);
