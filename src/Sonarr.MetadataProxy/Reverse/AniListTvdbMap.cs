@@ -101,7 +101,14 @@ public sealed class AniListTvdbMap
         {
             if (anidbToMal.TryGetValue(anidbId, out var malId))
             {
-                _tvdbToMal[tvdbId] = malId;
+                if (_tvdbToMal.TryGetValue(tvdbId, out var existingMalId))
+                {
+                    _tvdbToMal[tvdbId] = Math.Min(existingMalId, malId);
+                }
+                else
+                {
+                    _tvdbToMal[tvdbId] = malId;
+                }
             }
         }
 
