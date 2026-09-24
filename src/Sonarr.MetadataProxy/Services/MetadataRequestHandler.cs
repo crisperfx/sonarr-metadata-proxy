@@ -435,19 +435,11 @@ public sealed class MetadataRequestHandler
     private ShowResolution FlattenIfAnimeBound(int tvdbId, ShowResolution resolution)
     {
         var sourceOverride = _mapping.GetOverride(tvdbId);
-        
-        // TVDB override explicitly disables flattening - use real TVDB seasons
-        if (sourceOverride == MappingStore.SourceTvdb)
-        {
-            return resolution;
-        }
+        var effectiveSource = string.IsNullOrWhiteSpace(sourceOverride) ? _options.MetadataSource : sourceOverride;
 
-        var isAnimeBound = _mapping.TryGetAniListIdByTvdb(tvdbId) is not null ||
-                           _mapping.TryGetMalIdByTvdb(tvdbId) is not null ||
-                           _animeMap?.TryGetMalIdByTvdb(tvdbId) is not null ||
-                           sourceOverride is MappingStore.SourceAniList or MappingStore.SourceMal;
-
-        if (!isAnimeBound)
+        // Only MAL/AniList serve flattened output (no seasons). TVDB and TMDB always
+        // keep their real seasons (numbered or named): never flatten those.
+        if (effectiveSource is not (MappingStore.SourceMal or MappingStore.SourceAniList))
         {
             return resolution;
         }

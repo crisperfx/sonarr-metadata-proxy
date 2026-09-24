@@ -635,7 +635,7 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_AniListBoundSeries_FlattensMappedSeasonsIntoOne()
+    public async Task Show_AniListBoundSeries_WithoutOverride_KeepsMappedSeasons()
     {
         WriteAniListFixtures();
         var aniList = new FakeAniListApi
@@ -664,12 +664,10 @@ public class SkyHookApiIntegrationTests
 
         var episodes = document.RootElement.GetProperty("episodes").EnumerateArray().ToList();
         Assert.Equal(3, episodes.Count);
-        Assert.All(episodes, episode => Assert.Equal(1, episode.GetProperty("seasonNumber").GetInt32()));
-        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("episodeNumber").GetInt32()));
-        Assert.Equal(new[] { 1, 2, 3 }, episodes.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 1, 2 }, episodes.Select(e => e.GetProperty("seasonNumber").GetInt32()));
 
         var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 1 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2 }, seasons.Select(season => season.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
@@ -701,7 +699,7 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_AniListBoundSeries_FlattensPassthroughEpisodesIntoOne()
+    public async Task Show_AniListBoundSeries_WithoutOverride_KeepsPassthroughSeasons()
     {
         WriteAniListFixtures();
         var aniList = new FakeAniListApi
@@ -761,17 +759,15 @@ public class SkyHookApiIntegrationTests
         Assert.Equal(regularCount + 1, all.Count);
         Assert.Equal(0, all[0].GetProperty("seasonNumber").GetInt32());
 
-        var flattened = all.Skip(1).ToList();
-        Assert.All(flattened, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("episodeNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+        var seasonNumbers = all.Select(e => e.GetProperty("seasonNumber").GetInt32()).Distinct().ToList();
+        Assert.Equal(new[] { 0, 1, 2, 3 }, seasonNumbers.OrderBy(s => s));
 
         var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
-        Assert.Equal(new[] { 0, 1 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
+        Assert.Equal(new[] { 0, 1, 2, 3 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
-    public async Task Show_MalBoundSeries_FlattensPassthroughEpisodesIntoOne()
+    public async Task Show_MalBoundSeries_WithoutOverride_KeepsPassthroughSeasons()
     {
         WriteAniListFixtures();
         var mal = new FakeMalApi
@@ -831,10 +827,11 @@ public class SkyHookApiIntegrationTests
         Assert.Equal(regularCount + 1, all.Count);
         Assert.Equal(0, all[0].GetProperty("seasonNumber").GetInt32());
 
-        var flattened = all.Skip(1).ToList();
-        Assert.All(flattened, e => Assert.Equal(1, e.GetProperty("seasonNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("episodeNumber").GetInt32()));
-        Assert.Equal(Enumerable.Range(1, regularCount), flattened.Select(e => e.GetProperty("absoluteEpisodeNumber").GetInt32()));
+        var seasonNumbers = all.Select(e => e.GetProperty("seasonNumber").GetInt32()).Distinct().ToList();
+        Assert.Equal(new[] { 0, 1, 2, 3 }, seasonNumbers.OrderBy(s => s));
+
+        var seasons = document.RootElement.GetProperty("seasons").EnumerateArray().ToList();
+        Assert.Equal(new[] { 0, 1, 2, 3 }, seasons.Select(s => s.GetProperty("seasonNumber").GetInt32()));
     }
 
     [Fact]
