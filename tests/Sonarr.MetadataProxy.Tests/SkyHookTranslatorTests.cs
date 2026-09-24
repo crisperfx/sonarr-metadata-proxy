@@ -90,7 +90,9 @@ public class SkyHookTranslatorTests : IDisposable
         Assert.Equal(2, show.Images.Count);
         Assert.Equal("poster", show.Images[0].CoverType);
         Assert.Equal("fanart", show.Images[1].CoverType);
-        Assert.Equal(show.Images[0].Url, show.Images[1].Url);
+        Assert.Contains("/t/p/w1280/", show.Images[1].Url);
+        var posterFile = show.Images[0].Url!.Substring(show.Images[0].Url!.LastIndexOf("/", StringComparison.Ordinal));
+        Assert.EndsWith(posterFile, show.Images[1].Url!);
         Assert.Equal(2, show.Seasons.Count);
         Assert.Equal("TV-MA", show.ContentRating);
         Assert.NotNull(show.Slug);
