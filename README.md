@@ -68,13 +68,13 @@ That's it.
 | Variable | Default | What it does |
 |---|---|---|
 | `METADATA_SOURCE` | `tmdb` | Default search/detail source: `tmdb`, `tvdb`, `anilist`, or `mal`. |
-| `TMDB_API_KEY` | — | **Required.** Your TMDB v3 API key. |
+| `TMDB_API_KEY` | — | **Required when TMDB is used.** Your TMDB v3 API key. |
 | `TMDB_API_TOKEN` | — | TMDB v4 bearer token (alternative to the key; wins if both set). |
 | `TMDB_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to real TVDB when the chosen source fails. |
 | `PORT` | `9697` | Management/health port. SkyHook/TLS is always on 443. |
 | `SKIP_TLS` | `false` | `true` = disable TLS/443 (dev only, won't work with Sonarr). |
-| `CORS_ALLOWED_ORIGINS` | — | Browser origins allowed to call the overrides API (needed for the dropdown). Multiple with commas, `*` = all. |
+| `CORS_ALLOWED_ORIGINS` | — | Browser origins allowed to call the overrides API (needed for the dropdown). Multiple with commas, `*` = all (e.g. `https://sonarr.example.com,http://192.168.0.143`). |
 | `OVERRIDES_API_URL` | — | Set on **Sonarr** container when behind a reverse proxy (e.g. `https://proxy.example.com`). |
 | `DATA_DIR` | `/app/data` | Persistent data: `mappings/` (series map + overrides), `certs/` (CA), `init/` (seed files). |
 | `ANILIST_DATAMAP_DIR` | `/app/datamaps` | Folder with AniList↔AniDB↔TVDB datasets (baked into the image). |
@@ -83,30 +83,30 @@ Set these in `.env`, or as environment variables on the container / in your own 
 
 ---
 
-## Option B — Docker UI (Portainer / Synology / Dockhand)
+## Docker UI (Portainer / Synology / Dockhand)
 
 Prefer clicking? Same result, no repo needed — defaults are baked into the image.
 
-**Step 0 — One-time setup**
+**Step 1 — One-time setup**
 - Get a TMDB API key: <https://www.themoviedb.org/settings/api>
-- Create a data folder, e.g. `/volume3/docker/config/sonarr-metadata-proxy`
+- Create a data folder, e.g. `/volume9/docker/config/sonarr-metadata-proxy`
 
-**Step 1 — Create the proxy container, start it blank first**
+**Step 2 — Create the proxy container, start it blank first**
 - Image: `crisperfx/sonarr-metadata-proxy:latest`
 - Start **completely blank** and wait until UP. On first start it writes the CA + injection files into your data folder.
 
-**Step 2 — Stop, then fill in these settings**
+**Step 3 — Stop the proxy container, then fill in these settings**
 
 | Setting | Value |
 |---|---|
-| Name | `sonarr-metadata-proxy` |
-| Port mapping (optional) | `9697:9697` — only if you need `/info` outside Docker |
+| Name | `sonarr-metadata-proxy (or your choice)` |
+| Port mapping | `9697:9697` — only if you need `/info` outside Docker |
 | Environment | `TMDB_API_KEY` = `<your key>` |
 | Environment | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` (for the dropdown) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
 | Extra capability | `NET_BIND_SERVICE` — required to bind port 443 |
 
-Restart. The folder now contains `01-install-ca.sh`, `50-sonarr-override-ui.sh`, `metadata-proxy-override.js`, `certs/ca.crt`.
+Restart. The created data folder (step 1)  now contains `01-install-ca.sh`, `50-sonarr-override-ui.sh`, `metadata-proxy-override.js`, `certs/ca.crt`.
 
 **Step 3 — Configure Sonarr (new or existing)**
 
@@ -133,13 +133,6 @@ New: use `lscr.io/linuxserver/sonarr:latest`. Existing: add these mounts + env:
 
 ---
 
-## Option C — You already run Sonarr
-
-You don't need the compose's Sonarr. Just add to your existing Sonarr:
-1. The CA as `/shared/certs`
-2. The two `init/*.sh` mounts into `/custom-cont-init.d/`
-3. The `skyhook.sonarr.tv` alias or hosts entry
-
 **How to share the CA** depends on your proxy's data storage:
 
 | Proxy setup | Mount on Sonarr |
@@ -163,8 +156,8 @@ volumes:
 If Sonarr is `https://sonarr.example.com`, the picker defaults to `http://<proxy>:9697` (blocked as mixed content).
 
 1. Add a reverse proxy rule: `https://proxy.example.com` → `http://<proxy-ip>:9697` (different subdomain).
-2. Set on **Sonarr**: `OVERRIDES_API_URL=https://proxy.example.com`
-3. Set on **proxy**: `CORS_ALLOWED_ORIGINS=https://sonarr.example.com`
+2. Set on **Sonarr-container**: `OVERRIDES_API_URL=https://proxy.example.com`
+3. Set on **proxy-container**: `CORS_ALLOWED_ORIGINS=https://sonarr.example.com`
 4. Test: series page → dropdown → **TMDB** → **Refresh & Scan**
 
 ---
@@ -233,7 +226,7 @@ git tag v1.1.4 && git push origin v1.1.4   # CI: tests + publish :1.1.4 and :lat
 | `main` | `:latest` |
 | `vX.Y.Z` | `:X.Y.Z` (e.g. `v1.1.4` → `1.1.4`) |
 
-Local test: `dotnet test` or `docker compose build sonarr-metadata-proxy`., OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
+Test and info: `dotnet test` or `docker compose build sonarr-metadata-proxy`., OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
 - MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.
