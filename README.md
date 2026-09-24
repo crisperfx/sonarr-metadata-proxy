@@ -112,7 +112,7 @@ Prefer clicking? Same result, no repo needed — defaults are baked into the ima
 
 Restart. The created data folder (step 1)  now contains `01-install-ca.sh`, `50-sonarr-override-ui.sh`, `metadata-proxy-override.js`, `certs/ca.crt`.
 
-**Step 3 — Configure Sonarr (new or existing)**
+**Step 4 — Configure Sonarr (new or existing)**
 
 New: use `lscr.io/linuxserver/sonarr:latest`. Existing: add these mounts + env:
 
@@ -125,12 +125,12 @@ New: use `lscr.io/linuxserver/sonarr:latest`. Existing: add these mounts + env:
 
 **Network & DNS**: Sonarr must resolve `skyhook.sonarr.tv` to the proxy (port 443). Put both on the same Docker network and add a hosts entry in Sonarr: `skyhook.sonarr.tv` → proxy container IP.
 
-**Step 4 — Restart both (order matters!)**
+**Step 5 — Restart both (order matters!)**
 1. Proxy → wait until fully UP
 2. Sonarr → installs CA + patches UI (log: `index.html patched...`)
 3. **Restart Sonarr once more** — the patched UI is now active in the browser.
 
-**Step 5 — Test**
+**Step 6 — Test**
 - Sonarr log: `Installing proxied CA for skyhook.sonarr.tv` and `index.html patched with override UI script`
 - Open Sonarr → **Add Series** → search → results from TMDB
 - Series page → **Metadata source** → **TMDB** → **Refresh & Scan**
