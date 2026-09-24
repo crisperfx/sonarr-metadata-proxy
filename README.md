@@ -56,8 +56,10 @@ That's it.
 
 | Dropdown | Choices | What it means | Screenshots |
 |---|---|---|---|
-| **Metadata source** (per series) | Automatic / TMDB / TVDB / AniList / MAL | Where to get this series' details & episodes. *Automatic* uses your global default (`METADATA_SOURCE`). |  |
-| **Search via** (when adding a series) | Automatic / TMDB / TVDB / AniList / MAL | Which provider to search. *Automatic* uses the global default. **Your choice persists** — next time you open Add Series it remembers the last selected provider until you change it. |  |
+| **Metadata source** (per series) | Automatic / TMDB / TVDB / AniList / MAL | Where to get this series' details & episodes. *Automatic* uses your global default (`METADATA_SOURCE`). | <img width="355" height="486" alt="image" src="https://github.com/user-attachments/assets/6dd6c1b3-8dbc-45b1-8263-351f5e308263" />
+ |
+| **Search via** (when adding a series) | Automatic / TMDB / TVDB / AniList / MAL | Which provider to search. *Automatic* uses the global default. **Your choice persists** — next time you open Add Series it remembers the last selected provider until you change it. | <img width="356" height="486" alt="image" src="https://github.com/user-attachments/assets/0ed0b0a0-96cd-484e-9ab1-51616186b690" />
+ |
 
 **AniList & MAL** are optimized for anime:
 - Episodes come back as a single continuous season (since AniList/MAL don't have per-season data).
