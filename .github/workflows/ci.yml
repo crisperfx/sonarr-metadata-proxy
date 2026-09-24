@@ -4,6 +4,10 @@ on:
   push:
     branches: [main, develop]
     tags: ['v*']
+    paths-ignore:
+      - 'README.md'
+      - '.env.example'
+      - 'docs/**'
   pull_request:
 
 jobs:
