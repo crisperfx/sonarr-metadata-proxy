@@ -113,7 +113,16 @@ public sealed class MalSearchService
                 _logger.LogInformation("TVDB mapping found for MAL {MalId}: TVDB {TvdbId}.", item.Id, tvdbId);
             }
 
+            // Register MAL ID + TVDB reverse mapping
             _mapping.RegisterMalId(tvdbId, item.Id);
+            
+            // If we can find AniList ID via static mapping, register it too
+            var anilistId = _map.TryGetAniListId(item.Id);
+            if (anilistId is > 0)
+            {
+                _mapping.RegisterIds(tvdbId, malId: item.Id, anilistId: anilistId.Value);
+            }
+
             var show = _translator.ToSearchResult(item, tvdbId);
             if (!hasRealTvdbMapping)
             {

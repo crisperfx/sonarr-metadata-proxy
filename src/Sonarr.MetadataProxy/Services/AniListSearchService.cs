@@ -122,7 +122,6 @@ public sealed class AniListSearchService
             {
                 tvdbId = SyntheticIds.SeriesId(item.Id);
                 _logger.LogInformation("No TVDB mapping for AniList {Id} ('{Title}'); using synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId);
-                _mapping.RegisterAniListId(tvdbId, item.Id);
             }
             else
             {
@@ -130,11 +129,21 @@ public sealed class AniListSearchService
                 _logger.LogInformation("TVDB mapping found for AniList {AniListId}: TVDB {TvdbId}.", item.Id, tvdbId);
             }
 
+            // Register AniList ID + TVDB reverse mapping
+            _mapping.RegisterAniListId(tvdbId, item.Id);
+            _mapping.RegisterIds(tvdbId, anilistId: item.Id);
+
+            // If we can find MAL ID via static mapping, register it too
+            var malId = _map.TryGetMalIdByTvdb(tvdbId);
+            if (malId is > 0)
+            {
+                _mapping.RegisterIds(tvdbId, malId: malId.Value, anilistId: item.Id);
+            }
+
             if (!hasRealTvdbMapping)
             {
                 _logger.LogInformation("Including AniList {AniListId} ('{Title}') with synthetic TVDB id {SyntheticTvdbId}.", item.Id, TitleOf(item), tvdbId);
             }
-            _mapping.RegisterAniListId(tvdbId, item.Id);
             var show = _translator.ToSearchResult(item, tvdbId);
             if (!hasRealTvdbMapping)
             {

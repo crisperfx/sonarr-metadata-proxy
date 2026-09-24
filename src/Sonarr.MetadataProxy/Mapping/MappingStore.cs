@@ -15,6 +15,8 @@ public sealed class MappingStore
     private readonly Dictionary<int, string> _overrides = new();
     private readonly Dictionary<int, int> _aniListByTvdb = new();
     private readonly Dictionary<int, int> _malByTvdb = new();
+    private readonly Dictionary<int, int> _tvdbByMal = new();
+    private readonly Dictionary<int, int> _tvdbByAniList = new();
     private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
@@ -139,13 +141,89 @@ public sealed class MappingStore
 
         lock (_sync)
         {
-            if (_malByTvdb.ContainsKey(tvdbId))
+            var changed = false;
+            if (!_malByTvdb.ContainsKey(tvdbId))
             {
-                return;
+                _malByTvdb[tvdbId] = malId;
+                changed = true;
+            }
+            if (!_tvdbByMal.ContainsKey(malId))
+            {
+                _tvdbByMal[malId] = tvdbId;
+                changed = true;
+            }
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
+    public int? TryGetTvdbByMalId(int malId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByMal.TryGetValue(malId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public int? TryGetTvdbByAniListId(int anilistId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByAniList.TryGetValue(anilistId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public void RegisterIds(int tvdbId, int? tmdbId = null, int? malId = null, int? anilistId = null)
+    {
+        if (tvdbId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            var changed = false;
+
+            if (tmdbId.HasValue && !SyntheticIds.IsSyntheticSeries(tvdbId) && !_seriesReal.ContainsKey(tvdbId))
+            {
+                _seriesReal[tvdbId] = tmdbId.Value;
+                changed = true;
             }
 
-            _malByTvdb[tvdbId] = malId;
-            Save();
+            if (malId.HasValue && malId.Value > 0)
+            {
+                if (!_malByTvdb.ContainsKey(tvdbId))
+                {
+                    _malByTvdb[tvdbId] = malId.Value;
+                    changed = true;
+                }
+                if (!_tvdbByMal.ContainsKey(malId.Value))
+                {
+                    _tvdbByMal[malId.Value] = tvdbId;
+                    changed = true;
+                }
+            }
+
+            if (anilistId.HasValue && anilistId.Value > 0)
+            {
+                if (!_aniListByTvdb.ContainsKey(tvdbId))
+                {
+                    _aniListByTvdb[tvdbId] = anilistId.Value;
+                    changed = true;
+                }
+                if (!_tvdbByAniList.ContainsKey(anilistId.Value))
+                {
+                    _tvdbByAniList[anilistId.Value] = tvdbId;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                Save();
+            }
         }
     }
 
@@ -254,6 +332,8 @@ public sealed class MappingStore
                     _defaultSearchSource = persisted.DefaultSearchSource ?? "";
                     _aniListByTvdb.Clear();
                     _malByTvdb.Clear();
+                    _tvdbByMal.Clear();
+                    _tvdbByAniList.Clear();
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -283,6 +363,16 @@ public sealed class MappingStore
                     foreach (var (key, value) in persisted.MalByTvdb)
                     {
                         _malByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByMal)
+                    {
+                        _tvdbByMal[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByAniList)
+                    {
+                        _tvdbByAniList[key] = value;
                     }
                 }
 
@@ -316,6 +406,8 @@ public sealed class MappingStore
                 Overrides = new Dictionary<int, string>(_overrides),
                 AniListByTvdb = new Dictionary<int, int>(_aniListByTvdb),
                 MalByTvdb = new Dictionary<int, int>(_malByTvdb),
+                TvdbByMal = new Dictionary<int, int>(_tvdbByMal),
+                TvdbByAniList = new Dictionary<int, int>(_tvdbByAniList),
                 DefaultSearchSource = _defaultSearchSource
             };
 
@@ -340,6 +432,8 @@ public sealed class MappingStore
         public Dictionary<int, string> Overrides { get; set; } = new();
         public Dictionary<int, int> AniListByTvdb { get; set; } = new();
         public Dictionary<int, int> MalByTvdb { get; set; } = new();
+        public Dictionary<int, int> TvdbByMal { get; set; } = new();
+        public Dictionary<int, int> TvdbByAniList { get; set; } = new();
         public string DefaultSearchSource { get; set; } = "";
     }
 }

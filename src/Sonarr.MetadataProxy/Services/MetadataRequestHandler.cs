@@ -487,6 +487,11 @@ public sealed class MetadataRequestHandler
                     var metadata = await _malProvider.GetSeries(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
                     var seasons = await _malProvider.GetSeasons(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
                     var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                    // Register MAL ID and any static AniList ID
+                    var staticAniListId = _mapping.TryGetAniListIdByTvdb(tvdbId);
+                    _mapping.RegisterIds(tvdbId, malId: malId.Value, anilistId: staticAniListId);
+
                     _logger.LogInformation("TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via MAL.", show.TvdbId);
                     return new ShowResolution.Mapped(show);
                 }
@@ -549,22 +554,30 @@ public sealed class MetadataRequestHandler
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
 
-        try
-        {
-            var metadata = await provider.GetSeries(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
-            if (!SyntheticIds.IsSyntheticSeries(tvdbId))
+try
             {
-                _mapping.RegisterSeries(tvdbId, tmdbId.Value);
-            }
+                var metadata = await provider.GetSeries(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                if (!SyntheticIds.IsSyntheticSeries(tvdbId))
+                {
+                    _mapping.RegisterSeries(tvdbId, tmdbId.Value);
+                }
 
-            var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
-            var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
-            _logger.LogInformation(
-                "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via {Provider}.",
-                show.TvdbId,
-                provider.Name);
-            return new ShowResolution.Mapped(show);
-        }
+                // Register MAL/AniList IDs from static mapping if available
+                var staticMalId = _animeMap?.TryGetMalIdByTvdb(tvdbId);
+                var staticAniListId = _mapping.TryGetAniListIdByTvdb(tvdbId);
+                if (staticMalId.HasValue || staticAniListId.HasValue)
+                {
+                    _mapping.RegisterIds(tvdbId, tmdbId.Value, staticMalId, staticAniListId);
+                }
+
+                var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+                _logger.LogInformation(
+                    "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via {Provider}.",
+                    show.TvdbId,
+                    provider.Name);
+                return new ShowResolution.Mapped(show);
+            }
         catch (NotSupportedException)
         {
             _logger.LogInformation("Provider {Source} cannot resolve this series. Falling through to TVDB.", _options.MetadataSource);
