@@ -334,7 +334,15 @@ public sealed class MetadataRequestHandler
 
     private int? GetMalId(int tvdbId)
     {
-        return _mapping.TryGetMalIdByTvdb(tvdbId) ?? _animeMap?.TryGetMalIdByTvdb(tvdbId);
+        var persisted = _mapping.TryGetMalIdByTvdb(tvdbId);
+        var staticMap = _animeMap?.TryGetMalIdByTvdb(tvdbId);
+        
+        if (persisted.HasValue && staticMap.HasValue)
+        {
+            return Math.Min(persisted.Value, staticMap.Value);
+        }
+        
+        return persisted ?? staticMap;
     }
 
     private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)

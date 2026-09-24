@@ -142,16 +142,32 @@ public sealed class MappingStore
         lock (_sync)
         {
             var changed = false;
-            if (!_malByTvdb.ContainsKey(tvdbId))
+
+            // Always keep the minimum MAL ID for a TVDB ID
+            if (!_malByTvdb.ContainsKey(tvdbId) || malId < _malByTvdb[tvdbId])
             {
+                var oldMalId = _malByTvdb.GetValueOrDefault(tvdbId, 0);
                 _malByTvdb[tvdbId] = malId;
                 changed = true;
+
+                // Update reverse mapping for new MAL ID
+                if (!_tvdbByMal.ContainsKey(malId))
+                {
+                    _tvdbByMal[malId] = tvdbId;
+                    changed = true;
+                }
+
+                // If we replaced an old MAL ID, clean up reverse mapping for old one
+                // (only if no other TVDB ID maps to it)
+                if (oldMalId > 0 && oldMalId != malId)
+                {
+                    if (_tvdbByMal.TryGetValue(oldMalId, out var mappedTvdbId) && mappedTvdbId == tvdbId)
+                    {
+                        _tvdbByMal.Remove(oldMalId);
+                    }
+                }
             }
-            if (!_tvdbByMal.ContainsKey(malId))
-            {
-                _tvdbByMal[malId] = tvdbId;
-                changed = true;
-            }
+
             if (changed)
             {
                 Save();
