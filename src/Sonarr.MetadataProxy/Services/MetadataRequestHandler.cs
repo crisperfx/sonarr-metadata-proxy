@@ -381,9 +381,10 @@ public sealed class MetadataRequestHandler
 
         // Add MAL backgrounds as fanart (fall back to the poster when no backgrounds exist)
         var backgrounds = pictures.Backgrounds.Take(3).ToList();
-        if (backgrounds.Count == 0 && show.Images.Any(image => image.CoverType == "poster" && !string.IsNullOrWhiteSpace(image.Url)))
+        var fallbackPoster = show.Images.FirstOrDefault(image => image.CoverType == "poster" && !string.IsNullOrWhiteSpace(image.Url));
+        if (backgrounds.Count == 0 && fallbackPoster is not null)
         {
-            backgrounds.Add(show.Images.First(image => image.CoverType == "poster" && !string.IsNullOrWhiteSpace(image.Url)).Url);
+            backgrounds.Add(fallbackPoster.Url!);
         }
 
         foreach (var bg in backgrounds)
