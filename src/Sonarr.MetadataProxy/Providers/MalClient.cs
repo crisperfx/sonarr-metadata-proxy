@@ -467,8 +467,9 @@ public sealed class MalClient : IMalApi
     {
         return new MalEpisode
         {
-            Number = GetNullableInt(element, "mal_id") ?? GetNullableInt(element, "number") ?? GetNullableInt(element, "episode_number") ?? 0,
-            AbsoluteNumber = GetNullableInt(element, "mal_id") ?? GetNullableInt(element, "absolute_number"),
+            Number = GetNullableInt(element, "episode_number") ?? GetNullableInt(element, "number") ?? 0,
+            AbsoluteNumber = GetNullableInt(element, "absolute_number") ?? GetNullableInt(element, "mal_id"),
+            SeasonNumber = GetNullableInt(element, "season"),
             Title = GetString(element, "title"),
             Overview = GetString(element, "overview") ?? GetString(element, "synopsis"),
             AirDate = GetDatePart(GetString(element, "aired") ?? GetString(element, "air_date")),

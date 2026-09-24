@@ -84,27 +84,46 @@ public sealed class MalMetadataProvider : IMetadataProvider
         var episodes = await _api.GetEpisodesAsync(malId, cancellationToken).ConfigureAwait(false);
 
         // Log episode structure for debugging
-        _logger.LogInformation("MAL {MalId} episodes: count={Count}, sample Number={Num}, AbsoluteNumber={AbsNum}",
+        _logger.LogInformation("MAL {MalId} episodes: count={Count}, sample Number={Num}, AbsoluteNumber={AbsNum}, SeasonNumber={SeasonNum}",
             malId, episodes.Count,
             episodes.FirstOrDefault()?.Number,
-            episodes.FirstOrDefault()?.AbsoluteNumber);
+            episodes.FirstOrDefault()?.AbsoluteNumber,
+            episodes.FirstOrDefault()?.SeasonNumber);
 
-        // MAL has no seasons - episodes are continuous (absolute numbers).
-        // All episodes go into season 1 with adjusted sequential numbers.
-        var allEpisodes = episodes
-            .Where(e => e.AbsoluteNumber.HasValue || e.Number > 0)
-            .OrderBy(e => e.AbsoluteNumber ?? e.Number)
-            .Select((e, idx) => MapEpisodeWithAdjustedNumbers(e, idx + 1))
-            .ToList();
-
-        var seasons = new List<SeasonMetadata>
+        var hasSeasonNumbers = episodes.Any(e => e.SeasonNumber is > 0);
+        List<SeasonMetadata> seasons;
+        if (hasSeasonNumbers)
         {
-            new SeasonMetadata
+            seasons = episodes
+                .Where(e => e.SeasonNumber is > 0)
+                .GroupBy(e => e.SeasonNumber!.Value)
+                .Select(g => new SeasonMetadata
+                {
+                    SeasonNumber = g.Key,
+                    Episodes = g.OrderBy(e => e.AbsoluteNumber ?? e.Number).Select(MapEpisode).ToList()
+                })
+                .OrderBy(s => s.SeasonNumber)
+                .ToList();
+        }
+        else
+        {
+            // No explicit season info: episodes are continuous (absolute numbers).
+            // All episodes go into season 1 with adjusted sequential numbers.
+            var allEpisodes = episodes
+                .Where(e => e.AbsoluteNumber.HasValue || e.Number > 0)
+                .OrderBy(e => e.AbsoluteNumber ?? e.Number)
+                .Select((e, idx) => MapEpisodeWithAdjustedNumbers(e, idx + 1))
+                .ToList();
+
+            seasons = new List<SeasonMetadata>
             {
-                SeasonNumber = 1,
-                Episodes = allEpisodes
-            }
-        };
+                new SeasonMetadata
+                {
+                    SeasonNumber = 1,
+                    Episodes = allEpisodes
+                }
+            };
+        }
 
         _logger.LogInformation("MAL {MalId} seasons: {SeasonCount}", malId, seasons.Count);
         return seasons;

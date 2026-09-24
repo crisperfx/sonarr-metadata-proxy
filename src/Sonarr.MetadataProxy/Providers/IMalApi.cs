@@ -63,6 +63,7 @@ public sealed class MalEpisode
 {
     public int Number { get; init; }
     public int? AbsoluteNumber { get; init; }
+    public int? SeasonNumber { get; init; }
     public string? Title { get; init; }
     public string? Overview { get; init; }
     public string? AirDate { get; init; }

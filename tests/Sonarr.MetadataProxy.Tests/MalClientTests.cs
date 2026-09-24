@@ -164,9 +164,38 @@ public class MalClientTests
         var episodes = await client.GetEpisodesAsync(21, CancellationToken.None);
 
         var first = Assert.Single(episodes);
-        Assert.Equal(62, first.Number);
+        Assert.Equal(0, first.Number);
         Assert.Equal(62, first.AbsoluteNumber);
+        Assert.Null(first.SeasonNumber);
         Assert.Equal("2001-03-21", first.AirDate);
+    }
+
+    [Fact]
+    public async Task GetEpisodesAsync_ParsesSeasonNumber()
+    {
+        var json = """
+        {
+          "data": [
+            {
+              "mal_id": 1,
+              "season": 2,
+              "episode_number": 3,
+              "title": "S2E3"
+            }
+          ]
+        }
+        """;
+
+        var client = new MalClient(
+            new HttpClient(new StubHandler(json)),
+            NullLogger<MalClient>.Instance,
+            new NoopRateLimiter());
+
+        var episodes = await client.GetEpisodesAsync(1, CancellationToken.None);
+
+        var first = Assert.Single(episodes);
+        Assert.Equal(3, first.Number);
+        Assert.Equal(2, first.SeasonNumber);
     }
 
     private const string JikanSearchResponse = """
