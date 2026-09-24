@@ -2,6 +2,16 @@
 
 A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, AniList, MAL, and TVDB** — no fork, no patched Sonarr, just a Docker container.
 
+# Screenshots interface
+
+| **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Choice 3**<br>Description |
+|:---:|:---:|:---:|
+| <img width="100%" src="https://github.com/user-attachments/assets/a236e426-c8fb-497f-a75a-6cdda9199a1f" /> | <img width="100%" src="https://github.com/user-attachments/assets/1df71bbe-4e2e-41f8-a69b-390eefb116a0" /> | <img width="100%" src="https://github.com/user-attachments/assets/4db02036-5d82-4b79-8475-c22b4ac1d979" /> |
+
+| **Choice of source TVDB**<br>23 seasons, different ep. listing | **Choice of source ANILIST**<br>1 season, different ep. listing |
+|:---:|:---:|
+| <img width="100%" src="https://github.com/user-attachments/assets/280bc099-1f28-409a-ad0d-1afcbcc80ae6" /> | <img width="100%" src="https://github.com/user-attachments/assets/698fbe7b-b4e8-4a8a-88ea-efb69c7d22c8" /> |
+
 ## What you need
 
 1. **Docker** (with Compose v2) or a Docker UI on your NAS/PC (Synology Container Manager, Portainer, Dockhand, etc.)
@@ -223,4 +233,7 @@ git tag v1.1.4 && git push origin v1.1.4   # CI: tests + publish :1.1.4 and :lat
 | `main` | `:latest` |
 | `vX.Y.Z` | `:X.Y.Z` (e.g. `v1.1.4` → `1.1.4`) |
 
-Local test: `dotnet test` or `docker compose build sonarr-metadata-proxy`.
+Local test: `dotnet test` or `docker compose build sonarr-metadata-proxy`., OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
+- MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
+- Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
+- TMDB has no air time, so `timeOfDay` is missing.
