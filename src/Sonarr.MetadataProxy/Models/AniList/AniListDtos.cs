@@ -21,4 +21,12 @@ public sealed class AniListMedia
     public string? CountryOfOrigin { get; init; }
     public string? Studio { get; init; }
     public List<string> AlternativeTitles { get; init; } = new();
+    public List<AniListCast> Cast { get; init; } = new();
+}
+
+public sealed class AniListCast
+{
+    public string? Name { get; init; }
+    public string? Character { get; init; }
+    public string? ImageUrl { get; init; }
 }

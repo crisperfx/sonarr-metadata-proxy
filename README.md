@@ -35,13 +35,12 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
  your browser                    Docker network
       │  http://<ip>:8989                │
       ▼                                  ▼
- ┌───────────┐  metadata request   ┌────────────────┐   TMDB/AniList/MAL  ┌────────┐
- │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ───────────────────▶ │ TMDB   │
- │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀──────────────────── │ AniList│
- └───────────┘                      │   9697)       │                      │ MAL    │
-      ▲                             └────────────────┘                      └────────┘
-      ▲                             └────────────────┘
-      │ picker dropdown (overrides)
+ ┌───────────┐  metadata request   ┌────────────────┐  metadata data   ┌────────┐
+ │  Sonarr   │ ─ skyhook.sonarr.tv ─▶  metadata      │ ────────────────▶ │ TMDB   │
+ │ (stock)   │   (port 443, alias)  │  proxy (443/  │ ◀──────────────── │ AniList│
+ └───────────┘                      │   9697)       │                   │ MAL    │
+      ▲                             └────────────────┘                   │ TVDB   │
+      │ picker dropdown (overrides)                                      └────────┘
       └────────────────── /api/overrides
 ```
 
@@ -72,19 +71,20 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 
 | Provider | Search behaviour | No results → fallback | Details / episodes |
 |---|---|---|---|
-| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb`, `tvdb`, `anilist`, or `mal`). | → TVDB | TMDB primary, TVDB fallback on mapping failure |
+| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb`, `tvdb`, `anilist`, or `mal`). | → TVDB | Depends on the source: TMDB primary when source is TMDB; AniList/MAL metadata + episodes via Tenrai when source is anime-bound; TVDB fallback on mapping failure |
 | **TMDB only** | `tmdb:` prefix; searches TMDB, maps to TVDB via internal map | → TVDB | TMDB primary, TVDB fallback |
 | **TVDB (SkyHook)** | `tvdb:` prefix; direct SkyHook passthrough | *(none — source is TVDB)* | Real TVDB |
-| **AniList** | Searches AniList (format TV / TV_SHORT only), maps via bundled Fribb + Anime-Lists datasets to TVDB; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary (via synthetic ID → TMDB), TVDB fallback |
-| **MAL (Tenrai)** | Searches MyAnimeList via the public Tenrai API (type TV only, with internal rate-limit handling), maps via the same bundled datasets; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary, TVDB fallback; backgrounds from Tenrai `/anime/{id}/pictures` |
+| **AniList** | Searches AniList (format TV / TV_SHORT only), maps via bundled Fribb + Anime-Lists datasets to TVDB; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | Details **and artwork** from AniList (title/status/score/genres/cast/studio, poster + banner); episodes via Tenrai/MAL using the mapped MAL id (`idMal`), data-driven flattening; TVDB fallback |
+| **MAL (Tenrai)** | Searches MyAnimeList via the public Tenrai API (type TV only, with internal rate-limit handling), maps via the same bundled datasets; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | Details + episodes from Tenrai (with per-season data when present, data-driven flattening), backgrounds from Tenrai `/anime/{id}/pictures`; TVDB fallback |
 
 **Key points:**
 - **Every provider falls back to TVDB on empty results** (except explicit TVDB).
 - AniList search filters to `format_in: [TV, TV_SHORT]` (excludes movies/specials/OVAs); MAL filters to `type: tv`.
-- Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList/MAL ID) so they appear in search; details are served via TMDB (synthetic → TMDB mapping).
+- Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList/MAL ID) so they appear in search; details are served via the active provider (AniList/MAL directly when an anime source is active, TMDB otherwise via synthetic → TMDB mapping).
 - Search provider preference is persisted in localStorage and on the proxy (`/api/overrides/searchsource`), survives page refresh and container restarts.
 - Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB / AniList / MAL) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
 - **Fanart fallback**: when a provider offers no background artwork, the proxy serves the poster as backdrop instead (skyhook: `BackdropPath ?? PosterPath`; AniList: banner else poster; MAL: backgrounds from Tenrai pictures, else first poster).
+- AniList-served series use **AniList artwork only**: the MAL pictures enrichment (`/anime/{id}/pictures`) is skipped so Sonarr never mixes MyAnimeList art into an AniList result.
 
 **External automation (Prowlarr, Overseerr, Ombi, Radarr, Sonarr RSS, etc.)**
 The search provider choice (via `METADATA_SOURCE` env var or UI dropdown) applies to **all** searches that hit Sonarr's SkyHook endpoint — including those triggered by external automation (Prowlarr, Overseerr, Ombi, Radarr, Sonarr's own RSS/monitoring). There is no separate setting; the configured search provider is global for the proxy.
@@ -379,10 +379,11 @@ Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList / MAL**.
 - **Automatic** = the default source from `METADATA_SOURCE`.
 - **TMDB** = always use TMDB servers for this series.
 - **TVDB** = always use the real SkyHook/TVDB for this series.
-- **AniList** = serve this series using AniList metadata (format TV / TV_SHORT only).
-  AniList carries no per-season data for most titles, so the episodes come back as a single
-  continuous season (same data-driven flattening as MAL; nothing is ever forced beyond what
-  the data says — if the data ever carries 2+ seasons, they are kept).
+- **AniList** = serve this series using AniList metadata (details + poster/banner artwork
+  from AniList only — MAL pictures are not mixed in; episodes via the mapped MAL id /
+  Tenrai since AniList itself carries no per-season episode list). Data-driven
+  flattening as with MAL: 0/1 season in the data → one continuous season, 2+ → kept; nothing
+  is ever forced beyond what the data says.
 - **MAL** = serve this series using MAL (Tenrai) metadata — episodes, and backgrounds from
   Tenrai's `/anime/{id}/pictures`. MAL has no season structure, so the series is served as
   one continuous season (data-driven flattening: 0/1 season in the data → one continuous
@@ -517,7 +518,7 @@ Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadat
 
 ## Limitations
 
-- AniList search filters to `format: [TV, TV_SHORT]` (excludes movies, specials, OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
+- AniList search filters to `format: [TV, TV_SHORT]` (excludes movies, specials, OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details and artwork served via AniList (score, genres, cast, studio, poster + banner; MAL pictures never mixed in) and episodes via the mapped MAL id / Tenrai. On empty results or API errors, falls back to TVDB.
 - MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.

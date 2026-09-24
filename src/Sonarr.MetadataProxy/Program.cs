@@ -59,6 +59,7 @@ builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();
 builder.Services.AddSingleton<ITmdbApi, TmdbClient>();
 builder.Services.AddSingleton<TmdbMetadataProvider>();
 builder.Services.AddSingleton<MalMetadataProvider>();
+builder.Services.AddSingleton<AniListMetadataProvider>();
 builder.Services.AddSingleton<AniListTvdbMap>();
 builder.Services.AddSingleton<AniListTranslator>();
 builder.Services.AddSingleton<AniListSearchService>();

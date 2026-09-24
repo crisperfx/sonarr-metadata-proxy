@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Providers;
+using Sonarr.MetadataProxy.Reverse;
 using Sonarr.MetadataProxy.Services;
 using Sonarr.MetadataProxy.Tests.Infrastructure;
 using Sonarr.MetadataProxy.Translation;
@@ -520,6 +521,7 @@ public class MetadataRequestHandlerTests
             activeProvider,
             tmdbProvider,
             null,
+            null,
             TestServiceProvider,
             NullLogger<MetadataRequestHandler>.Instance);
 
@@ -568,6 +570,16 @@ public class MetadataRequestHandlerTests
             if (serviceType == typeof(TmdbMetadataProvider))
             {
                 return new TmdbMetadataProvider(_tmdb, _options, NullLogger<TmdbMetadataProvider>.Instance);
+            }
+
+            if (serviceType == typeof(AniListMetadataProvider))
+            {
+                return new AniListMetadataProvider(
+                    new FakeAniListApi(),
+                    new FakeMalApi(),
+                    new AniListTvdbMap(_options, NullLogger<AniListTvdbMap>.Instance),
+                    _options,
+                    NullLogger<AniListMetadataProvider>.Instance);
             }
 
             return null;
