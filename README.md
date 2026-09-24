@@ -28,13 +28,17 @@ cd sonarr-metadata-proxy
 cp .env.example .env
 ```
 
-Edit `.env` and set **only** your TMDB API key:
+Edit `.env` and set your TMDB API key:
 
 ```
 TMDB_API_KEY=your-tmdb-v3-api-key
 ```
 
-Leave everything else as-is.
+The compose file already includes **everything needed**:
+- The proxy (with TLS on 443, management on 9697)
+- Sonarr (stock image)
+- Shared volumes for CA certs, mappings, and UI injection scripts
+- Docker network with `skyhook.sonarr.tv` alias
 
 ```bash
 docker compose up -d
@@ -63,7 +67,7 @@ That's it.
 
 ---
 
-## Configuration (all optional except `TMDB_API_KEY`)
+## Configuration (all optional; `TMDB_API_KEY` required when using TMDB)
 
 | Variable | Default | What it does |
 |---|---|---|
