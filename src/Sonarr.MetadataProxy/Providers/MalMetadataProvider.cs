@@ -54,7 +54,18 @@ public sealed class MalMetadataProvider : IMetadataProvider
         }
 
         var details = await _api.GetSeriesDetailsAsync(malId, cancellationToken).ConfigureAwait(false);
-        return details is null ? throw new InvalidOperationException($"MAL series {providerId} not found.") : MapSeries(details);
+        return details is null ? throw new InvalidOperationException($"MAL series {providerId} not found.") : MapSeries(details, malId);
+    }
+
+    public async Task<SeriesMetadata> GetSeriesWithTvdbId(string providerId, int tvdbId, CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(providerId, out var malId))
+        {
+            throw new InvalidOperationException($"MAL series {providerId} not found.");
+        }
+
+        var details = await _api.GetSeriesDetailsAsync(malId, cancellationToken).ConfigureAwait(false);
+        return details is null ? throw new InvalidOperationException($"MAL series {providerId} not found.") : MapSeries(details, malId, tvdbId);
     }
 
     public async Task<IReadOnlyList<SeasonMetadata>> GetSeasons(string providerId, CancellationToken cancellationToken)
@@ -72,18 +83,59 @@ public sealed class MalMetadataProvider : IMetadataProvider
 
         var episodes = await _api.GetEpisodesAsync(malId, cancellationToken).ConfigureAwait(false);
 
-        var seasons = episodes
-            .Where(e => e.Number > 0)
-            .GroupBy(e => e.Number)
-            .Select(g => new SeasonMetadata
-            {
-                SeasonNumber = g.Key,
-                Episodes = g.Select(MapEpisode).ToList()
-            })
-            .OrderBy(s => s.SeasonNumber)
-            .ToList();
+        // Log episode structure for debugging
+        _logger.LogInformation("MAL {MalId} episodes: count={Count}, sample Number={Num}, AbsoluteNumber={AbsNum}", 
+            malId, episodes.Count, 
+            episodes.FirstOrDefault()?.Number, 
+            episodes.FirstOrDefault()?.AbsoluteNumber);
 
+        // Check if episodes have season numbers or only absolute numbers
+        var hasSeasonNumbers = episodes.Any(e => e.Number > 0);
+        
+        List<SeasonMetadata> seasons;
+        if (hasSeasonNumbers)
+        {
+            // Traditional season structure
+            seasons = episodes
+                .Where(e => e.Number > 0)
+                .GroupBy(e => e.Number)
+                .Select(g => new SeasonMetadata
+                {
+                    SeasonNumber = g.Key,
+                    Episodes = g.Select(MapEpisode).ToList()
+                })
+                .OrderBy(s => s.SeasonNumber)
+                .ToList();
+        }
+        else
+        {
+            // Long-running anime (One Piece, etc.) - all episodes in season 1 with absolute numbers
+            var allEpisodes = episodes
+                .Where(e => e.AbsoluteNumber.HasValue || e.Number > 0)
+                .OrderBy(e => e.AbsoluteNumber ?? e.Number)
+                .Select((e, idx) => MapEpisodeWithAdjustedNumbers(e, idx + 1))
+                .ToList();
+
+            seasons = new List<SeasonMetadata>
+            {
+                new SeasonMetadata
+                {
+                    SeasonNumber = 1,
+                    Episodes = allEpisodes
+                }
+            };
+        }
+
+        _logger.LogInformation("MAL {MalId} seasons: {SeasonCount}", malId, seasons.Count);
         return seasons;
+    }
+
+    private EpisodeMetadata MapEpisodeWithAdjustedNumbers(MalEpisode episode, int episodeNumber)
+    {
+        var mapped = MapEpisode(episode);
+        mapped.EpisodeNumber = episodeNumber;
+        mapped.AbsoluteEpisodeNumber = episode.AbsoluteNumber ?? episodeNumber;
+        return mapped;
     }
 
     private async Task<IReadOnlyList<SeriesMetadata>> BuildSearchResults(
@@ -102,7 +154,7 @@ public sealed class MalMetadataProvider : IMetadataProvider
                 chunk.Select(async result =>
                 {
                     var details = await _api.GetSeriesDetailsAsync(result.Id, cancellationToken).ConfigureAwait(false);
-                    return details is not null ? MapSeries(details) : MapSeries(result);
+                    return details is not null ? MapSeries(details, result.Id) : MapSeries(result);
                 })).ConfigureAwait(false);
 
             series.AddRange(fetched);
@@ -111,7 +163,7 @@ public sealed class MalMetadataProvider : IMetadataProvider
         return series;
     }
 
-    private static SeriesMetadata MapSeries(MalAnime result)
+    private static SeriesMetadata MapSeries(MalAnime result, int? tvdbId = null)
     {
         return new SeriesMetadata
         {
@@ -126,11 +178,11 @@ public sealed class MalMetadataProvider : IMetadataProvider
             VoteCount = result.ScoreCount ?? 0,
             PosterPath = result.PosterUrl,
             BackdropPath = null,
-            ExternalIds = new ExternalIdSet(null, null, result.Id)
+            ExternalIds = new ExternalIdSet(tvdbId, null, result.Id)
         };
     }
 
-    private static SeriesMetadata MapSeries(MalAnimeDetails details)
+    private static SeriesMetadata MapSeries(MalAnimeDetails details, int malId, int? tvdbId = null)
     {
         var seasons = details.Seasons
             .Where(s => s.Number >= 0)

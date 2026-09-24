@@ -484,7 +484,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation("Source override MAL active for TVDB id {TvdbId}; using MAL provider with MAL id {MalId}.", tvdbId, malId.Value);
                 try
                 {
-                    var metadata = await _malProvider.GetSeries(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var metadata = await _malProvider.GetSeriesWithTvdbId(malId.Value.ToString(), tvdbId, cancellationToken).ConfigureAwait(false);
                     var seasons = await _malProvider.GetSeasons(malId.Value.ToString(), cancellationToken).ConfigureAwait(false);
                     var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
 

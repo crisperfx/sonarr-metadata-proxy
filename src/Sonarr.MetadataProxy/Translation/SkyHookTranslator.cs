@@ -38,22 +38,30 @@ public sealed class SkyHookTranslator
         return show;
     }
 
-    private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
+private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
     {
-        var tmdbId = int.Parse(metadata.ProviderId);
-        var effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId ?? SyntheticIds.SeriesId(tmdbId);
+        // If caller provided explicit TVDB ID (e.g. from override), use it directly
+        var effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId ?? 0;
+        
+        // Parse TMDB ID from ProviderId only if it looks like a TMDB ID (ExternalIds.TvdbId not set)
+        var tmdbId = metadata.ExternalIds.TvdbId.HasValue ? 0 : 
+            (int.TryParse(metadata.ProviderId, out var parsed) ? parsed : 0);
 
         if (metadata.ExternalIds.TvdbId.HasValue)
         {
             _mapping.RegisterSeries(metadata.ExternalIds.TvdbId.Value, tmdbId);
             _logger.LogInformation("TVDB mapping found for TMDB {TmdbId}: TVDB {TvdbId}.", tmdbId, metadata.ExternalIds.TvdbId.Value);
         }
-        else
+        else if (effectiveTvdbId > 0)
         {
             _logger.LogInformation(
-                "No TVDB mapping exists for TMDB {TmdbId}. Using synthetic TVDB id {TvdbId}.",
+                "No TVDB mapping exists for TMDB {TmdbId}. Using TVDB id {TvdbId} from override/external IDs.",
                 tmdbId,
                 effectiveTvdbId);
+        }
+        else
+        {
+            _logger.LogWarning("No TVDB ID available for series {Title}.", metadata.Title);
         }
 
         var show = new ShowResource
@@ -65,8 +73,8 @@ public sealed class SkyHookTranslator
             OriginalCountry = metadata.OriginalCountryCode,
             OriginalLanguage = metadata.OriginalLanguageCode,
             FirstAired = metadata.FirstAirDate,
-            LastAired = metadata.LastAirDate,
-            TmdbId = tmdbId,
+            LastAired = metadata.LastAired,
+            TmdbId = tmdbId > 0 ? tmdbId : null,
             ImdbId = metadata.ExternalIds.ImdbId,
             Status = metadata.Status,
             Runtime = metadata.RuntimeMinutes,
