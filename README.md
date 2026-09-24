@@ -76,11 +76,11 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 | **TMDB only** | `tmdb:` prefix; searches TMDB, maps to TVDB via internal map | → TVDB | TMDB primary, TVDB fallback |
 | **TVDB (SkyHook)** | `tvdb:` prefix; direct SkyHook passthrough | *(none — source is TVDB)* | Real TVDB |
 | **AniList** | Searches AniList (format TV / TV_SHORT only), maps via bundled Fribb + Anime-Lists datasets to TVDB; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary (via synthetic ID → TMDB), TVDB fallback |
-| **MAL (Tenrai)** | Searches MyAnimeList via the public Tenrai API (type TV / TV Special only, with internal rate-limit handling), maps via the same bundled datasets; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary, TVDB fallback; backgrounds from Tenrai `/anime/{id}/pictures` |
+| **MAL (Tenrai)** | Searches MyAnimeList via the public Tenrai API (type TV only, with internal rate-limit handling), maps via the same bundled datasets; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | TMDB primary, TVDB fallback; backgrounds from Tenrai `/anime/{id}/pictures` |
 
 **Key points:**
 - **Every provider falls back to TVDB on empty results** (except explicit TVDB).
-- AniList search filters to `format_in: [TV, TV_SHORT]` (excludes movies/specials/OVAs); MAL filters to `type: [tv, tv_special]`.
+- AniList search filters to `format_in: [TV, TV_SHORT]` (excludes movies/specials/OVAs); MAL filters to `type: tv`.
 - Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList/MAL ID) so they appear in search; details are served via TMDB (synthetic → TMDB mapping).
 - Search provider preference is persisted in localStorage and on the proxy (`/api/overrides/searchsource`), survives page refresh and container restarts.
 - Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB / AniList / MAL) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
@@ -417,7 +417,7 @@ When adding a series, the search box gets a **Search via** dropdown:
   maps the hit to a real TVDB id via the bundled Fribb + Anime-Lists datasets.
   Results without a known TVDB mapping get a synthetic TVDB ID and appear in results;
   API failures and series without mapping fall through to TVDB.
-- **MAL** — searches MyAnimeList via the public Tenrai API (TV type + TV Specials only), maps the hit to a real
+- **MAL** — searches MyAnimeList via the public Tenrai API (type TV only), maps the hit to a real
   TVDB id via the same bundled datasets. Tenrai rate limits are handled internally.
   Results without a known TVDB mapping get a synthetic TVDB ID; API failures and unmatched
   series fall through to TVDB.
@@ -518,6 +518,6 @@ Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadat
 ## Limitations
 
 - AniList search filters to `format: [TV, TV_SHORT]` (excludes movies, specials, OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
-- MAL search filters to `type: [tv, tv_special]` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
+- MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.
