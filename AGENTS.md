@@ -10,6 +10,11 @@
 - Do not add comments to code unless asked.
 - Confirm behavior with the user after deploy; CI runs the tests (no local .NET SDK on this machine).
 
+## Local test gate — ALWAYS run before pushing
+- A .NET 8 SDK is installed at `%LOCALAPPDATA%\Microsoft\dotnet` (not on PATH). Run:
+  `& "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" test tests/Sonarr.MetadataProxy.Tests/Sonarr.MetadataProxy.Tests.csproj -c Release`
+- Never push while tests fail or new warnings appear in the build output. Search for and fix affected assertions (e.g. image-count/URL/Single checks) BEFORE pushing — do not rely on CI to find breakage.
+
 ## Adding a new search provider (checklist)
 Missed touchpoints here are a recurring bug class — update ALL of these, not just the client:
 - `src/Sonarr.MetadataProxy/Mapping/MappingStore.cs`:
