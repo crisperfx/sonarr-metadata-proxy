@@ -671,6 +671,47 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Show_AniListOverride_DoesNotInjectMalPictures()
+    {
+        WriteAniListFixtures();
+        var aniList = new FakeAniListApi
+        {
+            ById = { [1535] = TestData.DeathNote() }
+        };
+        var mal = new FakeMalApi
+        {
+            PicturesById =
+            {
+                [1535] = new MalPictures
+                {
+                    Posters = { "https://cdn.myanimelist.net/images/anime/9/9453l.jpg" },
+                    Backgrounds = { "https://cdn.myanimelist.net/images/anime/9/9453b.jpg" }
+                }
+            }
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), aniList: aniList, mal: mal);
+        using var client = factory.CreateClient();
+
+        using var overridePost = await client.PostAsJsonAsync(
+            "/api/overrides",
+            new { tvdbId = 81356, source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, overridePost.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81356");
+        using var document = JsonDocument.Parse(body);
+
+        Assert.DoesNotContain("myanimelist.net", body);
+
+        var urls = document.RootElement.GetProperty("images").EnumerateArray()
+            .Select(image => image.GetProperty("url").GetString())
+            .ToList();
+        Assert.NotEmpty(urls);
+        Assert.Contains(urls, url => url!.Contains("s4.anilist.co"));
+        Assert.DoesNotContain(urls, url => url!.Contains("myanimelist.net"));
+    }
+
+    [Fact]
     public async Task Show_SeriesWithoutAniListBinding_IsNotFlattened()
     {
         var tmdb = new FakeTmdbApi

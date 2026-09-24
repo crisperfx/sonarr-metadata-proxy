@@ -331,9 +331,10 @@ public sealed class MetadataRequestHandler
 
         resolution = FlattenIfNoMultiSeason(resolution);
 
-        // Enrich with MAL pictures if this is a MAL-bound series
+        // Enrich with MAL pictures only when the series is not served by the AniList provider,
+        // which supplies its own artwork from AniList.
         var malId = GetMalId(tvdbId);
-        if (malId.HasValue && _malApi is not null)
+        if (malId.HasValue && _malApi is not null && !IsServedByAniList(tvdbId))
         {
             resolution = await EnrichWithMalPicturesAsync(resolution, malId.Value, cancellationToken).ConfigureAwait(false);
         }
@@ -374,6 +375,16 @@ public sealed class MetadataRequestHandler
         }
 
         return persisted ?? staticAniList;
+    }
+
+    private bool IsServedByAniList(int tvdbId)
+    {
+        if (_mapping.GetOverride(tvdbId) == MappingStore.SourceAniList)
+        {
+            return true;
+        }
+
+        return _activeProvider?.Name == "anilist";
     }
 
     private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)
