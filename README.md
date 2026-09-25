@@ -1,6 +1,6 @@
 # Sonarr Metadata Proxy
 
-A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, AniList, MAL, and TVDB** — no fork, no patched Sonarr, just a Docker container.
+A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, AniList, MAL, TVMaze, AniDB, and TVDB** — no fork, no patched Sonarr, just a Docker container.
 
 # Screenshots interface
 
@@ -46,7 +46,7 @@ docker compose up -d
 
 Open Sonarr at `http://<your-ip>:8989` → **Add Series** → search → results from TMDB.
 
-Go to any series page → **Metadata source** dropdown → pick **TMDB**, **TVDB**, **AniList**, or **MAL** → **Refresh & Scan**.
+Go to any series page → **Metadata source** dropdown → pick **TMDB**, **TVDB**, **AniList**, **MAL**, **TVMaze**, or **AniDB** → **Refresh & Scan**.
 
 That's it.
 
@@ -56,13 +56,13 @@ That's it.
 
 | Dropdown | Choices | What it means | Screenshots |
 |---|---|---|---|
-| **Metadata source** (per series) | Automatic / TMDB / TVDB / AniList / MAL | Where to get this series' details & episodes. *Automatic* uses your global default (`METADATA_SOURCE`). | <img width="320" alt="Metadata source dropdown" src="https://github.com/user-attachments/assets/6dd6c1b3-8dbc-45b1-8263-351f5e308263" /> |
-| **Search via** (when adding a series) | Automatic / TMDB / TVDB / AniList / MAL | Which provider to search. *Automatic* uses the global default. **Your choice persists** — next time you open Add Series it remembers the last selected provider until you change it. | <img width="320" alt="Search via dropdown" src="https://github.com/user-attachments/assets/0ed0b0a0-96cd-484e-9ab1-51616186b690" /> |
+| **Metadata source** (per series) | Automatic / TMDB / TVDB / AniList / MAL / TVMaze / AniDB | Where to get this series' details & episodes. *Automatic* uses your global default (`METADATA_SOURCE`). | <img width="320" alt="Metadata source dropdown" src="https://github.com/user-attachments/assets/6dd6c1b3-8dbc-45b1-8263-351f5e308263" /> |
+| **Search via** (when adding a series) | Automatic / TMDB / TVDB / AniList / MAL / TVMaze / AniDB | Which provider to search. *Automatic* uses the global default. **Your choice persists** — next time you open Add Series it remembers the last selected provider until you change it. | <img width="320" alt="Search via dropdown" src="https://github.com/user-attachments/assets/0ed0b0a0-96cd-484e-9ab1-51616186b690" /> |
 
-**AniList & MAL** are optimized for anime:
-- Episodes come back as a single continuous season (since AniList/MAL don't have per-season data).
+**AniList, MAL & AniDB** are optimized for anime:
+- Episodes come back as a single continuous season (since AniList/MAL/AniDB don't have per-season data).
 - If the data ever has 2+ seasons, they're kept as-is.
-- AniList uses its own artwork (poster + banner). MAL pulls backgrounds from Tenrai.
+- AniList uses its own artwork (poster + banner). MAL pulls backgrounds from Tenrai. AniDB provides poster + synopsis; one API call returns series + all episodes.
 - No MyAnimeList art is mixed into AniList results.
 
 ---
@@ -71,9 +71,11 @@ That's it.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `METADATA_SOURCE` | `tmdb` | Default search/detail source: `tmdb`, `tvdb`, `anilist`, or `mal`. |
+| `METADATA_SOURCE` | `tmdb` | Default search/detail source: `tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb`. |
 | `TMDB_API_KEY` | — | **Required when TMDB is used.** Your TMDB v3 API key. |
 | `TMDB_API_TOKEN` | — | TMDB v4 bearer token (alternative to the key; wins if both set). |
+| `ANIDB_CLIENT` | — | AniDB HTTP API client name. **Both** `ANIDB_CLIENT` and `ANIDB_CLIENT_VERSION` must be set to enable AniDB. Register at <https://anidb.net/creq/>. |
+| `ANIDB_CLIENT_VERSION` | — | AniDB HTTP API client version. See `ANIDB_CLIENT`. |
 | `TMDB_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to real TVDB when the chosen source fails. |
 | `PORT` | `9697` | Management/health port. SkyHook/TLS is always on 443. |
@@ -132,8 +134,8 @@ New: use `lscr.io/linuxserver/sonarr:latest`. Existing: add these mounts + env:
 
 **Step 6 — Test**
 - Sonarr log: `Installing proxied CA for skyhook.sonarr.tv` and `index.html patched with override UI script`
-- Open Sonarr → **Add Series** → search → results from TMDB
-- Series page → **Metadata source** → **TMDB** → **Refresh & Scan**
+- Open Sonarr → **Add Series** → search → results from TMDB (or pick **AniDB** / **TVMaze** / **MAL** in the **Search via** dropdown)
+- Series page → **Metadata source** → **TMDB** / **AniDB** / **TVMaze** / **MAL** / **TVDB** → **Refresh & Scan**
 
 ---
 
@@ -210,8 +212,9 @@ curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 
 ## Limitations
 
-- **AniList**: searches TV / TV_SHORT only (excludes movies, specials, OVAs). No TVDB mapping → synthetic ID, details via TMDB, falls back to TVDB on error.
+- **AniList**: searches TV / TV_SHORT only (excludes movies, specials, OVAs). No TVDB mapping → synthetic ID, details via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
 - **MAL**: searches TV only (excludes movies, OVAs, music). No TVDB mapping → synthetic ID, falls back to TVDB on error.
+- **AniDB**: searches the daily title dump (instant, title-only, no artwork); details/posters fetched when series is opened (cached per day). Requires `ANIDB_CLIENT` + `ANIDB_CLIENT_VERSION`; otherwise `anidb:` falls back to TVDB. No air time → `timeOfDay` is missing.
 - Episodes without a TVDB mapping get proxy-local stable IDs.
 - TMDB has no air time → `timeOfDay` is missing.
 
