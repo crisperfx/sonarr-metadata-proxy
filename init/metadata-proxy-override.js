@@ -940,7 +940,7 @@
     }
     var ui = document.getElementById(SEARCH_UI_ID);
     if (ui && ui.dataset.mpoCollapsed !== '1' && !ui.contains(target)) {
-      ui.mpoCollapse();
+      ui.mpoCollapse(true);
     }
   });
 
