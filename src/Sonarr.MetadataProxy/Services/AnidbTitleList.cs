@@ -299,8 +299,10 @@ public sealed class AnidbTitleList
             return string.Empty;
         }
 
+        var cleaned = System.Text.RegularExpressions.Regex
+            .Replace(value.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ");
+
         return string.Join(" ",
-            value.ToLowerInvariant()
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            cleaned.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 }
