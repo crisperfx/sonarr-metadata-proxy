@@ -20,6 +20,7 @@ public sealed class AnidbSearchService
     private readonly ILogger<AnidbSearchService> _logger;
     private readonly TimeSpan _cacheTtl;
     private readonly ConcurrentDictionary<string, CachedResult> _cache = new();
+    private readonly ConcurrentDictionary<int, string> _posterCache = new();
 
     private sealed record CachedResult(DateTimeOffset StoredAt, IReadOnlyList<ShowResource> Shows);
 
@@ -111,6 +112,12 @@ public sealed class AnidbSearchService
             var show = _translator.ToSearchResult(anime, tvdbId);
             show.NoTVDBMapping = SyntheticIds.IsSyntheticSeries(tvdbId);
 
+            // Cache poster for future title-dump searches
+            if (!string.IsNullOrWhiteSpace(anime.Picture))
+            {
+                _posterCache[anime.AnidbId] = anime.Picture;
+            }
+
             var shows = new List<ShowResource> { show };
             _cache[key] = new CachedResult(DateTimeOffset.UtcNow, shows);
             return shows;
@@ -144,6 +151,16 @@ public sealed class AnidbSearchService
 
             var show = _translator.ToSearchResult(hit, tvdbId);
             show.NoTVDBMapping = SyntheticIds.IsSyntheticSeries(tvdbId);
+
+            // Attach cached poster if available
+            if (_posterCache.TryGetValue(hit.Aid, out var poster))
+            {
+                show.Images = new List<ImageResource>
+                {
+                    new() { CoverType = "poster", Url = poster.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? poster : "https://cdn.anidb.net/images/main/" + poster }
+                };
+            }
+
             results.Add(show);
         }
 
