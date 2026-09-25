@@ -148,8 +148,8 @@ public class AnidbSearchServiceTests : IDisposable
 
         File.WriteAllText(Path.Combine(dir, "anime.json"), """
         [
-          { "name": "Death Note", "idAL": 1535, "idAniDB": 2993, "idMal": 1535 },
-          { "name": "Shin Sekai Yori", "idAL": 80, "idAniDB": 80, "idMal": 80 }
+          { "name": "Death Note", "idAL": 1535, "idAniDB": 2993, "idMal": 1535, "format": "TV" },
+          { "name": "Shin Sekai Yori", "idAL": 80, "idAniDB": 80, "idMal": 80, "format": "TV" }
         ]
         """);
 

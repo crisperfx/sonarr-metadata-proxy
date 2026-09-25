@@ -66,9 +66,12 @@ public sealed class AniListTvdbMap
 
     public bool IsTvSeries(int anidbId)
     {
-        return _anidbFormat.TryGetValue(anidbId, out var format)
-            && (string.Equals(format, "TV", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(format, "TV_SHORT", StringComparison.OrdinalIgnoreCase));
+        if (!_anidbFormat.TryGetValue(anidbId, out var format))
+        {
+            return true; // default to TV series if format unknown (backwards compat)
+        }
+        return string.Equals(format, "TV", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(format, "TV_SHORT", StringComparison.OrdinalIgnoreCase);
     }
 
     private void Load(string datamapDir, string dataDir)

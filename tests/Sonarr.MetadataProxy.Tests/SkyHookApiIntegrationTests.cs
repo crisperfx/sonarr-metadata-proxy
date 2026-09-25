@@ -1185,8 +1185,8 @@ public class SkyHookApiIntegrationTests
 
         File.WriteAllText(Path.Combine(dir, "anime.json"), """
         [
-          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535 },
-          { "name": "Death Note (Special)", "name_cn": "", "name_jp": "", "idAL": 9000, "idAniDB": 2993, "idMal": 9000 }
+          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535, "format": "TV" },
+          { "name": "Death Note (Special)", "name_cn": "", "name_jp": "", "idAL": 9000, "idAniDB": 2993, "idMal": 9000, "format": "TV" }
         ]
         """);
 
