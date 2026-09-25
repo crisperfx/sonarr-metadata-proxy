@@ -635,6 +635,34 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Override_List_IncludesAniListAndMalIds()
+    {
+        WriteAniListFixtures();
+        var aniList = new FakeAniListApi { SearchResults = new List<AniListMedia> { TestData.DeathNote() } };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), aniList: aniList);
+        using var client = factory.CreateClient();
+
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        using var search = await client.GetAsync("/v1/tvdb/search/en/?term=death+note");
+        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+
+        using var post = await client.PostAsJsonAsync("/api/overrides", new { tvdbId = 81356, source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+
+        var overrides = await client.GetStringAsync("/api/overrides");
+        using var document = JsonDocument.Parse(overrides);
+        var entry = Assert.Single(document.RootElement.EnumerateArray());
+
+        Assert.Equal(81356, entry.GetProperty("tvdbId").GetInt32());
+        Assert.Equal("anilist", entry.GetProperty("source").GetString());
+        Assert.Equal(1535, entry.GetProperty("aniListId").GetInt32());
+        Assert.Equal(1535, entry.GetProperty("malId").GetInt32());
+    }
+
+    [Fact]
     public async Task Show_AniListBoundSeries_WithoutOverride_KeepsMappedSeasons()
     {
         WriteAniListFixtures();

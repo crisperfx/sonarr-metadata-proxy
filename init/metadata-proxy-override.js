@@ -253,9 +253,9 @@
     shell._mpoBody.appendChild(badge);
 
     var status = document.createElement('div');
-    status.className = 'mpo-badge';
-    status.textContent = 'TVDB id: ' + series.tvdbId;
+    status.id = 'mpo-series-id-badges';
     shell._mpoBody.appendChild(status);
+    updateSeriesIdBadges(null);
 
     var isSynthetic = series.tvdbId >= 1000000000;
     var bullets = [];
@@ -283,6 +283,9 @@
       updateSeriesBadge(selectedSource);
       saveOverride(series.tvdbId, select.value)
         .then(function (dto) {
+          if (dto) {
+            updateSeriesIdBadges(dto);
+          }
           if (dto && dto.source === 'tmdb') {
             if (dto.tmdbId) {
               setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
@@ -309,6 +312,46 @@
     }
     badge.textContent = 'Bron: ' + (source ? sourceLabel(source) : 'Default');
     badge.className = 'mpo-badge' + (source ? ' mpo-badge-active' : '');
+  }
+
+  function updateSeriesIdBadges(entry) {
+    var holder = document.getElementById('mpo-series-id-badges');
+    if (!holder) {
+      return;
+    }
+    holder.textContent = '';
+    var pairs = [['TVDB', series.tvdbId]];
+    if (entry) {
+      if (entry.tmdbId) {
+        pairs.push(['TMDB', entry.tmdbId]);
+      }
+      if (entry.aniListId) {
+        pairs.push(['AniList', entry.aniListId]);
+      }
+      if (entry.malId) {
+        pairs.push(['MAL', entry.malId]);
+      }
+    }
+    for (var i = 0; i < pairs.length; i++) {
+      var badge = document.createElement('span');
+      badge.className = 'mpo-badge';
+      badge.textContent = pairs[i][0] + ' id: ' + pairs[i][1];
+      holder.appendChild(badge);
+    }
+  }
+
+  function currentOverrideEntry(list, tvdbId) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].tvdbId === tvdbId) {
+        return list[i];
+      }
+    }
+    return null;
+  }
+
+  function currentOverride(list, tvdbId) {
+    var entry = currentOverrideEntry(list, tvdbId);
+    return entry ? entry.source : '';
   }
 
   function saveOverride(tvdbId, source) {
@@ -346,12 +389,8 @@
   }
 
   function currentOverride(list, tvdbId) {
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].tvdbId === tvdbId) {
-        return list[i].source;
-      }
-    }
-    return '';
+    var entry = currentOverrideEntry(list, tvdbId);
+    return entry ? entry.source : '';
   }
 
   function sonarrSeriesUrl() {
@@ -519,10 +558,12 @@
           })
           .then(function (list) {
             console.debug('[metadata-proxy-override] overrides list:', list);
-            var overrideSource = currentOverride(list, series.tvdbId);
+            var entry = currentOverrideEntry(list, series.tvdbId);
+            var overrideSource = entry ? entry.source : '';
             console.debug('[metadata-proxy-override] current override for', series.tvdbId, ':', overrideSource);
             select.value = overrideSource;
             updateSeriesBadge(select.value);
+            updateSeriesIdBadges(entry);
           })
           .catch(function (err) {
             console.error('[metadata-proxy-override] overrides fetch failed:', err);

@@ -80,7 +80,7 @@ public sealed class MetadataRequestHandler
 
     public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Incoming Sonarr metadata request: series search, term '{Term}'.", rawTerm);
+        _logger.LogInformation("Incoming Sonarr metadata request: series search, term '{Term}'.", SanitizeForLog(rawTerm));
         var term = TermClassifier.Classify(rawTerm);
 
         if (term.Kind == TermKind.TvdbId)
@@ -98,7 +98,7 @@ public sealed class MetadataRequestHandler
         {
             if (term.Kind == TermKind.MalId && _mal is { IsConfigured: true })
             {
-                _logger.LogInformation("MAL search source preferred for MAL id '{Term}' via Jikan.", term.Value);
+                _logger.LogInformation("MAL search source preferred for MAL id '{Term}' via Jikan.", SanitizeForLog(term.Value));
                 var malShows = await _mal.SearchByMalIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
@@ -123,7 +123,7 @@ public sealed class MetadataRequestHandler
 
         if (term.Kind == TermKind.TvdbSearch)
         {
-            _logger.LogInformation("Explicit TVDB search (tvdb:) for '{Term}'.", term.Value);
+            _logger.LogInformation("Explicit TVDB search (tvdb:) for '{Term}'.", SanitizeForLog(term.Value));
             return await ForwardToTvdbSearchAsync(term.Value, cancellationToken).ConfigureAwait(false);
         }
 
@@ -202,13 +202,13 @@ public sealed class MetadataRequestHandler
     {
         if (shows is null)
         {
-            _logger.LogInformation("AniList search failed or is misconfigured for '{Term}'. Falling through to TVDB.", rawTerm);
+            _logger.LogInformation("AniList search failed or is misconfigured for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
         if (shows.Count == 0)
         {
-            _logger.LogInformation("No TVDB-mappable AniList results for '{Term}'. Falling through to TVDB.", rawTerm);
+            _logger.LogInformation("No TVDB-mappable AniList results for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
@@ -251,7 +251,7 @@ public sealed class MetadataRequestHandler
 
         if (results.Count == 0)
         {
-            _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, rawTerm);
+            _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
@@ -307,11 +307,11 @@ public sealed class MetadataRequestHandler
         {
             if (explicitTmdbSearch)
             {
-                _logger.LogInformation("Explicit TMDB search (tmdb:) returned no results for '{Term}'.", term.Value);
+                _logger.LogInformation("Explicit TMDB search (tmdb:) returned no results for '{Term}'.", SanitizeForLog(term.Value));
                 return Results.Ok(Array.Empty<ShowResource>());
             }
 
-            _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, rawTerm);
+            _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
@@ -710,12 +710,21 @@ try
     {
         if (!_options.EnableTvdbFallback)
         {
-            _logger.LogDebug("TVDB fallback disabled. Returning empty search result for '{Term}'.", rawTerm);
+            _logger.LogDebug("TVDB fallback disabled. Returning empty search result for '{Term}'.", SanitizeForLog(rawTerm));
             return Results.Ok(Array.Empty<ShowResource>());
         }
 
         var response = await _passthrough.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         return Results.Content(response.Body, response.ContentType, null, response.StatusCode);
+    }
+
+    private static string SanitizeForLog(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+        return input.Replace("\r", " ").Replace("\n", " ").Replace("\t", " ");
     }
 
     private abstract record ShowResolution
