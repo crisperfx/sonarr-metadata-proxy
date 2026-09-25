@@ -37,8 +37,8 @@ curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anilist%3A1535"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=mal%3A1535"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=tvmaze%3A169"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=tvmaze%3Abreaking%20bad"
-curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anidb%3A369"
-curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anidb%3Aone%20piece"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anidb%3A2993"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anidb%3Adeath%20note"
 ```
 
 ## Full series object with episodes (what Sonarr fetches on add + every refresh)
