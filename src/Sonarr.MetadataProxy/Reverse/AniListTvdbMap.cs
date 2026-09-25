@@ -19,6 +19,7 @@ public sealed class AniListTvdbMap
     private readonly Dictionary<int, int> _malToAnidb = new();
     private readonly Dictionary<int, int> _malToAniList = new();
     private readonly Dictionary<int, int> _tvdbToMal = new();
+    private readonly Dictionary<int, string> _anidbFormat = new();
     private readonly ILogger<AniListTvdbMap> _logger;
 
     public AniListTvdbMap(ProxyOptions options, ILogger<AniListTvdbMap> logger)
@@ -61,6 +62,13 @@ public sealed class AniListTvdbMap
     public int? TryGetMalIdByTvdb(int tvdbId)
     {
         return _tvdbToMal.TryGetValue(tvdbId, out var malId) ? malId : null;
+    }
+
+    public bool IsTvSeries(int anidbId)
+    {
+        return _anidbFormat.TryGetValue(anidbId, out var format)
+            && (string.Equals(format, "TV", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(format, "TV_SHORT", StringComparison.OrdinalIgnoreCase));
     }
 
     private void Load(string datamapDir, string dataDir)
@@ -188,6 +196,15 @@ public sealed class AniListTvdbMap
         {
             _malToAnidb[malId] = anidbId;
             _malToAniList[malId] = anilistId;
+        }
+
+        if (item.TryGetProperty("format", out var formatProp) && formatProp.ValueKind == JsonValueKind.String)
+        {
+            var format = formatProp.GetString();
+            if (!string.IsNullOrWhiteSpace(format) && anidbId > 0)
+            {
+                _anidbFormat[anidbId] = format;
+            }
         }
     }
 

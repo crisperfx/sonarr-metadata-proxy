@@ -128,6 +128,12 @@ public sealed class AnidbSearchService
         var seenTvdbIds = new HashSet<int>();
         foreach (var hit in hits)
         {
+            // Filter to TV series only (matches AniDB web search type.tvseries=1)
+            if (!_map.IsTvSeries(hit.Aid))
+            {
+                continue;
+            }
+
             var tvdbId = ResolveTvdbId(hit.Aid, hit.Title);
             if (!seenTvdbIds.Add(tvdbId))
             {
