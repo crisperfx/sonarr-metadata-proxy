@@ -233,8 +233,11 @@ public sealed class AnidbTitleList
             snapshot = _entries;
         }
 
+        // Only search main/official titles (type 1, 4) — matches AniDB web search for TV series
+        var filtered = snapshot.Where(e => e.Type is AnidbTitleType.Main or AnidbTitleType.Official).ToList();
+
         var bestByAid = new Dictionary<int, (int Score, string Title)>();
-        foreach (var entry in snapshot)
+        foreach (var entry in filtered)
         {
             var title = Normalize(entry.Title);
             if (title.Length == 0)
