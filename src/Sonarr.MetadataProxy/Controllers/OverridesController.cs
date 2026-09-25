@@ -26,7 +26,7 @@ public sealed class OverridesController : ControllerBase
         _logger = logger;
     }
 
-    public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId);
+    public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? AniListId, int? MalId);
 
     public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId, string? Title, int? Year);
 
@@ -60,7 +60,12 @@ public sealed class OverridesController : ControllerBase
     public IActionResult List()
     {
         var result = _mapping.AllOverrides()
-            .Select(kv => new OverrideDto(kv.Key, kv.Value, _mapping.TryResolveSeriesTmdb(kv.Key)));
+            .Select(kv => new OverrideDto(
+                kv.Key,
+                kv.Value,
+                _mapping.TryResolveSeriesTmdb(kv.Key),
+                _mapping.TryGetAniListIdByTvdb(kv.Key),
+                _mapping.TryGetMalIdByTvdb(kv.Key)));
         return Ok(result);
     }
 
@@ -107,7 +112,12 @@ public sealed class OverridesController : ControllerBase
 
         _mapping.SetOverride(request.TvdbId, request.Source);
         _logger.LogInformation("Override set for TVDB id {TvdbId} -> {Source}.", request.TvdbId, request.Source);
-        return Ok(new OverrideDto(request.TvdbId, request.Source, _mapping.TryResolveSeriesTmdb(request.TvdbId)));
+        return Ok(new OverrideDto(
+            request.TvdbId,
+            request.Source,
+            _mapping.TryResolveSeriesTmdb(request.TvdbId),
+            _mapping.TryGetAniListIdByTvdb(request.TvdbId),
+            _mapping.TryGetMalIdByTvdb(request.TvdbId)));
     }
 
     [HttpDelete("{tvdbId:int}")]
