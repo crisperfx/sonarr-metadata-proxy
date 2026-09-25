@@ -74,7 +74,7 @@ That's it.
 | `METADATA_SOURCE` | `tmdb` | Default search/detail source: `tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb`. |
 | `TMDB_API_KEY` | — | TMDB v3 API key. **Only needed if you use TMDB** as a source. Get at <https://www.themoviedb.org/settings/api>. |
 | `TMDB_API_TOKEN` | — | TMDB v4 bearer token (alternative to the key; wins if both set). |
-| `ANIDB_CLIENT` | — | AniDB HTTP API client name. **Only needed if you use AniDB**. Both this and `ANIDB_CLIENT_VERSION` must be set. Register at <https://anidb.net/creq/>. |
+| `ANIDB_CLIENT` | — | AniDB HTTP API client name. **Only needed if you use AniDB**. Both this and `ANIDB_CLIENT_VERSION` must be set. Register: 1) Create project at <https://anidb.net/software/add> (type HTTP) 2) Add client in your project with name + version 3) Use those values. |
 | `ANIDB_CLIENT_VERSION` | — | AniDB HTTP API client version. See `ANIDB_CLIENT`. |
 | `TMDB_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to real TVDB when the chosen source fails. |
