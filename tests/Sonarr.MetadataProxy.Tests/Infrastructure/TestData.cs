@@ -272,4 +272,50 @@ public static class TestData
     {
         return new List<TvmazeShow> { BreakingBadTvmaze() };
     }
+
+    public static TvmazeShow AnimeTvmaze()
+    {
+        return new TvmazeShow
+        {
+            Id = 999,
+            Name = "Death Note",
+            Language = "Japanese",
+            Genres = new List<string> { "Drama", "Mystery" },
+            Status = "Ended",
+            Runtime = 23,
+            Premiered = "2006-10-04",
+            Summary = "<p>A high-school student stumbles upon a supernatural notebook.</p>",
+            Rating = new TvmazeRating { Average = 8.5 },
+            Network = new TvmazeNetwork { Id = 3, Name = "NTV", Country = new TvmazeCountry { Name = "Japan", Code = "JP" } },
+            Externals = new TvmazeExternals { Imdb = "tt0877057", TheTvdb = 81356 },
+            Image = new TvmazeImage { Medium = "https://static.tvmaze.com/uploads/images/medium_portrait/4/3938.jpg", Original = "https://static.tvmaze.com/uploads/images/original_untouched/4/3938.jpg" },
+            Embedded = new TvmazeEmbedded
+            {
+                Seasons =
+                {
+                    new TvmazeSeason { Id = 1, Number = 1, Name = "Season 1", PremiereDate = "2006-10-04", EndDate = "2007-06-26", EpisodeOrder = 37 }
+                }
+            }
+        };
+    }
+
+    public static List<TvmazeEpisode> AnimeTvmazeEpisodes()
+    {
+        return new List<TvmazeEpisode>
+        {
+            new()
+            {
+                Id = 5001,
+                Name = "Rebirth",
+                Season = 1,
+                Number = 1,
+                Type = "regular",
+                AirDate = "2006-10-04",
+                Runtime = 23,
+                Image = new TvmazeImage { Medium = "/deathnote_medium.jpg", Original = "/deathnote_original.jpg" },
+                Summary = "<p>A bored student finds a deadly notebook.</p>",
+                Rating = new TvmazeRating { Average = 8.5 }
+            }
+        };
+    }
 }

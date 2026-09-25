@@ -387,10 +387,10 @@ public sealed class MetadataRequestHandler
 
         resolution = FlattenIfNoMultiSeason(resolution);
 
-        // Enrich with MAL pictures only when the series is not served by the AniList provider,
-        // which supplies its own artwork from AniList.
+        // Enrich with MAL pictures only when the series is not served by the AniList or TVMaze
+        // providers, which supply their own artwork.
         var malId = GetMalId(tvdbId);
-        if (malId.HasValue && _malApi is not null && !IsServedByAniList(tvdbId))
+        if (malId.HasValue && _malApi is not null && !IsServedByAniList(tvdbId) && !IsServedByTvmaze(tvdbId))
         {
             resolution = await EnrichWithMalPicturesAsync(resolution, malId.Value, cancellationToken).ConfigureAwait(false);
         }
@@ -441,6 +441,16 @@ public sealed class MetadataRequestHandler
         }
 
         return _activeProvider?.Name == "anilist";
+    }
+
+    private bool IsServedByTvmaze(int tvdbId)
+    {
+        if (_mapping.GetOverride(tvdbId) == MappingStore.SourceTvmaze)
+        {
+            return true;
+        }
+
+        return _activeProvider?.Name == "tvmaze";
     }
 
     private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)
