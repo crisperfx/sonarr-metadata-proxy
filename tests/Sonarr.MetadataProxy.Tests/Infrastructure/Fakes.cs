@@ -1,4 +1,5 @@
 using Sonarr.MetadataProxy.Models.AniList;
+using Sonarr.MetadataProxy.Models.Anidb;
 using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
 using Sonarr.MetadataProxy.Models.Tvmaze;
@@ -159,6 +160,40 @@ public sealed class FakeTvdbTvmazeResolver : ITvdbToTvmazeResolver
     {
         CallCount++;
         return Task.FromResult(Map.TryGetValue(tvdbId, out var tvmazeId) ? tvmazeId : (int?)null);
+    }
+}
+
+public sealed class FakeAnidbApi : IAnidbApi
+{
+    public Dictionary<int, AnidbAnime> ById { get; set; } = new();
+    public Exception? Exception { get; set; }
+    public int CallCount { get; private set; }
+
+    public Task<AnidbAnime?> GetAnimeAsync(int anidbId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        CallCount++;
+        return Task.FromResult(ById.TryGetValue(anidbId, out var anime) ? anime : null);
+    }
+
+    private void ThrowIf()
+    {
+        if (Exception is not null)
+        {
+            throw Exception;
+        }
+    }
+}
+
+public sealed class FakeTvdbAnidbResolver : ITvdbToAnidbResolver
+{
+    public Dictionary<int, int> Map { get; set; } = new();
+    public int CallCount { get; private set; }
+
+    public Task<int?> ResolveAnidbIdAsync(int tvdbId, string? title, int? year, CancellationToken cancellationToken)
+    {
+        CallCount++;
+        return Task.FromResult(Map.TryGetValue(tvdbId, out var anidbId) ? anidbId : (int?)null);
     }
 }
 

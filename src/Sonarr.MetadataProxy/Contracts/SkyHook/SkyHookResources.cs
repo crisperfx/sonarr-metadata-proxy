@@ -68,6 +68,7 @@ public sealed class ShowResource
     public string? LastAired { get; set; }
     public int? TvRageId { get; set; }
     public int? TvMazeId { get; set; }
+    public int? AnidbId { get; set; }
     public int? TmdbId { get; set; }
     public string? ImdbId { get; set; }
     public List<int> MalIds { get; set; } = new();

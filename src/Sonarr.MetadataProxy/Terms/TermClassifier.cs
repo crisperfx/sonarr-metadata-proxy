@@ -9,9 +9,11 @@ public enum TermKind
     AniListId,
     MalId,
     TvmazeId,
+    AnidbId,
     TvdbSearch,
     TmdbSearch,
-    TvmazeSearch
+    TvmazeSearch,
+    AnidbSearch
 }
 
 public sealed record SearchTerm(TermKind Kind, string Value, string Raw);
@@ -51,6 +53,11 @@ public static class TermClassifier
         if (lowered.StartsWith("tvmaze:"))
         {
             return ParseIdOrSearch(lowered, "tvmaze:", TermKind.TvmazeId, TermKind.TvmazeSearch, lowered);
+        }
+
+        if (lowered.StartsWith("anidb:"))
+        {
+            return ParseIdOrSearch(lowered, "anidb:", TermKind.AnidbId, TermKind.AnidbSearch, lowered);
         }
 
         if (lowered.StartsWith("imdb:"))

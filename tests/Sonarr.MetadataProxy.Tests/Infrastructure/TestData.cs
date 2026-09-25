@@ -1,3 +1,6 @@
+using System.IO.Compression;
+using System.Text;
+using Sonarr.MetadataProxy.Models.Anidb;
 using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
@@ -10,6 +13,8 @@ public static class TestData
     public const int BreakingBadTmdbId = 1396;
     public const int BreakingBadTvdbId = 81189;
     public const int BreakingBadTvmazeId = 169;
+    public const int DeathNoteAnidbId = 2993;
+    public const int DeathNoteTvdbId = 81356;
 
     public static TmdbTvSearchResult BreakingBadSearchResult()
     {
@@ -317,5 +322,43 @@ public static class TestData
                 Rating = new TvmazeRating { Average = 8.5 }
             }
         };
+    }
+
+    public static AnidbAnime DeathNoteAnime()
+    {
+        return new AnidbAnime
+        {
+            AnidbId = DeathNoteAnidbId,
+            Title = "Death Note",
+            Type = "TV Series",
+            StartDate = "2006-10-04",
+            EndDate = "2007-06-27",
+            Description = "A high school student finds a supernatural notebook that kills anyone whose name is written in it.",
+            Rating = 8.7,
+            Picture = "1",
+            EpisodeCount = 37,
+            Genres = new List<string> { "Mystery", "Psychological" },
+            Episodes = new List<AnidbEpisode>
+            {
+                new() { EpisodeId = 2001, EpisodeNumber = 1, Type = 1, Title = "Rebirth", AirDate = "2006-10-04", LengthMinutes = 23, Rating = 8.5, Picture = "2001" },
+                new() { EpisodeId = 2002, EpisodeNumber = 2, Type = 1, Title = "Confrontation", AirDate = "2006-10-11", LengthMinutes = 23, Rating = 8.4, Picture = "2002" },
+                new() { EpisodeId = 2010, EpisodeNumber = 1, Type = 2, Title = "Directives", AirDate = "2007-09-21", LengthMinutes = 45, Rating = 8.0, Picture = "2010" }
+            }
+        };
+    }
+
+    public static void WriteTitleDumpFile(string dataDir, params string[] lines)
+    {
+        var directory = Path.Combine(dataDir, "anime-titles");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "anime-titles.dat.gz");
+
+        using var file = File.Create(path);
+        using var gzip = new GZipStream(file, CompressionMode.Compress);
+        using var writer = new StreamWriter(gzip, Encoding.UTF8);
+        foreach (var line in lines)
+        {
+            writer.WriteLine(line);
+        }
     }
 }

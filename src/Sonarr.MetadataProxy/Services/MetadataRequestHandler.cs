@@ -2,6 +2,7 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
+using Sonarr.MetadataProxy.Models.Anidb;
 using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Metadata;
 using Sonarr.MetadataProxy.Models.Tvmaze;
@@ -32,6 +33,9 @@ public sealed class MetadataRequestHandler
     private readonly MalMetadataProvider? _malProvider;
     private readonly AniListMetadataProvider? _aniListProvider;
     private readonly TvmazeMetadataProvider? _tvmazeProvider;
+    private readonly AnidbMetadataProvider? _anidbProvider;
+    private readonly AnidbSearchService? _anidb;
+    private readonly ITvdbToAnidbResolver? _tvdbToAnidb;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
@@ -52,6 +56,9 @@ public sealed class MetadataRequestHandler
         MalMetadataProvider? malProvider,
         AniListMetadataProvider? aniListProvider,
         TvmazeMetadataProvider? tvmazeProvider,
+        AnidbMetadataProvider? anidbProvider,
+        AnidbSearchService? anidb,
+        ITvdbToAnidbResolver? tvdbToAnidb,
         IServiceProvider serviceProvider,
         ILogger<MetadataRequestHandler> logger)
     {
@@ -71,6 +78,9 @@ public sealed class MetadataRequestHandler
         _malProvider = malProvider;
         _aniListProvider = aniListProvider;
         _tvmazeProvider = tvmazeProvider;
+        _anidbProvider = anidbProvider;
+        _anidb = anidb;
+        _tvdbToAnidb = tvdbToAnidb;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -85,6 +95,7 @@ public sealed class MetadataRequestHandler
             MappingStore.SourceAniList => _aniListProvider,
             MappingStore.SourceTmdb => _tmdbProvider,
             MappingStore.SourceTvmaze => _tvmazeProvider,
+            MappingStore.SourceAnidb => _anidbProvider,
             _ => _activeProvider
         };
     }
@@ -145,6 +156,23 @@ public sealed class MetadataRequestHandler
             {
                 TermKind.TvmazeId => await _tvmaze.SearchByTvmazeIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false),
                 _ => await _tvmaze.SearchAsync(term.Value, cancellationToken).ConfigureAwait(false)
+            };
+            return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (term.Kind is TermKind.AnidbId or TermKind.AnidbSearch)
+        {
+            if (_anidb is not { IsConfigured: true })
+            {
+                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, term.Value);
+                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
+            _logger.LogInformation("Explicit AniDB search (anidb:) for '{Term}'.", SanitizeForLog(term.Value));
+            var shows = term.Kind switch
+            {
+                TermKind.AnidbId => await _anidb.SearchByAnidbIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false),
+                _ => await _anidb.SearchAsync(term.Value, cancellationToken).ConfigureAwait(false)
             };
             return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
         }
@@ -235,6 +263,24 @@ public sealed class MetadataRequestHandler
                     rawTerm);
                 var tvmazeShows = await _tvmaze.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(tvmazeShows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (searchSource == MappingStore.SourceAnidb)
+            {
+                if (_anidb is not { IsConfigured: true })
+                {
+                    _logger.LogInformation(
+                        "Search source preference '{SearchSource}' is set but AniDB is unavailable; falling through to TVDB.",
+                        searchSource);
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                var anidbShows = await _anidb.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(anidbShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -390,7 +436,7 @@ public sealed class MetadataRequestHandler
         // Enrich with MAL pictures only when the series is not served by the AniList or TVMaze
         // providers, which supply their own artwork.
         var malId = GetMalId(tvdbId);
-        if (malId.HasValue && _malApi is not null && !IsServedByAniList(tvdbId) && !IsServedByTvmaze(tvdbId))
+        if (malId.HasValue && _malApi is not null && !IsServedByAniList(tvdbId) && !IsServedByTvmaze(tvdbId) && !IsServedByAnidb(tvdbId))
         {
             resolution = await EnrichWithMalPicturesAsync(resolution, malId.Value, cancellationToken).ConfigureAwait(false);
         }
@@ -451,6 +497,16 @@ public sealed class MetadataRequestHandler
         }
 
         return _activeProvider?.Name == "tvmaze";
+    }
+
+    private bool IsServedByAnidb(int tvdbId)
+    {
+        if (_mapping.GetOverride(tvdbId) == MappingStore.SourceAnidb)
+        {
+            return true;
+        }
+
+        return _activeProvider?.Name == "anidb";
     }
 
     private async Task<ShowResolution> EnrichWithMalPicturesAsync(ShowResolution resolution, int malId, CancellationToken cancellationToken)
@@ -660,6 +716,40 @@ public sealed class MetadataRequestHandler
                 }
             }
             _logger.LogWarning("AniList override for TVDB id {TvdbId} but no AniList ID found or provider unavailable. Falling back.", tvdbId);
+        }
+
+        if (sourceOverride == MappingStore.SourceAnidb)
+        {
+            int? anidbId = SyntheticIds.TryDecomposeAnidbSeries(tvdbId);
+            if (!anidbId.HasValue)
+            {
+                anidbId = _mapping.TryGetAnidbIdByTvdb(tvdbId);
+                if (!anidbId.HasValue && _tvdbToAnidb is not null)
+                {
+                    anidbId = await _tvdbToAnidb.ResolveAnidbIdAsync(tvdbId, null, null, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            if (anidbId.HasValue && _anidbProvider is not null)
+            {
+                _logger.LogInformation("Source override ANIDB active for TVDB id {TvdbId}; using AniDB provider with AniDB id {AnidbId}.", tvdbId, anidbId.Value);
+                try
+                {
+                    var metadata = await _anidbProvider.GetSeries(anidbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var seasons = await _anidbProvider.GetSeasons(anidbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                    _mapping.RegisterAnidbId(tvdbId, anidbId.Value);
+
+                    _logger.LogInformation("TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via AniDB.", show.TvdbId);
+                    return new ShowResolution.Mapped(show);
+                }
+                catch (AnidbApiException ex)
+                {
+                    _logger.LogError(ex, "AniDB API error for AniDB ID {AnidbId}.", anidbId.Value);
+                }
+            }
+            _logger.LogWarning("AniDB override for TVDB id {TvdbId} but no AniDB ID found or provider unavailable. Falling back.", tvdbId);
         }
 
         bool tvmazePreferred =

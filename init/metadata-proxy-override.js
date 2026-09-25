@@ -195,7 +195,19 @@
 
   function sourceLabel(v) {
     v = normalizeSearchSource(v);
-    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : v === 'tvmaze' ? 'TVMaze' : '';
+    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : v === 'tvmaze' ? 'TVMaze' : v === 'anidb' ? 'AniDB' : '';
+  }
+
+  function providerConfigured(id) {
+    if (!PROVIDERS || !PROVIDERS.length) {
+      return true;
+    }
+    for (var i = 0; i < PROVIDERS.length; i++) {
+      if (PROVIDERS[i].id === id) {
+        return PROVIDERS[i].configured !== false;
+      }
+    }
+    return true;
   }
 
   function seriesPoster() {
@@ -237,8 +249,12 @@
       { value: 'tvdb', label: 'TVDB' },
       { value: 'anilist', label: 'AniList' },
       { value: 'mal', label: 'MAL' },
-      { value: 'tvmaze', label: 'TVMaze' }
+      { value: 'tvmaze', label: 'TVMaze' },
+      { value: 'anidb', label: 'AniDB' }
     ].forEach(function (opt) {
+      if (opt.value && !providerConfigured(opt.value)) {
+        return;
+      }
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
@@ -340,6 +356,9 @@
       }
       if (entry.tvmazeId) {
         pairs.push(['TVMaze', entry.tvmazeId]);
+      }
+      if (entry.anidbId) {
+        pairs.push(['AniDB', entry.anidbId]);
       }
     }
     for (var i = 0; i < pairs.length; i++) {
@@ -648,11 +667,12 @@
   var SEARCH_UI_ID = 'metadata-search-ui';
   var LS_PROVIDER_KEY = 'sonarrMetadataOverride.searchProvider';
   var SEARCH_PROVIDER = '';
+  var PROVIDERS = null;
   var lastSearchInput = null;
 
   function normalizeSearchSource(value) {
     var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
-    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal' && v !== 'tvmaze') {
+    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal' && v !== 'tvmaze' && v !== 'anidb') {
       return '';
     }
     return v;
@@ -669,6 +689,29 @@
       badge.textContent = SEARCH_PROVIDER ? sourceLabel(SEARCH_PROVIDER) : 'Automatic';
       badge.className = 'mpo-badge' + (SEARCH_PROVIDER ? ' mpo-badge-active' : '');
     }
+  }
+
+  function loadProviders() {
+    var base = overridesApiBase();
+    if (!base) {
+      return;
+    }
+    fetch(base + '/api/overrides/providers')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('bad status ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.providers) {
+          PROVIDERS = data.providers;
+          refreshSearchPickers();
+        }
+      })
+      .catch(function () {
+        /* keep static full list */
+      });
   }
 
   function loadSearchProvider() {
@@ -708,6 +751,7 @@
       });
   }
   loadSearchProvider();
+  loadProviders();
 
   function triggerSearchRestart() {
     var pick = lastSearchInput;
@@ -761,8 +805,12 @@
       { value: 'tvdb', label: 'TVDB' },
       { value: 'anilist', label: 'AniList' },
       { value: 'mal', label: 'MAL' },
-      { value: 'tvmaze', label: 'TVMaze' }
+      { value: 'tvmaze', label: 'TVMaze' },
+      { value: 'anidb', label: 'AniDB' }
     ].forEach(function (opt) {
+      if (opt.value && !providerConfigured(opt.value)) {
+        return;
+      }
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
@@ -799,7 +847,7 @@
     list.className = 'mpo-bullets';
     [
       'Automatic = METADATA_SOURCE (.env), TVDB fallback on empty/error',
-      'Prefixes: tmdb: / tvdb: / anilist: / mal: / tvmaze:'
+      'Prefixes: tmdb: / tvdb: / anilist: / mal: / tvmaze: / anidb:'
     ].forEach(function (text) {
       var li = document.createElement('li');
       li.textContent = text;

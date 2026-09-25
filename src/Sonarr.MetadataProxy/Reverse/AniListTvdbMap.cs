@@ -14,6 +14,7 @@ namespace Sonarr.MetadataProxy.Reverse;
 public sealed class AniListTvdbMap
 {
     private readonly Dictionary<int, int> _anidbToTvdb = new();
+    private readonly Dictionary<int, int> _tvdbToAnidb = new();
     private readonly Dictionary<int, int> _anilistToAnidb = new();
     private readonly Dictionary<int, int> _malToAnidb = new();
     private readonly Dictionary<int, int> _malToAniList = new();
@@ -45,6 +46,11 @@ public sealed class AniListTvdbMap
     public int? TryGetAnidbTvdbId(int anidbId)
     {
         return _anidbToTvdb.TryGetValue(anidbId, out var tvdbId) ? tvdbId : null;
+    }
+
+    public int? TryGetAnidbIdByTvdb(int tvdbId)
+    {
+        return _tvdbToAnidb.TryGetValue(tvdbId, out var anidbId) ? anidbId : null;
     }
 
     public int? TryGetAniListId(int malId)
@@ -93,6 +99,18 @@ public sealed class AniListTvdbMap
         }
 
         HasData = _anidbToTvdb.Count > 0 && _anilistToAnidb.Count > 0;
+
+        foreach (var (anidbId, tvdbId) in _anidbToTvdb)
+        {
+            if (_tvdbToAnidb.TryGetValue(tvdbId, out var existingAnidbId))
+            {
+                _tvdbToAnidb[tvdbId] = Math.Min(existingAnidbId, anidbId);
+            }
+            else
+            {
+                _tvdbToAnidb[tvdbId] = anidbId;
+            }
+        }
 
         var anidbToMal = _malToAnidb
             .GroupBy(kvp => kvp.Value)
@@ -206,6 +224,7 @@ public sealed class AniListTvdbMap
     private void Clear()
     {
         _anidbToTvdb.Clear();
+        _tvdbToAnidb.Clear();
         _anilistToAnidb.Clear();
         _malToAnidb.Clear();
     }

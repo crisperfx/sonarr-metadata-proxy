@@ -47,7 +47,7 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 - Sonarr talks to `skyhook.sonarr.tv` exactly as it always does — the DNS alias just makes
   that name resolve to the proxy instead of the real SkyHook. Everything else in Sonarr is
   untouched.
-- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList / MAL / TVMaze) with **automatic
+- **Search** uses the configured source (Automatic / TMDB / TVDB / AniList / MAL / TVMaze / AniDB) with **automatic
   fallback to TVDB** when the chosen source returns no results.
 - **Series details/episodes** come from TMDB (with automatic TVDB↔TMDB mapping, fallback to
   real TVDB when a series cannot be mapped).
@@ -62,8 +62,9 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
   `/anime/{id}/pictures` endpoint first.
 - Two tiny "hooks" in Sonarr make it all work automatically: one installs trust for the
   proxy's own CA certificate, the other injects a small **Metadata source** dropdown into
-  the Sonarr web UI (per-series TMDB/TVDB/AniList/MAL/TVMaze picker) and a **Search via** provider picker
-  (TMDB / TVDB / AniList / MAL / TVMaze) into the Add New search box.
+  the Sonarr web UI (per-series TMDB/TVDB/AniList/MAL/TVMaze/AniDB picker) and a **Search via** provider picker
+  (TMDB / TVDB / AniList / MAL / TVMaze / AniDB) into the Add New search box. Providers that
+  are not configured (no credentials on the proxy) are hidden from both pickers.
 
 ---
 
@@ -71,21 +72,23 @@ back into the exact JSON contract Sonarr expects. No fork, no patched Sonarr, no
 
 | Provider | Search behaviour | No results → fallback | Details / episodes |
 |---|---|---|---|
-| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb`, `tvdb`, `anilist`, `mal`, or `tvmaze`). | → TVDB | Depends on the source: TMDB primary when source is TMDB; AniList/MAL metadata + episodes via Tenrai when source is anime-bound; TVMaze details/episodes when source is TVMaze; TVDB fallback on mapping failure |
+| **Automatic** (default = `METADATA_SOURCE`) | Uses configured default (`tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb`). | → TVDB | Depends on the source: TMDB primary when source is TMDB; AniList/MAL metadata + episodes via Tenrai when source is anime-bound; TVMaze details/episodes when source is TVMaze; AniDB details/episodes when source is AniDB; TVDB fallback on mapping failure |
 | **TMDB only** | `tmdb:` prefix; searches TMDB, maps to TVDB via internal map | → TVDB | TMDB primary, TVDB fallback |
 | **TVDB (SkyHook)** | `tvdb:` prefix; direct SkyHook passthrough | *(none — source is TVDB)* | Real TVDB |
 | **AniList** | Searches AniList (format TV / TV_SHORT only), maps via bundled Fribb + Anime-Lists datasets to TVDB; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | Details **and artwork** from AniList (title/status/score/genres/cast/studio, poster + banner); episodes via Tenrai/MAL using the mapped MAL id (`idMal`), data-driven flattening; TVDB fallback |
 | **MAL (Tenrai)** | Searches MyAnimeList via the public Tenrai API (type TV only, with internal rate-limit handling), maps via the same bundled datasets; series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs are decomposed, mapped via TMDB) | Details + episodes from Tenrai (with per-season data when present, data-driven flattening), backgrounds from Tenrai `/anime/{id}/pictures`; TVDB fallback |
 | **TVMaze** | Searches TVMaze (`lookup/shows`, free API, no key, internal rate-limit handling); maps hits to a real TVDB id (bundled lookups + title fallback), series without TVDB mapping get a synthetic ID and are shown | → TVDB (synthetic IDs resolved via TVMaze lookup) | Details + episode schedule straight from TVMaze (real TVMaze season/episode numbers, `special` season-0 episodes kept), data-driven flattening; TVDB fallback when the series cannot be resolved |
+| **AniDB** | `anidb:` prefix (or `anidb` as default source): title search is instant over the daily title dump — no API calls, title-only results (no images); `anidb:<id>` looks the id up via the AniDB HTTP API with full details | → TVDB | Details + episodes straight from AniDB (title, synopsis, poster, rating; episode `epno` type 1 → season 1, type 2 → season 0 specials), data-driven flattening; poster/details fetched on series open (search rows are title-only), cached per day; TVDB fallback on API failure |
 
 **Key points:**
 - **Every provider falls back to TVDB on empty results** (except explicit TVDB).
 - AniList search filters to `format_in: [TV, TV_SHORT]` (excludes movies/specials/OVAs); MAL filters to `type: tv`.
-- Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList/MAL ID, 2 000 000 000 + TVMaze ID) so they appear in search; details are served via the active provider (AniList/MAL directly when an anime source is active, TVMaze directly when the source is TVMaze, TMDB otherwise via synthetic → TMDB mapping).
+- Series without a real TVDB mapping get a **synthetic TVDB ID** (1 000 000 000 + AniList/MAL ID, 2 000 000 000 + TVMaze ID, 2 147 000 000 + AniDB ID) so they appear in search; details are served via the active provider (AniList/MAL directly when an anime source is active, TVMaze directly when the source is TVMaze, AniDB directly when the source is AniDB, TMDB otherwise via synthetic → TMDB mapping).
 - Search provider preference is persisted in localStorage and on the proxy (`/api/overrides/searchsource`), survives page refresh and container restarts.
-- Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB / AniList / MAL / TVMaze) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
+- Per-series **Metadata source** dropdown (Automatic / TMDB / TVDB / AniList / MAL / TVMaze / AniDB) still works as before; overrides stored in `DATA_DIR/mappings/mappings.json`.
 - **Fanart fallback**: when a provider offers no background artwork, the proxy serves the poster as backdrop instead (skyhook: `BackdropPath ?? PosterPath`; AniList: banner else poster; MAL: backgrounds from Tenrai pictures, else first poster).
 - AniList-served series use **AniList artwork only**: the MAL pictures enrichment (`/anime/{id}/pictures`) is skipped so Sonarr never mixes MyAnimeList art into an AniList result.
+- AniDB search rows are **title-only** (the daily title dump carries no artwork); posters and descriptions appear once Sonarr opens the series. One AniDB API call returns both the series and all its episodes.
 
 **External automation (Prowlarr, Overseerr, Ombi, Radarr, Sonarr RSS, etc.)**
 The search provider choice (via `METADATA_SOURCE` env var or UI dropdown) applies to **all** searches that hit Sonarr's SkyHook endpoint — including those triggered by external automation (Prowlarr, Overseerr, Ombi, Radarr, Sonarr's own RSS/monitoring). There is no separate setting; the configured search provider is global for the proxy.
@@ -375,7 +378,7 @@ LAN / port-forward use.
 
 ## Per-series source selection ("Metadata source")
 
-Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList / MAL / TVMaze**.
+Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList / MAL / TVMaze / AniDB**.
 
 - **Automatic** = the default source from `METADATA_SOURCE`.
 - **TMDB** = always use TMDB servers for this series.
@@ -393,6 +396,11 @@ Every series page has a dropdown: **Automatic / TMDB / TVDB / AniList / MAL / TV
   (seasons as TVMaze numbers them, `season 0` specials kept as a specials season) with
   data-driven flattening. No `tvmaze:`-search binding required, selecting TVMaze here is
   enough; the proxy resolves the TVMaze id from the TVDB id (bundled lookups + title fallback).
+- **AniDB** = serve this series using AniDB metadata — title, synopsis, poster and rating plus
+  all episodes from one API call (episode `epno` type 1 → season 1, type 2 → season 0 specials),
+  data-driven flattening. Selecting AniDB here is enough; the proxy resolves the AniDB id from
+  the TVDB id (mapping inverse first, then title fallback). Requires `ANIDB_CLIENT` +
+  `ANIDB_CLIENT_VERSION` to be configured, otherwise the option falls back to the default source.
 
 After choosing: **Refresh & Scan** on the series. Overrides are stored in
 `DATA_DIR/mappings/mappings.json` (one single file for all series — not a file per
@@ -414,7 +422,7 @@ The series will then fall back to the default source (TMDB via synthetic ID deco
 When adding a series, the search box gets a **Search via** dropdown:
 
 - **Automatic** — uses the default source from `METADATA_SOURCE`
-  (`tmdb`, `tvdb`, `anilist`, `mal`, or `tvmaze`). Searches fall back to TVDB on empty results; TVDB is direct.
+  (`tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb`). Searches fall back to TVDB on empty results; TVDB is direct.
 - **TMDB only** — prefixes your query with `tmdb:` so the proxy searches TMDB and
   falls back to TVDB on empty results (e.g. to force a TMDB id, type `tmdb:1396`).
 - **TVDB (SkyHook)** — prefixes with `tvdb:`, forcing the TVDB listing
@@ -430,17 +438,26 @@ When adding a series, the search box gets a **Search via** dropdown:
 - **TVMaze** — searches TVMaze (free API, no key needed, internal rate-limit handling), maps the
   hit to a real TVDB id via bundled lookups (title fallback). Results without a real TVDB id get
   a synthetic TVDB ID; API failures and unmatched series fall through to TVDB.
+- **AniDB** — searches instantaneously over the daily AniDB title dump (no API calls, title-only
+  results without artwork), maps the hit to a real TVDB id via the bundled AniDB↔TVDB link data
+  (title fallback against the dump). Results without a known TVDB mapping get a synthetic TVDB ID;
+  `anidb:<numeric id>` looks the id up via the AniDB HTTP API (full details). Requires
+  `ANIDB_CLIENT` + `ANIDB_CLIENT_VERSION` to be configured; when they are not, the AniDB option
+  is hidden and `anidb:` terms fall through to TVDB.
 
 **Fallback behaviour for all providers (except explicit TVDB):**
 - **Empty results → TVDB fallback** (always).
 - **API errors → TVDB fallback**.
 - AniList: synthetic TVDB IDs are decomposed to TMDB for detail/episode fetch.
 - TVMaze: synthetic TVDB IDs are resolved via the TVMaze id lookup for detail/episode fetch.
+- AniDB: synthetic TVDB IDs (and non-synthetic ones without a mapping) are resolved via the AniDB id lookup for detail/episode fetch.
 
 The same prefixes work manually if you type them yourself: `tvdb:id`, `tmdb:id`,
-`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`, `tvmaze:id`. The `anilist:` prefix resolves
+`tvdbid:id`, `imdb:tt...`, `mal:id`, `anilist:id`, `tvmaze:id`, `anidb:id`. The `anilist:` prefix resolves
 through AniList; `mal:` resolves through MAL when the bundled mapping data is
-available, falling back to AniList and then TVDB; `tvmaze:` resolves directly through TVMaze.
+available, falling back to AniList and then TVDB; `tvmaze:` resolves directly through TVMaze;
+`anidb:` resolves through AniDB (`anidb:<numeric id>` via the HTTP API, any other text as an
+instant title-dump search).
 
 Both pickers are styled like the Sonarr sidebar (dark `#2a2a2a` panel) and collapse into a small
 **Metadata ▸** / **Metasources ▸** pill on the left edge so they never cover the page; tap the pill to
@@ -450,9 +467,11 @@ expand, **–** to collapse again.
 
 | Variable | Default | Description |
 |---|---|---|
-| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, `anilist`, `mal`, or `tvmaze` (passthrough only). |
+| `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb` (passthrough only). |
 | `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
 | `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key (wins if both set). |
+| `ANIDB_CLIENT` | – | AniDB HTTP API client name. Both `ANIDB_CLIENT` and `ANIDB_CLIENT_VERSION` must be set to enable the AniDB provider. |
+| `ANIDB_CLIENT_VERSION` | – | AniDB HTTP API client version. See `ANIDB_CLIENT`. |
 | `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to the real TVDB on mapping/source failure. |
 | `PORT` | `9697` | HTTP port for management/health; the SkyHook/TLS listener is always on `443`. |
@@ -530,5 +549,6 @@ Local testing: `dotnet test` or via Docker: `docker compose build sonarr-metadat
 - AniList search filters to `format: [TV, TV_SHORT]` (excludes movies, specials, OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details and artwork served via AniList (score, genres, cast, studio, poster + banner; MAL pictures never mixed in) and episodes via the mapped MAL id / Tenrai. On empty results or API errors, falls back to TVDB.
 - MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
 - TVMaze search uses a free API with its own rate limits (internal rate-limit handling). Series without a known TVDB id get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
+- AniDB search rows are title-only (the daily title dump has no artwork); details/posters are fetched from the AniDB HTTP API once the series is opened (cached, ~1 request/2 s, max 55/110 s handled internally). `anidb:` becomes fully available only with `ANIDB_CLIENT` + `ANIDB_CLIENT_VERSION` set; otherwise the prefix falls back to TVDB. AniDB metadata has no air time, so `timeOfDay` is missing.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.

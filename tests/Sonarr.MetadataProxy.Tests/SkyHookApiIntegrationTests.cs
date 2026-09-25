@@ -1145,6 +1145,39 @@ public class SkyHookApiIntegrationTests
         Assert.Contains((81189, "tvdb"), entries);
     }
 
+    [Fact]
+    public async Task Providers_ReportsTvdbConfiguredAndAnidbUnconfigured()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/overrides/providers");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var providers = document.RootElement.GetProperty("providers");
+        var tmdb = providers.EnumerateArray().First(p => p.GetProperty("id").GetString() == "tmdb");
+        var anidb = providers.EnumerateArray().First(p => p.GetProperty("id").GetString() == "anidb");
+
+        Assert.True(tmdb.GetProperty("configured").GetBoolean());
+        Assert.False(anidb.GetProperty("configured").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Search_AnidbTerm_WhenUnconfigured_FallsThroughToTvdb()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=anidb%3Adeath+note");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        Assert.Empty(document.RootElement.EnumerateArray());
+    }
+
     private void WriteAniListFixtures()
     {
         var dir = Path.Combine(_dataDir, "datamaps");

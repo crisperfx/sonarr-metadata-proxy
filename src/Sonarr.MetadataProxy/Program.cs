@@ -28,6 +28,7 @@ var options = ProxyOptions.FromConfiguration(builder.Configuration);
 Log.Information("Starting Sonarr Metadata Proxy.");
 Log.Information("Metadata source: {Source}", options.MetadataSource);
 Log.Information("TMDB credentials configured: {Configured}", options.HasTmdbAuth);
+Log.Information("AniDB credentials configured: {Configured}", options.HasAnidbClient);
 Log.Information("TVDB fallback enabled: {Enabled}", options.EnableTvdbFallback);
 Log.Information("Management HTTP port: {Port}", options.Port);
 Log.Information("TLS interception enabled: {Tls}", !options.SkipTls);
@@ -58,17 +59,35 @@ builder.Services.AddHttpClient<ITvmazeApi, TvmazeClient>(http =>
     http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
 });
 
+builder.Services.AddHttpClient<IAnidbApi, AnidbClient>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(20);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd($"SonarrMetadataProxy/1.0 (anidb; {options.AnidbClientName ?? string.Empty})");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+});
+
+builder.Services.AddHttpClient<AnidbTitleList>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(60);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd($"SonarrMetadataProxy/1.0 (anidb titles; {options.AnidbClientName ?? string.Empty})");
+});
+
 builder.Services.AddSingleton<TenraiRateLimiter>();
 builder.Services.AddSingleton<TvmazeRateLimiter>();
+builder.Services.AddSingleton<AnidbRateLimiter>();
 builder.Services.AddSingleton<MappingStore>();
 builder.Services.AddSingleton<WikidataTvdbResolver>();
 builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();
 builder.Services.AddSingleton<ITvdbToTvmazeResolver, TvdbToTvmazeResolver>();
+builder.Services.AddSingleton<ITvdbToAnidbResolver, TvdbToAnidbResolver>();
 builder.Services.AddSingleton<ITmdbApi, TmdbClient>();
 builder.Services.AddSingleton<TmdbMetadataProvider>();
 builder.Services.AddSingleton<MalMetadataProvider>();
 builder.Services.AddSingleton<AniListMetadataProvider>();
 builder.Services.AddSingleton<TvmazeMetadataProvider>();
+builder.Services.AddSingleton<AnidbMetadataProvider>();
 builder.Services.AddSingleton<TvmazeTranslator>();
 builder.Services.AddSingleton<TvmazeSearchService>();
 builder.Services.AddSingleton<AniListTvdbMap>();
@@ -76,6 +95,8 @@ builder.Services.AddSingleton<AniListTranslator>();
 builder.Services.AddSingleton<AniListSearchService>();
 builder.Services.AddSingleton<MalTranslator>();
 builder.Services.AddSingleton<MalSearchService>();
+builder.Services.AddSingleton<AnidbTranslator>();
+builder.Services.AddSingleton<AnidbSearchService>();
 builder.Services.AddSingleton<IMetadataProvider>(
     serviceProvider => MetadataProviderRegistry.Create(options.MetadataSource, serviceProvider));
 builder.Services.AddSingleton<RuntimeDnsResolver>();

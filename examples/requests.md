@@ -29,13 +29,16 @@ curl "http://127.0.0.1:9697/v1/tvdb/shows/en/81189"
 
 Anime terms — `anilist:1535` resolves through AniList; `mal:1535` resolves
 through MAL (Tenrai) when mapping data is available; `tvmaze:169` + `tvmaze:breaking bad`
-resolve through TVMaze:
+resolve through TVMaze; `anidb:2993` looks an AniDB id up via the AniDB HTTP API (full details),
+`anidb:death note` is an instant title-dump search (title-only rows, no artwork):
 
 ```bash
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anilist%3A1535"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=mal%3A1535"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=tvmaze%3A169"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=tvmaze%3Abreaking%20bad"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anidb%3A369"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anidb%3Aone%20piece"
 ```
 
 ## Full series object with episodes (what Sonarr fetches on add + every refresh)

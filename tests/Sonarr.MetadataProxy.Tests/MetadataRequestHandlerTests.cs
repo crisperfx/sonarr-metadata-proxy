@@ -647,6 +647,95 @@ public class MetadataRequestHandlerTests
         Assert.Equal(0, _resolver.CallCount);
     }
 
+    [Fact]
+    public async Task Search_AnidbTextTerm_WhenConfigured_UsesAnidbSearchService()
+    {
+        TestData.WriteTitleDumpFile(_dataDir, "2993|1|en|Death Note");
+        var options = new ProxyOptions
+        {
+            DataDir = _dataDir,
+            AnidbClientName = "c",
+            AnidbClientVersion = "1"
+        };
+        var anidbApi = new FakeAnidbApi();
+        var anidbTitles = new AnidbTitleList(options, new HttpClient(), NullLogger<AnidbTitleList>.Instance);
+        var (handler, _) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            anidbSearch: new AnidbSearchService(
+                anidbApi,
+                anidbTitles,
+                new AnidbTranslator(),
+                new MappingStore(options, NullLogger<MappingStore>.Instance),
+                new AniListTvdbMap(options, NullLogger<AniListTvdbMap>.Instance),
+                options,
+                NullLogger<AnidbSearchService>.Instance));
+
+        var result = await handler.SearchAsync("anidb:death note", CancellationToken.None);
+
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("anidbId", body);
+    }
+
+    [Fact]
+    public async Task Search_AnidbTerm_WhenNotConfigured_FallsThroughToTvdb()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+
+        await handler.SearchAsync("anidb:death note", CancellationToken.None);
+
+        Assert.Equal("anidb:death note", _passthrough.LastSearchTerm);
+    }
+
+    [Fact]
+    public async Task Show_AnidbOverride_UsesAnidbProvider()
+    {
+        var anidbApi = new FakeAnidbApi();
+        anidbApi.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();
+        var anidbProvider = new AnidbMetadataProvider(anidbApi, new AnidbTranslator(), NullLogger<AnidbMetadataProvider>.Instance);
+        var resolver = new FakeTvdbAnidbResolver();
+        resolver.Map[TestData.DeathNoteTvdbId] = TestData.DeathNoteAnidbId;
+        var (handler, mapping) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            anidbProvider: anidbProvider,
+            anidbResolver: resolver,
+            anidbSearch: null);
+
+        mapping.SetOverride(TestData.DeathNoteTvdbId, MappingStore.SourceAnidb);
+
+        var result = await handler.ShowAsync(TestData.DeathNoteTvdbId, CancellationToken.None);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("Death Note", body);
+        Assert.Equal(0, _passthrough.ShowCallCount);
+    }
+
+    [Fact]
+    public async Task Show_AnidbSyntheticId_UsesAnidbProviderWithoutResolver()
+    {
+        var anidbApi = new FakeAnidbApi();
+        anidbApi.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();
+        var anidbProvider = new AnidbMetadataProvider(anidbApi, new AnidbTranslator(), NullLogger<AnidbMetadataProvider>.Instance);
+        var resolver = new FakeTvdbAnidbResolver();
+        var (handler, mapping) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            anidbProvider: anidbProvider,
+            anidbResolver: resolver,
+            anidbSearch: null);
+
+        var syntheticTvdbId = SyntheticIds.AnidbSeriesId(TestData.DeathNoteAnidbId);
+        mapping.SetOverride(syntheticTvdbId, MappingStore.SourceAnidb);
+
+        var result = await handler.ShowAsync(syntheticTvdbId, CancellationToken.None);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("Death Note", body);
+        Assert.Equal(0, resolver.CallCount);
+    }
+
     private MetadataRequestHandler CreateHandler(bool fallbackEnabled, string source = "tmdb")
     {
         return CreateHandlerWithMapping(fallbackEnabled, source).Handler;
@@ -657,12 +746,17 @@ public class MetadataRequestHandlerTests
         string source = "tmdb",
         AniListSearchService? aniList = null,
         MalSearchService? mal = null,
-        TvmazeSearchService? tvmazeSearch = null)
+        TvmazeSearchService? tvmazeSearch = null,
+        AnidbSearchService? anidbSearch = null,
+        AnidbMetadataProvider? anidbProvider = null,
+        FakeTvdbAnidbResolver? anidbResolver = null)
     {
         var options = new ProxyOptions
         {
             MetadataSource = source,
             TmdbApiKey = "test-key",
+            AnidbClientName = "test-client",
+            AnidbClientVersion = "1",
             EnableTvdbFallback = fallbackEnabled,
             DataDir = _dataDir
         };
@@ -677,6 +771,7 @@ public class MetadataRequestHandlerTests
             _tvmaze, options, tvmazeTranslator, NullLogger<TvmazeMetadataProvider>.Instance);
         var effectiveTvmazeSearch = tvmazeSearch ?? new TvmazeSearchService(
             _tvmaze, tvmazeTranslator, mapping, options, NullLogger<TvmazeSearchService>.Instance);
+        var effectiveAnidbResolver = anidbResolver ?? new FakeTvdbAnidbResolver();
 
         var handler = new MetadataRequestHandler(
             options,
@@ -695,6 +790,9 @@ public class MetadataRequestHandlerTests
             null,
             null,
             tvmazeProvider,
+            anidbProvider,
+            anidbSearch,
+            effectiveAnidbResolver,
             TestServiceProvider,
             NullLogger<MetadataRequestHandler>.Instance);
 
