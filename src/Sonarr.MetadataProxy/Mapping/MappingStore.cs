@@ -17,12 +17,15 @@ public sealed class MappingStore
     private readonly Dictionary<int, int> _malByTvdb = new();
     private readonly Dictionary<int, int> _tvdbByMal = new();
     private readonly Dictionary<int, int> _tvdbByAniList = new();
+    private readonly Dictionary<int, int> _tvmazeByTvdb = new();
+    private readonly Dictionary<int, int> _tvdbByTvmaze = new();
     private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
     public const string SourceAniList = "anilist";
     public const string SourceMal = "mal";
+    public const string SourceTvmaze = "tvmaze";
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
@@ -191,6 +194,52 @@ public sealed class MappingStore
         }
     }
 
+    public int? TryGetTvmazeIdByTvdb(int tvdbId)
+    {
+        lock (_sync)
+        {
+            return _tvmazeByTvdb.TryGetValue(tvdbId, out var tvmazeId) ? tvmazeId : null;
+        }
+    }
+
+    public int? TryGetTvdbByTvmazeId(int tvmazeId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByTvmaze.TryGetValue(tvmazeId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public void RegisterTvmazeId(int tvdbId, int tvmazeId)
+    {
+        if (tvmazeId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            var changed = false;
+
+            if (!_tvmazeByTvdb.ContainsKey(tvdbId))
+            {
+                _tvmazeByTvdb[tvdbId] = tvmazeId;
+                changed = true;
+            }
+
+            if (!_tvdbByTvmaze.ContainsKey(tvmazeId))
+            {
+                _tvdbByTvmaze[tvmazeId] = tvdbId;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
     public void RegisterIds(int tvdbId, int? tmdbId = null, int? malId = null, int? anilistId = null)
     {
         if (tvdbId <= 0)
@@ -253,9 +302,9 @@ public sealed class MappingStore
 
     public void SetOverride(int tvdbId, string source)
     {
-        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceMal))
+        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceMal or SourceTvmaze))
         {
-            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
+            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist', 'mal' or 'tvmaze'.", nameof(source));
         }
 
         if (tvdbId <= 0)
@@ -278,8 +327,18 @@ public sealed class MappingStore
             var removedMapping = _seriesReal.Remove(tvdbId);
             var removedAniList = _aniListByTvdb.Remove(tvdbId);
             var removedMal = _malByTvdb.Remove(tvdbId);
+            var removedTvmaze = _tvmazeByTvdb.Remove(tvdbId);
 
-            if (!removedOverride && !removedMapping && !removedAniList && !removedMal)
+            var orphanedTvmazeTvdbIds = _tvdbByTvmaze
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedTvmazeId in orphanedTvmazeTvdbIds)
+            {
+                _tvdbByTvmaze.Remove(orphanedTvmazeId);
+            }
+
+            if (!removedOverride && !removedMapping && !removedAniList && !removedMal && !removedTvmaze && orphanedTvmazeTvdbIds.Count == 0)
             {
                 return false;
             }
@@ -308,9 +367,9 @@ public sealed class MappingStore
     public void SetDefaultSearchSource(string source)
     {
         var normalized = (source ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList and not SourceMal)
+        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList and not SourceMal and not SourceTvmaze)
         {
-            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
+            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb', 'anilist', 'mal' or 'tvmaze'.", nameof(source));
         }
 
         lock (_sync)
@@ -350,6 +409,8 @@ public sealed class MappingStore
                     _malByTvdb.Clear();
                     _tvdbByMal.Clear();
                     _tvdbByAniList.Clear();
+                    _tvmazeByTvdb.Clear();
+                    _tvdbByTvmaze.Clear();
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -390,6 +451,16 @@ public sealed class MappingStore
                     {
                         _tvdbByAniList[key] = value;
                     }
+
+                    foreach (var (key, value) in persisted.TvmazeByTvdb)
+                    {
+                        _tvmazeByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByTvmaze)
+                    {
+                        _tvdbByTvmaze[key] = value;
+                    }
                 }
 
                 _logger.LogInformation(
@@ -424,6 +495,8 @@ public sealed class MappingStore
                 MalByTvdb = new Dictionary<int, int>(_malByTvdb),
                 TvdbByMal = new Dictionary<int, int>(_tvdbByMal),
                 TvdbByAniList = new Dictionary<int, int>(_tvdbByAniList),
+                TvmazeByTvdb = new Dictionary<int, int>(_tvmazeByTvdb),
+                TvdbByTvmaze = new Dictionary<int, int>(_tvdbByTvmaze),
                 DefaultSearchSource = _defaultSearchSource
             };
 
@@ -450,6 +523,8 @@ public sealed class MappingStore
         public Dictionary<int, int> MalByTvdb { get; set; } = new();
         public Dictionary<int, int> TvdbByMal { get; set; } = new();
         public Dictionary<int, int> TvdbByAniList { get; set; } = new();
+        public Dictionary<int, int> TvmazeByTvdb { get; set; } = new();
+        public Dictionary<int, int> TvdbByTvmaze { get; set; } = new();
         public string DefaultSearchSource { get; set; } = "";
     }
 }

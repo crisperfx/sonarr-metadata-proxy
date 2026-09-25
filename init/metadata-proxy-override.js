@@ -195,7 +195,7 @@
 
   function sourceLabel(v) {
     v = normalizeSearchSource(v);
-    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : '';
+    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : v === 'tvmaze' ? 'TVMaze' : '';
   }
 
   function seriesPoster() {
@@ -236,7 +236,8 @@
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
       { value: 'anilist', label: 'AniList' },
-      { value: 'mal', label: 'MAL' }
+      { value: 'mal', label: 'MAL' },
+      { value: 'tvmaze', label: 'TVMaze' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -292,6 +293,12 @@
             } else {
               setStatus('Saved, but no TMDB id found — falling back to TVDB.', '#fbbf24');
             }
+          } else if (dto && dto.source === 'tvmaze') {
+            if (dto.tvmazeId) {
+              setStatus('Saved: TVMaze (id ' + dto.tvmazeId + '). Now run Refresh & Scan.', '#4ade80');
+            } else {
+              setStatus('Saved, but no TVMaze id found — falling back to TVDB.', '#fbbf24');
+            }
           } else {
             setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', '#fbbf24');
           }
@@ -330,6 +337,9 @@
       }
       if (entry.malId) {
         pairs.push(['MAL', entry.malId]);
+      }
+      if (entry.tvmazeId) {
+        pairs.push(['TVMaze', entry.tvmazeId]);
       }
     }
     for (var i = 0; i < pairs.length; i++) {
@@ -642,7 +652,7 @@
 
   function normalizeSearchSource(value) {
     var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
-    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal') {
+    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal' && v !== 'tvmaze') {
       return '';
     }
     return v;
@@ -750,7 +760,8 @@
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
       { value: 'anilist', label: 'AniList' },
-      { value: 'mal', label: 'MAL' }
+      { value: 'mal', label: 'MAL' },
+      { value: 'tvmaze', label: 'TVMaze' }
     ].forEach(function (opt) {
       var option = document.createElement('option');
       option.value = opt.value;
@@ -788,7 +799,7 @@
     list.className = 'mpo-bullets';
     [
       'Automatic = METADATA_SOURCE (.env), TVDB fallback on empty/error',
-      'Prefixes: tmdb: / tvdb: / anilist: / mal:'
+      'Prefixes: tmdb: / tvdb: / anilist: / mal: / tvmaze:'
     ].forEach(function (text) {
       var li = document.createElement('li');
       li.textContent = text;

@@ -52,14 +52,25 @@ builder.Services.AddHttpClient<IMalApi, MalClient>(http =>
     http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
 });
 
+builder.Services.AddHttpClient<ITvmazeApi, TvmazeClient>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(20);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
+});
+
 builder.Services.AddSingleton<TenraiRateLimiter>();
+builder.Services.AddSingleton<TvmazeRateLimiter>();
 builder.Services.AddSingleton<MappingStore>();
 builder.Services.AddSingleton<WikidataTvdbResolver>();
 builder.Services.AddSingleton<ITvdbToTmdbResolver, TvdbToTmdbResolver>();
+builder.Services.AddSingleton<ITvdbToTvmazeResolver, TvdbToTvmazeResolver>();
 builder.Services.AddSingleton<ITmdbApi, TmdbClient>();
 builder.Services.AddSingleton<TmdbMetadataProvider>();
 builder.Services.AddSingleton<MalMetadataProvider>();
 builder.Services.AddSingleton<AniListMetadataProvider>();
+builder.Services.AddSingleton<TvmazeMetadataProvider>();
+builder.Services.AddSingleton<TvmazeTranslator>();
+builder.Services.AddSingleton<TvmazeSearchService>();
 builder.Services.AddSingleton<AniListTvdbMap>();
 builder.Services.AddSingleton<AniListTranslator>();
 builder.Services.AddSingleton<AniListSearchService>();

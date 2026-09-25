@@ -4,6 +4,7 @@ using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Metadata;
+using Sonarr.MetadataProxy.Models.Tvmaze;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Passthrough;
 using Sonarr.MetadataProxy.Providers;
@@ -18,16 +19,19 @@ public sealed class MetadataRequestHandler
     private readonly ProxyOptions _options;
     private readonly MappingStore _mapping;
     private readonly ITvdbToTmdbResolver _tvdbToTmdb;
+    private readonly ITvdbToTvmazeResolver _tvdbToTvmaze;
     private readonly ISkyHookPassthrough _passthrough;
     private readonly SkyHookTranslator _translator;
     private readonly AniListSearchService? _aniList;
     private readonly MalSearchService? _mal;
+    private readonly TvmazeSearchService? _tvmaze;
     private readonly IMalApi? _malApi;
     private readonly AniListTvdbMap? _animeMap;
     private readonly IMetadataProvider? _activeProvider;
     private readonly TmdbMetadataProvider? _tmdbProvider;
     private readonly MalMetadataProvider? _malProvider;
     private readonly AniListMetadataProvider? _aniListProvider;
+    private readonly TvmazeMetadataProvider? _tvmazeProvider;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
 
@@ -35,32 +39,38 @@ public sealed class MetadataRequestHandler
         ProxyOptions options,
         MappingStore mapping,
         ITvdbToTmdbResolver tvdbToTmdb,
+        ITvdbToTvmazeResolver tvdbToTvmaze,
         ISkyHookPassthrough passthrough,
         SkyHookTranslator translator,
         AniListSearchService? aniList,
         MalSearchService? mal,
+        TvmazeSearchService? tvmaze,
         IMalApi? malApi,
         AniListTvdbMap? animeMap,
         IMetadataProvider? activeProvider,
         TmdbMetadataProvider? tmdbProvider,
         MalMetadataProvider? malProvider,
         AniListMetadataProvider? aniListProvider,
+        TvmazeMetadataProvider? tvmazeProvider,
         IServiceProvider serviceProvider,
         ILogger<MetadataRequestHandler> logger)
     {
         _options = options;
         _mapping = mapping;
         _tvdbToTmdb = tvdbToTmdb;
+        _tvdbToTvmaze = tvdbToTvmaze;
         _passthrough = passthrough;
         _translator = translator;
         _aniList = aniList;
         _mal = mal;
+        _tvmaze = tvmaze;
         _malApi = malApi;
         _animeMap = animeMap;
         _activeProvider = activeProvider;
         _tmdbProvider = tmdbProvider;
         _malProvider = malProvider;
         _aniListProvider = aniListProvider;
+        _tvmazeProvider = tvmazeProvider;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -74,6 +84,7 @@ public sealed class MetadataRequestHandler
             MappingStore.SourceMal => _malProvider,
             MappingStore.SourceAniList => _aniListProvider,
             MappingStore.SourceTmdb => _tmdbProvider,
+            MappingStore.SourceTvmaze => _tvmazeProvider,
             _ => _activeProvider
         };
     }
@@ -119,6 +130,23 @@ public sealed class MetadataRequestHandler
                 _options.MetadataSource,
                 term.Value);
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (term.Kind is TermKind.TvmazeId or TermKind.TvmazeSearch)
+        {
+            if (_tvmaze is not { IsConfigured: true })
+            {
+                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, term.Value);
+                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+
+            _logger.LogInformation("Explicit TVMaze search (tvmaze:) for '{Term}'.", SanitizeForLog(term.Value));
+            var shows = term.Kind switch
+            {
+                TermKind.TvmazeId => await _tvmaze.SearchByTvmazeIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false),
+                _ => await _tvmaze.SearchAsync(term.Value, cancellationToken).ConfigureAwait(false)
+            };
+            return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
         if (term.Kind == TermKind.TvdbSearch)
@@ -190,6 +218,24 @@ public sealed class MetadataRequestHandler
                     rawTerm);
                 return await SearchTmdbWithFallbackAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
+
+            if (searchSource == MappingStore.SourceTvmaze)
+            {
+                if (_tvmaze is not { IsConfigured: true })
+                {
+                    _logger.LogInformation(
+                        "Search source preference '{SearchSource}' is set but TVMaze is unavailable; falling through to TVDB.",
+                        searchSource);
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+
+                _logger.LogInformation(
+                    "Search source preference '{SearchSource}' applies to series search '{Term}'.",
+                    searchSource,
+                    rawTerm);
+                var tvmazeShows = await _tvmaze.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(tvmazeShows, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return await SearchAutomaticAsync(term, rawTerm, cancellationToken).ConfigureAwait(false);
@@ -202,13 +248,13 @@ public sealed class MetadataRequestHandler
     {
         if (shows is null)
         {
-            _logger.LogInformation("AniList search failed or is misconfigured for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
+            _logger.LogInformation("Search source failed or is misconfigured for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
         if (shows.Count == 0)
         {
-            _logger.LogInformation("No TVDB-mappable AniList results for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
+            _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
@@ -244,6 +290,11 @@ public sealed class MetadataRequestHandler
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
         catch (AniListApiException ex)
+        {
+            _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TvmazeApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
@@ -298,6 +349,11 @@ public sealed class MetadataRequestHandler
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
         catch (TmdbApiException ex)
+        {
+            _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TvmazeApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
@@ -596,9 +652,55 @@ public sealed class MetadataRequestHandler
             _logger.LogWarning("AniList override for TVDB id {TvdbId} but no AniList ID found or provider unavailable. Falling back.", tvdbId);
         }
 
+        bool tvmazePreferred =
+            sourceOverride == MappingStore.SourceTvmaze ||
+            (_activeProvider?.Name == "tvmaze" && _mapping.GetDefaultSearchSource() != MappingStore.SourceTvdb);
+
+        if (tvmazePreferred)
+        {
+            int? tvmazeId = SyntheticIds.TryDecomposeTvmazeSeries(tvdbId);
+            if (!tvmazeId.HasValue)
+            {
+                tvmazeId = _mapping.TryGetTvmazeIdByTvdb(tvdbId);
+                if (!tvmazeId.HasValue)
+                {
+                    tvmazeId = await _tvdbToTvmaze.ResolveTvmazeIdAsync(tvdbId, null, null, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            if (tvmazeId.HasValue && _tvmazeProvider is not null)
+            {
+                _logger.LogInformation("Source TVMAZE active for TVDB id {TvdbId}; using TVMaze provider with TVMaze id {TvmazeId}.", tvdbId, tvmazeId.Value);
+                try
+                {
+                    var metadata = await _tvmazeProvider.GetSeries(tvmazeId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var seasons = await _tvmazeProvider.GetSeasons(tvmazeId.Value.ToString(), cancellationToken).ConfigureAwait(false);
+                    var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                    _mapping.RegisterTvmazeId(tvdbId, tvmazeId.Value);
+
+                    _logger.LogInformation("TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via TVMaze.", show.TvdbId);
+                    return new ShowResolution.Mapped(show);
+                }
+                catch (TvmazeApiException ex)
+                {
+                    _logger.LogError(ex, "TVMaze API error for TVMaze ID {TvmazeId}.", tvmazeId.Value);
+                }
+            }
+
+            _logger.LogWarning("TVMaze lookup for TVDB id {TvdbId} failed or provider unavailable. Falling back.", tvdbId);
+            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+
         int? tmdbId = null;
 
-        if (SyntheticIds.IsSyntheticSeries(tvdbId))
+        if (SyntheticIds.IsTvmazeSyntheticSeries(tvdbId))
+        {
+            _logger.LogWarning("TVDB id {TvdbId} is a TVMaze-synthetic id but no TVMaze source is active; falling back.", tvdbId);
+            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (SyntheticIds.IsTmdbSyntheticSeries(tvdbId))
         {
             tmdbId = SyntheticIds.TryDecomposeSeries(tvdbId);
         }
@@ -691,6 +793,11 @@ try
         catch (AniListApiException ex)
         {
             _logger.LogError(ex, "AniList API error for AniList ID {AniListId}.", tmdbId.Value);
+            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TvmazeApiException ex)
+        {
+            _logger.LogError(ex, "TVMaze API error for TVMaze ID {TvmazeId}.", tmdbId.Value);
             return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
         }
     }

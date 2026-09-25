@@ -68,6 +68,38 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void RegisterTvmazeId_StoresTvmazeBindingForTvdbId()
+    {
+        var store = CreateStore();
+
+        store.RegisterTvmazeId(81189, 169);
+
+        Assert.Equal(169, store.TryGetTvmazeIdByTvdb(81189));
+    }
+
+    [Fact]
+    public void RegisterTvmazeId_AcceptsSyntheticTvdbIds()
+    {
+        var store = CreateStore();
+        var synthetic = SyntheticIds.TvmazeSeriesId(169);
+
+        store.RegisterTvmazeId(synthetic, 169);
+
+        Assert.Equal(169, store.TryGetTvmazeIdByTvdb(synthetic));
+    }
+
+    [Fact]
+    public void TvmazeBindings_PersistAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        CreateStore(dir).RegisterTvmazeId(81189, 169);
+
+        var reloaded = CreateStore(dir);
+
+        Assert.Equal(169, reloaded.TryGetTvmazeIdByTvdb(81189));
+    }
+
+    [Fact]
     public void MalBindings_PersistAcrossStoreInstances()
     {
         var dir = _dataDir;
@@ -162,6 +194,7 @@ public class MappingStoreTests : IDisposable
     [InlineData(MappingStore.SourceTvdb)]
     [InlineData(MappingStore.SourceAniList)]
     [InlineData(MappingStore.SourceMal)]
+    [InlineData(MappingStore.SourceTvmaze)]
     public void Override_SetStoresSource(string source)
     {
         var store = CreateStore();
@@ -201,6 +234,7 @@ public class MappingStoreTests : IDisposable
         store.RegisterSeries(81189, 1396);
         store.RegisterAniListId(81189, 12345);
         store.RegisterMalId(81189, 67890);
+        store.RegisterTvmazeId(81189, 169);
         store.SetOverride(81189, MappingStore.SourceTmdb);
 
         var removed = store.RemoveOverride(81189);
@@ -210,6 +244,7 @@ public class MappingStoreTests : IDisposable
         Assert.Null(store.TryResolveSeriesTmdb(81189));
         Assert.Null(store.TryGetAniListIdByTvdb(81189));
         Assert.Null(store.TryGetMalIdByTvdb(81189));
+        Assert.Null(store.TryGetTvmazeIdByTvdb(81189));
     }
 
     [Fact]
@@ -238,6 +273,7 @@ public class MappingStoreTests : IDisposable
     [InlineData(MappingStore.SourceTvdb)]
     [InlineData(MappingStore.SourceAniList)]
     [InlineData(MappingStore.SourceMal)]
+    [InlineData(MappingStore.SourceTvmaze)]
     public void SearchSource_SetStoresValue(string source)
     {
         var store = CreateStore();

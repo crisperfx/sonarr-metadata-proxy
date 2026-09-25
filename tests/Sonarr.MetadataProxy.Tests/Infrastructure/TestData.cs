@@ -1,6 +1,7 @@
 using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
+using Sonarr.MetadataProxy.Models.Tvmaze;
 
 namespace Sonarr.MetadataProxy.Tests.Infrastructure;
 
@@ -8,6 +9,7 @@ public static class TestData
 {
     public const int BreakingBadTmdbId = 1396;
     public const int BreakingBadTvdbId = 81189;
+    public const int BreakingBadTvmazeId = 169;
 
     public static TmdbTvSearchResult BreakingBadSearchResult()
     {
@@ -180,5 +182,94 @@ public static class TestData
             Studio = "Madhouse",
             Type = "TV"
         };
+    }
+
+    public static TvmazeShow BreakingBadTvmaze()
+    {
+        return new TvmazeShow
+        {
+            Id = BreakingBadTvmazeId,
+            Name = "Breaking Bad",
+            Language = "English",
+            Genres = new List<string> { "Drama", "Crime", "Thriller" },
+            Status = "Ended",
+            Runtime = 60,
+            Premiered = "2008-01-20",
+            Ended = "2013-09-29",
+            Summary = "<p>A chemistry teacher diagnosed with inoperable lung cancer turns to manufacturing methamphetamine.</p>",
+            Rating = new TvmazeRating { Average = 8.6 },
+            Network = new TvmazeNetwork { Id = 1, Name = "AMC", Country = new TvmazeCountry { Name = "United States", Code = "US" } },
+            Externals = new TvmazeExternals { Imdb = "tt0903747", TheTvdb = BreakingBadTvdbId, TvRage = 18164 },
+            Image = new TvmazeImage { Medium = "https://static.tvmaze.com/uploads/images/medium_portrait/0/2400.jpg", Original = "https://static.tvmaze.com/uploads/images/original_untouched/0/2400.jpg" },
+            Embedded = new TvmazeEmbedded
+            {
+                Seasons =
+                {
+                    new TvmazeSeason { Id = 1, Number = 1, Name = "Season 1", PremiereDate = "2008-01-20", EndDate = "2008-03-09", EpisodeOrder = 7 }
+                },
+                Cast =
+                {
+                    new TvmazeCast { Person = new TvmazePerson { Id = 1, Name = "Bryan Cranston", Image = new TvmazeImage { Medium = "/cranston.jpg", Original = "/cranston_o.jpg" } }, Character = new TvmazePerson { Id = 9, Name = "Walter White" } },
+                    new TvmazeCast { Person = new TvmazePerson { Id = 2, Name = "Aaron Paul", Image = new TvmazeImage { Medium = "/aaron.jpg", Original = "/aaron_o.jpg" } }, Character = new TvmazePerson { Id = 8, Name = "Jesse Pinkman" } }
+                }
+            }
+        };
+    }
+
+    public static TvmazeShow BlackMirrorNoTvdbExternal()
+    {
+        return new TvmazeShow
+        {
+            Id = 96,
+            Name = "Black Mirror",
+            Language = "English",
+            Genres = new List<string> { "Drama", "Science-Fiction" },
+            Status = "Running",
+            Runtime = 60,
+            Premiered = "2011-12-04",
+            Summary = "<p>A sci-fi anthology series about the unanticipated consequences of new technologies.</p>",
+            Rating = new TvmazeRating { Average = 8.8 },
+            Network = new TvmazeNetwork { Id = 2, Name = "Netflix", Country = new TvmazeCountry { Name = "United States", Code = "US" } },
+            Externals = new TvmazeExternals { Imdb = "tt2085059", TheTvdb = null, TvRage = 32849 },
+            Image = new TvmazeImage { Medium = "/bm_medium.jpg", Original = "/bm_original.jpg" }
+        };
+    }
+
+    public static List<TvmazeEpisode> BreakingBadTvmazeEpisodes()
+    {
+        return new List<TvmazeEpisode>
+        {
+            new()
+            {
+                Id = 11336,
+                Name = "Pilot",
+                Season = 1,
+                Number = 1,
+                Type = "regular",
+                AirDate = "2008-01-20",
+                Runtime = 60,
+                Image = new TvmazeImage { Medium = "/pilot_medium.jpg", Original = "/pilot_original.jpg" },
+                Summary = "<p>High school chemistry teacher Walter White is diagnosed with terminal cancer.</p>",
+                Rating = new TvmazeRating { Average = 8.2 }
+            },
+            new()
+            {
+                Id = 11337,
+                Name = "Cat's in the Bag...",
+                Season = 1,
+                Number = 2,
+                Type = "regular",
+                AirDate = "2008-01-27",
+                Runtime = 60,
+                Image = new TvmazeImage { Medium = "/cats_medium.jpg", Original = "/cats_original.jpg" },
+                Summary = "<p>Walt and Jesse try to dispose of a body.</p>",
+                Rating = new TvmazeRating { Average = 8.4 }
+            }
+        };
+    }
+
+    public static List<TvmazeShow> BreakingBadTvmazeSearchHit()
+    {
+        return new List<TvmazeShow> { BreakingBadTvmaze() };
     }
 }

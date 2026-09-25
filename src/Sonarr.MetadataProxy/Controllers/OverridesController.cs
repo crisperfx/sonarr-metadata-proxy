@@ -14,21 +14,24 @@ public sealed class OverridesController : ControllerBase
 
     private readonly MappingStore _mapping;
     private readonly ITvdbToTmdbResolver _tvdbToTmdb;
+    private readonly ITvdbToTvmazeResolver _tvdbToTvmaze;
     private readonly ILogger<OverridesController> _logger;
 
     public OverridesController(
         MappingStore mapping,
         ITvdbToTmdbResolver tvdbToTmdb,
+        ITvdbToTvmazeResolver tvdbToTvmaze,
         ILogger<OverridesController> logger)
     {
         _mapping = mapping;
         _tvdbToTmdb = tvdbToTmdb;
+        _tvdbToTvmaze = tvdbToTvmaze;
         _logger = logger;
     }
 
-    public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? AniListId, int? MalId);
+    public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? AniListId, int? MalId, int? TvmazeId);
 
-    public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId, string? Title, int? Year);
+    public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId, string? Title, int? Year, int? TvmazeId);
 
     public sealed record SearchSourceDto(string Source);
 
@@ -65,7 +68,8 @@ public sealed class OverridesController : ControllerBase
                 kv.Value,
                 _mapping.TryResolveSeriesTmdb(kv.Key),
                 _mapping.TryGetAniListIdByTvdb(kv.Key),
-                _mapping.TryGetMalIdByTvdb(kv.Key)));
+                _mapping.TryGetMalIdByTvdb(kv.Key),
+                _mapping.TryGetTvmazeIdByTvdb(kv.Key)));
         return Ok(result);
     }
 
@@ -79,9 +83,9 @@ public sealed class OverridesController : ControllerBase
 
         var isSynthetic = SyntheticIds.IsSyntheticSeries(request.TvdbId);
 
-        if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList or MappingStore.SourceMal))
+        if (request.Source is not (MappingStore.SourceTmdb or MappingStore.SourceTvdb or MappingStore.SourceAniList or MappingStore.SourceMal or MappingStore.SourceTvmaze))
         {
-            return BadRequest(new { error = "source must be 'tmdb', 'tvdb', 'anilist' or 'mal'" });
+            return BadRequest(new { error = "source must be 'tmdb', 'tvdb', 'anilist', 'mal' or 'tvmaze'" });
         }
 
         if (isSynthetic && request.Source == MappingStore.SourceTvdb)
@@ -110,6 +114,27 @@ public sealed class OverridesController : ControllerBase
             }
         }
 
+        if (request.Source == MappingStore.SourceTvmaze && request.TvmazeId is > 0)
+        {
+            _mapping.RegisterTvmazeId(request.TvdbId, request.TvmazeId.Value);
+        }
+        else if (request.Source == MappingStore.SourceTvmaze)
+        {
+            var resolved = await _tvdbToTvmaze.ResolveTvmazeIdAsync(
+                request.TvdbId, request.Title, request.Year, CancellationToken.None);
+            if (resolved is > 0)
+            {
+                _mapping.RegisterTvmazeId(request.TvdbId, resolved.Value);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Override source tvmaze requested for TVDB id {TvdbId} (title: '{Title}') but no TVMaze mapping is known yet. "
+                    + "It will fall back to TVDB until a mapping is recorded.",
+                    request.TvdbId, request.Title);
+            }
+        }
+
         _mapping.SetOverride(request.TvdbId, request.Source);
         _logger.LogInformation("Override set for TVDB id {TvdbId} -> {Source}.", request.TvdbId, request.Source);
         return Ok(new OverrideDto(
@@ -117,7 +142,8 @@ public sealed class OverridesController : ControllerBase
             request.Source,
             _mapping.TryResolveSeriesTmdb(request.TvdbId),
             _mapping.TryGetAniListIdByTvdb(request.TvdbId),
-            _mapping.TryGetMalIdByTvdb(request.TvdbId)));
+            _mapping.TryGetMalIdByTvdb(request.TvdbId),
+            _mapping.TryGetTvmazeIdByTvdb(request.TvdbId)));
     }
 
     [HttpDelete("{tvdbId:int}")]

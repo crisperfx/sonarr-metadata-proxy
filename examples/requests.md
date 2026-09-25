@@ -28,11 +28,14 @@ curl "http://127.0.0.1:9697/v1/tvdb/shows/en/81189"
 ```
 
 Anime terms — `anilist:1535` resolves through AniList; `mal:1535` resolves
-through MAL (Tenrai) when mapping data is available:
+through MAL (Tenrai) when mapping data is available; `tvmaze:169` + `tvmaze:breaking bad`
+resolve through TVMaze:
 
 ```bash
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=anilist%3A1535"
 curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=mal%3A1535"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=tvmaze%3A169"
+curl "http://127.0.0.1:9697/v1/tvdb/search/en/?term=tvmaze%3Abreaking%20bad"
 ```
 
 ## Full series object with episodes (what Sonarr fetches on add + every refresh)

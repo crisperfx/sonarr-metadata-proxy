@@ -1,6 +1,7 @@
 using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Models.Mal;
 using Sonarr.MetadataProxy.Models.Tmdb;
+using Sonarr.MetadataProxy.Models.Tvmaze;
 using Sonarr.MetadataProxy.Passthrough;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
@@ -146,6 +147,66 @@ public sealed class FakeTvdbResolver : ITvdbToTmdbResolver
     {
         CallCount++;
         return Task.FromResult(Map.TryGetValue(tvdbId, out var tmdbId) ? tmdbId : (int?)null);
+    }
+}
+
+public sealed class FakeTvdbTvmazeResolver : ITvdbToTvmazeResolver
+{
+    public Dictionary<int, int> Map { get; set; } = new();
+    public int CallCount { get; private set; }
+
+    public Task<int?> ResolveTvmazeIdAsync(int tvdbId, string? title, int? year, CancellationToken cancellationToken)
+    {
+        CallCount++;
+        return Task.FromResult(Map.TryGetValue(tvdbId, out var tvmazeId) ? tvmazeId : (int?)null);
+    }
+}
+
+public sealed class FakeTvmazeApi : ITvmazeApi
+{
+    public List<TvmazeShow> SearchResults { get; set; } = new();
+    public Dictionary<int, TvmazeShow> ById { get; set; } = new();
+    public Dictionary<int, List<TvmazeEpisode>> EpisodesById { get; set; } = new();
+    public Exception? Exception { get; set; }
+    public int SearchCallCount { get; private set; }
+
+    public Task<IReadOnlyList<TvmazeShow>> SearchShowsAsync(string query, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        SearchCallCount++;
+        return Task.FromResult<IReadOnlyList<TvmazeShow>>(SearchResults);
+    }
+
+    public Task<TvmazeShow?> GetShowAsync(int tvmazeId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ById.TryGetValue(tvmazeId, out var show) ? show : null);
+    }
+
+    public Task<IReadOnlyList<TvmazeEpisode>> GetEpisodesAsync(int tvmazeId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(EpisodesById.TryGetValue(tvmazeId, out var episodes) ? (IReadOnlyList<TvmazeEpisode>)episodes : Array.Empty<TvmazeEpisode>());
+    }
+
+    public Task<TvmazeShow?> FindByImdbAsync(string imdbId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ById.Values.FirstOrDefault(show => string.Equals(show.Externals?.Imdb, imdbId, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    public Task<TvmazeShow?> FindByThetvdbAsync(int tvdbId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ById.Values.FirstOrDefault(show => show.Externals?.TheTvdb == tvdbId));
+    }
+
+    private void ThrowIf()
+    {
+        if (Exception is not null)
+        {
+            throw Exception;
+        }
     }
 }
 
