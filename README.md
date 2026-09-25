@@ -251,7 +251,7 @@ image and the injection files land in your data folder on first start.
 |---|---|
 | Name | `sonarr-metadata-proxy` |
 | Port mapping (optional) | `9697:9697` — only if you want `/info` reachable outside Docker |
-| Environment variable | `TMDB_API_KEY` = `<your key>` |
+| Environment variable | `TMDB_API_KEY` = `<your key>` — **only if you use TMDB** |
 | Environment variable | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` — for the dropdown; multiple with "," |
 | Volume (host path → container) | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
 | Extra capability | `NET_BIND_SERVICE` — required to bind port 443 |
@@ -468,9 +468,9 @@ expand, **–** to collapse again.
 | Variable | Default | Description |
 |---|---|---|
 | `METADATA_SOURCE` | `tmdb` | Primary source: `tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb` (passthrough only). |
-| `TMDB_API_KEY` | – | TMDB v3 API key (required for TMDB). |
+| `TMDB_API_KEY` | – | TMDB v3 API key. **Only needed if you use TMDB** as a source. Get at <https://www.themoviedb.org/settings/api>. |
 | `TMDB_API_TOKEN` | – | TMDB v4 bearer token, alternative to the key (wins if both set). |
-| `ANIDB_CLIENT` | – | AniDB HTTP API client name. Both `ANIDB_CLIENT` and `ANIDB_CLIENT_VERSION` must be set to enable the AniDB provider. |
+| `ANIDB_CLIENT` | – | AniDB HTTP API client name. **Only needed if you use AniDB**. Both this and `ANIDB_CLIENT_VERSION` must be set. Register at <https://anidb.net/creq/>. |
 | `ANIDB_CLIENT_VERSION` | – | AniDB HTTP API client version. See `ANIDB_CLIENT`. |
 | `TMDb_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to the real TVDB on mapping/source failure. |
