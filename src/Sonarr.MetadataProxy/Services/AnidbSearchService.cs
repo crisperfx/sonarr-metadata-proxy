@@ -125,9 +125,15 @@ public sealed class AnidbSearchService
     private IReadOnlyList<ShowResource> TranslateHits(IReadOnlyList<AnidbTitleHit> hits)
     {
         var results = new List<ShowResource>();
+        var seenTvdbIds = new HashSet<int>();
         foreach (var hit in hits)
         {
             var tvdbId = ResolveTvdbId(hit.Aid, hit.Title);
+            if (!seenTvdbIds.Add(tvdbId))
+            {
+                continue; // skip duplicate TVDB IDs
+            }
+
             _mapping.RegisterAnidbId(tvdbId, hit.Aid);
 
             var show = _translator.ToSearchResult(hit, tvdbId);
