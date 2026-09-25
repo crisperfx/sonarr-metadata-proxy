@@ -15,7 +15,7 @@ A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, 
 ## What you need
 
 1. **Docker** (with Compose v2) or a Docker UI on your NAS/PC (Synology Container Manager, Portainer, Dockhand, etc.)
-2. **A free TMDB API key** — <https://www.themoviedb.org/settings/api> → *API* → *Create* → *Developer*. This is the only secret you must fill in.
+2. **A free TMDB API key** — <https://www.themoviedb.org/settings/api> → *API* → *Create* → *Developer*. **Only needed if you use TMDB** as a source.
 3. **Sonarr** — the compose example below starts one fresh. Already running Sonarr? Edit or change your existing stack.
 
 ---
@@ -67,14 +67,14 @@ That's it.
 
 ---
 
-## Configuration (all optional; `TMDB_API_KEY` required when using TMDB)
+## Configuration (all optional)
 
 | Variable | Default | What it does |
 |---|---|---|
 | `METADATA_SOURCE` | `tmdb` | Default search/detail source: `tmdb`, `tvdb`, `anilist`, `mal`, `tvmaze`, or `anidb`. |
-| `TMDB_API_KEY` | — | **Required when TMDB is used.** Your TMDB v3 API key. |
+| `TMDB_API_KEY` | — | TMDB v3 API key. **Only needed if you use TMDB** as a source. Get at <https://www.themoviedb.org/settings/api>. |
 | `TMDB_API_TOKEN` | — | TMDB v4 bearer token (alternative to the key; wins if both set). |
-| `ANIDB_CLIENT` | — | AniDB HTTP API client name. **Both** `ANIDB_CLIENT` and `ANIDB_CLIENT_VERSION` must be set to enable AniDB. Register at <https://anidb.net/creq/>. |
+| `ANIDB_CLIENT` | — | AniDB HTTP API client name. **Only needed if you use AniDB**. Both this and `ANIDB_CLIENT_VERSION` must be set. Register at <https://anidb.net/creq/>. |
 | `ANIDB_CLIENT_VERSION` | — | AniDB HTTP API client version. See `ANIDB_CLIENT`. |
 | `TMDB_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to real TVDB when the chosen source fails. |
@@ -107,7 +107,7 @@ Prefer clicking? Same result, no repo needed — defaults are baked into the ima
 |---|---|
 | Name | `sonarr-metadata-proxy (or your choice)` |
 | Port mapping | `9697:9697` — only if you need `/info` outside Docker |
-| Environment | `TMDB_API_KEY` = `<your key>` |
+| Environment | `TMDB_API_KEY` = `<your key>` — **only if you use TMDB** |
 | Environment | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` (for the dropdown) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
 | Extra capability | `NET_BIND_SERVICE` — required to bind port 443 |
