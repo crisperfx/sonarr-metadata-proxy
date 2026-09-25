@@ -70,6 +70,7 @@ public sealed class TvmazeTranslator
             Runtime = show.Runtime,
             Network = show.Network?.Name ?? show.WebChannel?.Name,
             Genres = show.Genres.Where(genre => !string.IsNullOrWhiteSpace(genre)).ToList(),
+            Images = PosterOf(show) is { } posterUrl ? new List<ImageResource> { new() { CoverType = "poster", Url = posterUrl } } : new List<ImageResource>(),
             LastUpdated = DateTime.UtcNow,
             Rating = new RatingResource
             {

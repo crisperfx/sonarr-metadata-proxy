@@ -99,6 +99,21 @@ public class TvmazeTranslatorTests
         Assert.Equal("AMC", resource.Network);
         Assert.Equal(3, resource.Genres.Count);
         Assert.Equal(8.6m, resource.Rating!.Value);
+
+        var poster = Assert.Single(resource.Images);
+        Assert.Equal("poster", poster.CoverType);
+        Assert.Equal("https://static.tvmaze.com/uploads/images/original_untouched/0/2400.jpg", poster.Url);
+    }
+
+    [Fact]
+    public void ToSearchResult_WithoutImage_HasNoImages()
+    {
+        var show = TestData.BlackMirrorNoTvdbExternal();
+        show.Image = null;
+
+        var resource = new TvmazeTranslator().ToSearchResult(show, 2000000096);
+
+        Assert.Empty(resource.Images);
     }
 
     [Theory]
