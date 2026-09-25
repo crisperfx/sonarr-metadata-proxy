@@ -233,8 +233,9 @@ public sealed class AnidbTitleList
             snapshot = _entries;
         }
 
-        // Only search main/official titles (type 1, 4) — matches AniDB web search for TV series
-        var filtered = snapshot.Where(e => e.Type is AnidbTitleType.Main or AnidbTitleType.Official).ToList();
+        // Only search main/official/synonym titles (types 1, 4, 2) — matches AniDB web search for TV series
+        // Synonyms contain localized/common names (e.g., "Yu-Gi-Oh! Duel Monsters") that users search for
+        var filtered = snapshot.Where(e => e.Type is AnidbTitleType.Main or AnidbTitleType.Official or AnidbTitleType.Synonym).ToList();
 
         var bestByAid = new Dictionary<int, (int Score, string Title)>();
         foreach (var entry in filtered)
