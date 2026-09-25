@@ -92,7 +92,14 @@ public sealed class AnidbTranslator
             Slug = Slugify(hit.Title, tvdbId),
             AnidbId = hit.Aid,
             LastUpdated = DateTime.UtcNow,
-            Images = new List<ImageResource>()
+            Images = new List<ImageResource>(),
+            Overview = string.Empty,
+            FirstAired = null,
+            LastAired = null,
+            Status = "ended",
+            Runtime = 0,
+            Genres = new List<string>(),
+            Rating = new RatingResource { Count = 0, Value = 0m }
         };
     }
 
