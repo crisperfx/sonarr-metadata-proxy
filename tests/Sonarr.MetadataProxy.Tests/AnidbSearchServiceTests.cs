@@ -121,6 +121,33 @@ public class AnidbSearchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchAsync_WithApiData_EnrichesTitleHitWithPosterAndOverview()
+    {
+        _api.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();
+
+        var results = await _service.SearchAsync("death note", CancellationToken.None);
+
+        var first = Assert.Single(results!);
+        Assert.Equal("Death Note", first.Title);
+        Assert.Contains("notebook", first.Overview);
+        Assert.Single(first.Images);
+        Assert.StartsWith("https://cdn.anidb.net/images/main/", first.Images[0].Url);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WhenApiHasNoPicture_ReturnsResultWithoutPoster()
+    {
+        var anime = TestData.DeathNoteAnime();
+        anime.Picture = null;
+        _api.ById[TestData.DeathNoteAnidbId] = anime;
+
+        var results = await _service.SearchAsync("death note", CancellationToken.None);
+
+        var first = Assert.Single(results!);
+        Assert.Empty(first.Images);
+    }
+
+    [Fact]
     public async Task SearchAsync_ThrowsAnidbApiException_ReturnsNullForTvdbFallback()
     {
         _api.Exception = new AnidbApiException("down");

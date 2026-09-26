@@ -152,47 +152,67 @@ public sealed class AnidbSearchService
             var show = _translator.ToSearchResult(hit, tvdbId);
             show.NoTVDBMapping = SyntheticIds.IsSyntheticSeries(tvdbId);
 
-            // Attach cached poster if available
-            if (_posterCache.TryGetValue(hit.Aid, out var cachedPoster))
+            var anime = await TryFetchAsync(hit.Aid, cancellationToken).ConfigureAwait(false);
+            if (anime is not null)
+            {
+                show = _translator.ToSearchResult(anime, tvdbId);
+                show.NoTVDBMapping = SyntheticIds.IsSyntheticSeries(tvdbId);
+
+                if (string.IsNullOrWhiteSpace(anime.Picture))
+                {
+                    _logger.LogInformation("AniDB {AnidbId} ('{Title}') has no picture in API response.", hit.Aid, anime.Title);
+                }
+                else
+                {
+                    _posterCache[hit.Aid] = anime.Picture;
+                }
+            }
+            else if (!_posterCache.TryGetValue(hit.Aid, out _))
+            {
+                _logger.LogWarning("AniDB {AnidbId} ('{Title}') returned no data during search; result has no poster.", hit.Aid, hit.Title);
+            }
+
+            if (show.Images.Count == 0 && _posterCache.TryGetValue(hit.Aid, out var cachedPoster))
             {
                 show.Images = new List<ImageResource>
                 {
-                    new() { CoverType = "poster", Url = cachedPoster.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? cachedPoster : "https://cdn.anidb.net/images/main/" + cachedPoster }
+                    new() { CoverType = "poster", Url = PosterUrl(cachedPoster) }
                 };
-            }
-            else
-            {
-                // Fetch poster from AniDB API (rate-limited by AnidbClient)
-                try
-                {
-                    var anime = await _api.GetAnimeAsync(hit.Aid, cancellationToken).ConfigureAwait(false);
-                    if (anime is not null && !string.IsNullOrWhiteSpace(anime.Picture))
-                    {
-                        _posterCache[hit.Aid] = anime.Picture;
-                        show.Images = new List<ImageResource>
-                        {
-                            new() { CoverType = "poster", Url = anime.Picture.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? anime.Picture : "https://cdn.anidb.net/images/main/" + anime.Picture }
-                        };
-                    }
-                }
-                catch (AnidbApiException ex)
-                {
-                    _logger.LogWarning(ex, "Failed to fetch poster for AniDB {AnidbId} during search.", hit.Aid);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Unexpected error fetching poster for AniDB {AnidbId}.", hit.Aid);
-                }
             }
 
             results.Add(show);
         }
 
         return results;
+    }
+
+    private async Task<AnidbAnime?> TryFetchAsync(int anidbId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _api.GetAnimeAsync(anidbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AnidbApiException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch data for AniDB {AnidbId} during search.", anidbId);
+            return null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected error fetching data for AniDB {AnidbId}.", anidbId);
+            return null;
+        }
+    }
+
+    private static string PosterUrl(string picture)
+    {
+        return picture.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? picture
+            : "https://cdn.anidb.net/images/main/" + picture;
     }
 
     private int ResolveTvdbId(int anidbId, string? title)

@@ -75,6 +75,15 @@ public sealed class AnidbClient : IAnidbApi
 
                 var xml = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 var anime = AnidbXmlParser.Parse(xml);
+                if (anime is null)
+                {
+                    _logger.LogWarning("AniDB returned no usable data for aid {AnidbId}. Body: {Body}", anidbId, TruncateForLog(xml));
+                }
+                else if (string.IsNullOrWhiteSpace(anime.Picture))
+                {
+                    _logger.LogInformation("AniDB aid {AnidbId} ('{Title}') has no picture.", anidbId, anime.Title);
+                }
+
                 _cache[anidbId] = new CachedAnime(DateTimeOffset.UtcNow, anime);
                 return anime;
             }
@@ -91,6 +100,12 @@ public sealed class AnidbClient : IAnidbApi
                 throw new AnidbApiException("AniDB request timed out.", ex);
             }
         }
+    }
+
+    private static string TruncateForLog(string value)
+    {
+        var singleLine = System.Text.RegularExpressions.Regex.Replace(value, @"\s+", " ").Trim();
+        return singleLine.Length <= 400 ? singleLine : singleLine[..400] + "...";
     }
 }
 
