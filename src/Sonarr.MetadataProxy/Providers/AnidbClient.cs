@@ -139,8 +139,10 @@ public static class AnidbXmlParser
             return null;
         }
 
+        var idAttribute = root.Attribute("id");
         var idElement = root.Element("id");
-        if (idElement is null || !int.TryParse(idElement.Value.Trim(), out var anidbId) || anidbId <= 0)
+        var idValue = idAttribute?.Value ?? idElement?.Value;
+        if (string.IsNullOrWhiteSpace(idValue) || !int.TryParse(idValue.Trim(), out var anidbId) || anidbId <= 0)
         {
             return null;
         }
@@ -157,7 +159,7 @@ public static class AnidbXmlParser
             StartDate = root.Element("startdate")?.Value?.Trim(),
             EndDate = root.Element("enddate")?.Value?.Trim(),
             Description = root.Element("description")?.Value?.Trim(),
-            Rating = ParseRating(root.Element("rating")?.Element("permanent")?.Value),
+            Rating = ParseRating(root.Element("rating")),
             Picture = root.Element("picture")?.Value?.Trim(),
             EpisodeCount = ParseInt(root.Element("episodecount")?.Value) ?? 0,
             Genres = ParseCategories(root),
@@ -235,6 +237,17 @@ public static class AnidbXmlParser
             Rating = ParseRating(node.Element("rating")?.Value),
             Picture = node.Element("picture")?.Value?.Trim()
         };
+    }
+
+    private static double ParseRating(XElement? rating)
+    {
+        if (rating is null)
+        {
+            return 0;
+        }
+
+        var permanent = rating.Element("permanent")?.Value;
+        return ParseRating(string.IsNullOrWhiteSpace(permanent) ? rating.Value : permanent);
     }
 
     private static double ParseRating(string? value)

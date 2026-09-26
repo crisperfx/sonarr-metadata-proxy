@@ -11,14 +11,13 @@ public class AnidbClientTests
     {
         var xml = """
         <?xml version="1.0" encoding="UTF-8"?>
-        <anime>
-          <id>2993</id>
+        <anime id="2993" restricted="false">
           <type>TV Series</type>
           <startdate>2006-10-04</startdate>
           <enddate>2007-06-27</enddate>
-          <titles><title type="main" xml:lang="en">Death Note</title></titles>
+          <titles><title type="main" xml:lang="x-jat">Death Note</title></titles>
           <description>A student finds a supernatural notebook.</description>
-          <rating><permanent>8.70</permanent></rating>
+          <rating votes="2183">8.70</rating>
           <picture>1</picture>
           <episodecount>37</episodecount>
           <categories>
@@ -61,6 +60,45 @@ public class AnidbClientTests
     [Fact]
     public void Parse_ReturnsNullForMalformedXml()
     {
-        Assert.Throws<AnidbApiException>(() => AnidbXmlParser.Parse("<anime><id>"));
+        Assert.Throws<AnidbApiException>(() => AnidbXmlParser.Parse("<anime id=\"1\">"));
+    }
+
+    [Fact]
+    public void Parse_ReadsIdFromRootAttribute()
+    {
+        var xml = """
+        <anime id="69" restricted="false">
+          <type>TV Series</type>
+          <episodecount>1184</episodecount>
+          <startdate>1999-10-20</startdate>
+          <titles>
+            <title xml:lang="x-jat" type="main">One Piece</title>
+            <title xml:lang="ja" type="synonym">ワンピース</title>
+          </titles>
+          <picture>440.jpg</picture>
+        </anime>
+        """.Trim();
+
+        var anime = AnidbXmlParser.Parse(xml);
+
+        Assert.NotNull(anime);
+        Assert.Equal(69, anime!.AnidbId);
+        Assert.Equal("One Piece", anime.Title);
+        Assert.Equal("440.jpg", anime.Picture);
+    }
+
+    [Fact]
+    public void Parse_RatingAcceptsPermanentChild()
+    {
+        var xml = """
+        <anime id="1">
+          <rating><permanent>8.50</permanent></rating>
+        </anime>
+        """.Trim();
+
+        var anime = AnidbXmlParser.Parse(xml);
+
+        Assert.NotNull(anime);
+        Assert.Equal(8.5, anime!.Rating);
     }
 }
