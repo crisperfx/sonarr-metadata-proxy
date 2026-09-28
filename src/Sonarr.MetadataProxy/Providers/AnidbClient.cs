@@ -231,12 +231,38 @@ public static class AnidbXmlParser
             EpisodeId = episodeId,
             EpisodeNumber = number,
             Type = type,
-            Title = node.Element("title")?.Value?.Trim(),
+            Title = ParseEpisodeTitle(node),
             AirDate = node.Element("airdate")?.Value?.Trim(),
             LengthMinutes = ParseInt(node.Element("length")?.Value),
             Rating = ParseRating(node.Element("rating")?.Value),
             Picture = node.Element("picture")?.Value?.Trim()
         };
+    }
+
+    private static string? ParseEpisodeTitle(XElement node)
+    {
+        var titles = node.Elements("title").ToList();
+        if (titles.Count == 0)
+        {
+            titles = node.Element("titles")?.Elements("title").ToList() ?? new List<XElement>();
+        }
+
+        var preferred = titles.FirstOrDefault(element =>
+                string.Equals(Language(element), "en", StringComparison.OrdinalIgnoreCase))
+            ?? titles.FirstOrDefault(element =>
+                string.Equals(Language(element), "x-jat", StringComparison.OrdinalIgnoreCase));
+
+        if (preferred is not null && !string.IsNullOrWhiteSpace(preferred.Value))
+        {
+            return preferred.Value.Trim();
+        }
+
+        return titles.FirstOrDefault()?.Value?.Trim();
+    }
+
+    private static string? Language(XElement element)
+    {
+        return element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "lang")?.Value;
     }
 
     private static double ParseRating(XElement? rating)

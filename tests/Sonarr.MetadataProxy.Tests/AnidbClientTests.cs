@@ -101,4 +101,72 @@ public class AnidbClientTests
         Assert.NotNull(anime);
         Assert.Equal(8.5, anime!.Rating);
     }
+
+    [Fact]
+    public void Parse_EpisodeTitlePrefersEnglish()
+    {
+        var xml = """
+        <anime id="69" restricted="false">
+          <episodes>
+            <episode id="1">
+              <epno type="1">4</epno>
+              <length>25</length>
+              <airdate>1999-11-08</airdate>
+              <title xml:lang="x-jat">Rufi no Kako! Akagami no Shankusu Toujou</title>
+              <title xml:lang="ja">ルフィの過去! 赤髪のシャンクス登場</title>
+              <title xml:lang="en">Luffy's Past! Red-Haired Shanks Appears</title>
+            </episode>
+          </episodes>
+        </anime>
+        """.Trim();
+
+        var anime = AnidbXmlParser.Parse(xml);
+
+        Assert.NotNull(anime);
+        Assert.Equal("Luffy's Past! Red-Haired Shanks Appears", anime!.Episodes[0].Title);
+    }
+
+    [Fact]
+    public void Parse_EpisodeTitleFallsBackToRomajiWhenNoEnglish()
+    {
+        var xml = """
+        <anime id="69">
+          <episodes>
+            <episode id="1">
+              <epno type="1">1</epno>
+              <title xml:lang="x-jat">Rufi no Kako!</title>
+              <title xml:lang="ja">ルフィの過去!</title>
+            </episode>
+          </episodes>
+        </anime>
+        """.Trim();
+
+        var anime = AnidbXmlParser.Parse(xml);
+
+        Assert.NotNull(anime);
+        Assert.Equal("Rufi no Kako!", anime!.Episodes[0].Title);
+    }
+
+    [Fact]
+    public void Parse_EpisodeTitleReadsTitlesWrapper()
+    {
+        var xml = """
+        <anime id="69">
+          <episodes>
+            <episode id="1">
+              <epno type="1">1</epno>
+              <titles>
+                <title xml:lang="ja">ヤクザの過去</title>
+                <title xml:lang="en">The Yakuza's Past</title>
+              </titles>
+            </episode>
+          </episodes>
+        </anime>
+        """.Trim();
+
+        var anime = AnidbXmlParser.Parse(xml);
+
+        Assert.NotNull(anime);
+        Assert.Equal("The Yakuza's Past", anime!.Episodes[0].Title);
+    }
 }
