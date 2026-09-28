@@ -65,6 +65,22 @@ That's it.
 - AniList uses its own artwork (poster + banner). MAL pulls backgrounds from Tenrai. AniDB provides poster + synopsis; one API call returns series + all episodes.
 - No MyAnimeList art is mixed into AniList results.
 
+### Reset serie naar TVDB (per-series reset)
+
+Below the metadata dropdown a **Reset serie naar TVDB** button wipes the stored state for a
+series and puts it back on the default TVDB source:
+
+- removes **all** provider IDs for the series (TMDB, TVMaze, AniDB, MAL, AniList) plus any
+  stored per-series override, so the dropdown returns to *Automatic*;
+- also clears the series' **episode mappings** and the episode sequence counter (a full reset);
+- pins the series to **TVDB** (the Sonarr default) and automatically triggers Sonarr's
+  **Refresh & Scan** (`RefreshSeries` command via Sonarr's own API), so the series is
+  re-fetched from the real TVDB without any manual step.
+
+A confirmation dialog runs first. This is the quick fix when a series shows the wrong show or
+wrong provider metadata — it clears any poisoned/stale mappings and re-fetches cleanly.
+Internally it calls `POST /api/overrides/reset/{tvdbId}` (see [Management API](#management-api)).
+
 ---
 
 ## Configuration (all optional)
@@ -202,11 +218,24 @@ curl -X POST http://127.0.0.1:9697/api/overrides \
   -H 'Content-Type: application/json' \
   -d '{"tvdbId": 81189, "source": "tmdb", "tmdbId": 1396}'
 
+curl -X POST http://127.0.0.1:9697/api/overrides/reset/81189   # full per-series reset: clears all IDs + episodes, sets source to tvdb
 curl http://127.0.0.1:9697/api/overrides          # list
 curl -X DELETE http://127.0.0.1:9697/api/overrides/81189
 ```
 
 `tmdbId` is optional; without it the mapping is looked up automatically.
+
+## Diagnostics
+
+When a series shows the wrong show or metadata, the log lines tell you exactly what happened:
+
+- `Resolving TVDB id … (override: …)` — the state the series-resolution started from
+  (override source, active provider, whether the id is synthetic).
+- `Serving TVDB id … as …` — what was actually returned: a mapped `'Title' (tvdbId)` from a
+  mapped provider, or `tvdb passthrough`.
+
+Use the per-series **Reset serie naar TVDB** button to start clean when the TVDB id itself
+points at the wrong production.
 
 ---
 
