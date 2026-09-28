@@ -414,7 +414,7 @@ nothing secret is embedded in files that end up next to the (public) login page.
 **Note for AniList series without a real TVDB ID:**
 When you select **TVDB** in the dropdown for a series that only has a synthetic TVDB ID
 (no real TVDB mapping), the UI shows a warning:
-> "Let op: deze serie heeft geen echte TVDB-ID. Bij 'TVDB' als bron werkt passthrough niet (fallback naar standaard bron)."
+> "Warning: this series has no real TVDB ID. With 'TVDB' as the source, passthrough does not work (falls back to the default source)."
 The series will then fall back to the default source (TMDB via synthetic ID decomposition).
 
 ### Search provider picker ("Search via")

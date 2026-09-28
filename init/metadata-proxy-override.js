@@ -266,7 +266,7 @@
     var badge = document.createElement('span');
     badge.className = 'mpo-badge';
     badge.id = 'mpo-series-source-badge';
-    badge.textContent = 'Bron: Default';
+    badge.textContent = 'Source: Default';
     shell._mpoBody.appendChild(badge);
 
     var status = document.createElement('div');
@@ -277,7 +277,7 @@
     var resetBtn = document.createElement('button');
     resetBtn.className = 'mpo-btn-primary';
     resetBtn.style.cssText = 'margin-top:10px;width:100%;background:#9c4d2e;border-color:#a0542f;';
-    resetBtn.textContent = 'Reset serie naar TVDB';
+    resetBtn.textContent = 'Reset series to TVDB';
     resetBtn.addEventListener('click', function () {
       resetSeries(select);
     });
@@ -286,9 +286,9 @@
     var isSynthetic = series.tvdbId >= 1000000000;
     var bullets = [];
     if (isSynthetic) {
-      bullets.push('Geen echte TVDB-ID — "TVDB" als bron werkt niet (fallback naar standaard bron).');
+      bullets.push('No real TVDB ID — "TVDB" as a source will not work (falls back to the default source).');
     }
-    bullets.push('After changing the source: Refresh & Scan on the serie.');
+    bullets.push('After changing the source: Refresh & Scan on the series.');
 
     if (bullets.length) {
       var list = document.createElement('ul');
@@ -304,7 +304,7 @@
     select.addEventListener('change', function () {
       var selectedSource = select.value;
       if (selectedSource === 'tvdb' && isSynthetic) {
-        setStatus('Waarschuwing: TVDB passthrough werkt niet voor deze serie (geen echte TVDB-ID). Fallback naar standaard bron.', '#fbbf24');
+        setStatus('Warning: TVDB passthrough does not work for this series (no real TVDB ID). Falling back to the default source.', '#fbbf24');
       }
       updateSeriesBadge(selectedSource);
       saveOverride(series.tvdbId, select.value)
@@ -342,7 +342,7 @@
     if (!badge) {
       return;
     }
-    badge.textContent = 'Bron: ' + (source ? sourceLabel(source) : 'Default');
+    badge.textContent = 'Source: ' + (source ? sourceLabel(source) : 'Default');
     badge.className = 'mpo-badge' + (source ? ' mpo-badge-active' : '');
   }
 
@@ -449,11 +449,11 @@
     var tvdbId = series.tvdbId;
     var title = series.title || ('TVDB ' + tvdbId);
     if (!window.confirm(
-      'Reset "' + title + '" naar TVDB?\n\n' +
-      'Alle opgeslagen IDs (TMDB, TVMaze, AniDB, MAL, AniList)\n' +
-      'en episode-mappings worden verwijderd en de bron\n' +
-      'wordt op TVDB gezet. Daarna wordt automatisch\n' +
-      'Refresh & Scan gestart.'
+      'Reset "' + title + '" to TVDB?\n\n' +
+      'All stored IDs (TMDB, TVMaze, AniDB, MAL, AniList)\n' +
+      'and episode mappings will be removed and the source\n' +
+      'will be set to TVDB. After that, Refresh & Scan is\n' +
+      'started automatically.'
     )) {
       return;
     }
@@ -466,7 +466,7 @@
       return;
     }
     var fail = function (err) {
-      setStatus('Reset mislukt: ' + err.message, '#f87171');
+      setStatus('Reset failed: ' + err.message, '#f87171');
     };
     fetch(url + '/reset/' + tvdbId, { method: 'POST' })
       .then(function (response) {
@@ -481,18 +481,18 @@
         }
         updateSeriesBadge(dto.source);
         updateSeriesIdBadges(dto);
-        setStatus('Reset gedaan: terug naar TVDB. Refresh & Scan wordt gestart...', '#4ade80');
+        setStatus('Reset done: back to TVDB. Refresh & Scan is starting...', '#4ade80');
         return triggerRefreshScan();
       })
       .then(function () {
-        setStatus('Reset gedaan en Refresh & Scan gestart.', '#4ade80');
+        setStatus('Reset done and Refresh & Scan started.', '#4ade80');
       })
       .catch(fail);
   }
 
   function triggerRefreshScan() {
     if (!series || !series.id) {
-      setStatus('Geen Sonarr series id gevonden; voer Refresh & Scan handmatig uit.', '#fbbf24');
+      setStatus('No Sonarr series id found; run Refresh & Scan manually.', '#fbbf24');
       return Promise.resolve();
     }
     return waitForSonarrKey(6000).then(function (apiKey) {
@@ -799,7 +799,7 @@
   }
 
   function loadSearchProvider() {
-    // 1. Direct localStorage als UI-truth (instant, geen flash)
+    // 1. Read localStorage directly as UI truth (instant, no flash)
     try {
       var ls = normalizeSearchSource(localStorage.getItem(LS_PROVIDER_KEY));
       if (ls) {
@@ -808,7 +808,7 @@
       }
     } catch (e) { /* ignore */ }
 
-    // 2. Achtergrond: haal serverwaarde op en sync
+    // 2. Background: fetch the server value and sync
     var base = overridesApiBase();
     if (!base) {
       return;
@@ -822,7 +822,7 @@
       })
       .then(function (data) {
         var server = data && data.source ? normalizeSearchSource(data.source) : '';
-        // Alleen overschrijven als server een geldige waarde heeft
+        // Only override when the server has a valid value
         if (server) {
           SEARCH_PROVIDER = server;
           try { localStorage.setItem(LS_PROVIDER_KEY, server); } catch (e) {}
@@ -831,7 +831,7 @@
         }
       })
       .catch(function () {
-        /* fallback naar localStorage blijft gelden */
+        /* fallback to localStorage remains in effect */
       });
   }
   loadSearchProvider();
@@ -955,7 +955,7 @@
         dot.className = 'mpo-dot mpo-dot-off';
       }
       if (label) {
-        label.textContent = 'proxy onbereikbaar (stel OVERRIDES_API_URL in)';
+        label.textContent = 'proxy unreachable (set OVERRIDES_API_URL)';
       }
       return;
     }
