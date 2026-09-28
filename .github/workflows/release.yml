@@ -2,6 +2,7 @@ name: release
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
 
 jobs:
@@ -14,23 +15,52 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine tag
+        id: tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#v}
+          else
+            VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Sonarr.MetadataProxy/Sonarr.MetadataProxy.csproj | head -1)
+            VERSION=${VERSION%-dev*}
+            VERSION=${VERSION%%+*}
+            TAG=v$VERSION
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.tag_name' >/dev/null 2>&1; then
+            RET=1
+          else
+            RET=0
+          fi
+          echo "exists=$([ $RET -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate release notes
         id: notes
+        if: steps.check.outputs.exists == 'false'
         run: |
-          PREV=$(git describe --tags --abbrev=0 ${GITHUB_REF_NAME}^ 2>/dev/null || echo "")
+          PREV=$(git describe --tags --exclude="$TAG" --abbrev=0 "$GITHUB_SHA" 2>/dev/null || echo "")
           if [ -z "$PREV" ]; then
-            BODY=$(git log --format='- %s' "$GITHUB_SHA")
+            BODY=$(git log --format='- %s' "$GITHUB_SHA" | head -50)
           else
-            BODY=$(git log --format='- %s' "$PREV..$GITHUB_SHA")
+            BODY=$(git log --format='- %s' "$PREV..$GITHUB_SHA" | head -50)
           fi
           echo "body<<EOF" >> "$GITHUB_OUTPUT"
-          printf '# Sonarr Metadata Proxy %s\n\n%s\n' "${GITHUB_REF_NAME#v}" "$BODY" >> "$GITHUB_OUTPUT"
+          printf '# Sonarr Metadata Proxy %s\n\n%s\n' "$VERSION" "$BODY" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
+        if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
           body: ${{ steps.notes.outputs.body }}
           generate_release_notes: false
