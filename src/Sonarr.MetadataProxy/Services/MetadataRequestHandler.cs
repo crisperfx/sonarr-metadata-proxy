@@ -431,6 +431,16 @@ public sealed class MetadataRequestHandler
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
         var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
 
+        _logger.LogInformation(
+            "Serving TVDB id {TvdbId} as {Outcome}.",
+            tvdbId,
+            resolution switch
+            {
+                ShowResolution.Mapped mapped => $"mapped '{mapped.Show.Title}' ({mapped.Show.TvdbId})",
+                ShowResolution.Passthrough => "tvdb passthrough",
+                _ => "mapping unavailable"
+            });
+
         resolution = FlattenIfNoMultiSeason(resolution);
 
         // Enrich with MAL pictures only when the series is not served by the AniList or TVMaze
@@ -651,6 +661,13 @@ public sealed class MetadataRequestHandler
     private async Task<ShowResolution> ResolveShowAsync(int tvdbId, CancellationToken cancellationToken)
     {
         var sourceOverride = _mapping.GetOverride(tvdbId);
+        _logger.LogInformation(
+            "Resolving TVDB id {TvdbId} (synthetic: {Synthetic}, override: '{Override}', default search source: '{SearchSource}', active provider: '{Provider}').",
+            tvdbId,
+            SyntheticIds.IsSyntheticSeries(tvdbId),
+            sourceOverride,
+            _mapping.GetDefaultSearchSource(),
+            _activeProvider?.Name ?? "none");
         if (sourceOverride == MappingStore.SourceTvdb)
         {
             _logger.LogInformation(
@@ -858,8 +875,6 @@ try
                 {
                     _mapping.RegisterSeries(tvdbId, tmdbId.Value);
                 }
-
-                // Register MAL/AniList IDs from static mapping if available
                 var staticMalId = _animeMap?.TryGetMalIdByTvdb(tvdbId);
                 var staticAniListId = _mapping.TryGetAniListIdByTvdb(tvdbId);
                 if (staticMalId.HasValue || staticAniListId.HasValue)
