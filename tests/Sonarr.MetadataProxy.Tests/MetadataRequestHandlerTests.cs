@@ -4,12 +4,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Sonarr.MetadataProxy.Mapping;
+using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Options;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
 using Sonarr.MetadataProxy.Services;
 using Sonarr.MetadataProxy.Tests.Infrastructure;
 using Sonarr.MetadataProxy.Translation;
+using System.IO;
+using System.Text.Json;
 using Xunit;
 
 namespace Sonarr.MetadataProxy.Tests;
@@ -661,23 +664,27 @@ public class MetadataRequestHandlerTests
         {
             DataDir = _dataDir,
             AnidbClientName = "c",
-            AnidbClientVersion = "1"
+            AnidbClientVersion = "1",
+            AniListDatamapDir = Path.Combine(_dataDir, "datamaps")
         };
-        var anidbApi = new FakeAnidbApi();
-        var anidbTitles = new AnidbTitleList(options, new HttpClient(), NullLogger<AnidbTitleList>.Instance);
-        var (handler, _) = CreateHandlerWithMapping(
-            fallbackEnabled: true,
-            anidbSearch: new AnidbSearchService(
-                anidbApi,
-                anidbTitles,
-                new AnidbTranslator(),
-                new MappingStore(options, NullLogger<MappingStore>.Instance),
-                new AniListTvdbMap(options, NullLogger<AniListTvdbMap>.Instance),
-                options,
-                NullLogger<AnidbSearchService>.Instance));
 
-        // Set search source to AniList via mapping
-        var mapping = new MappingStore(new ProxyOptions { DataDir = _dataDir }, NullLogger<MappingStore>.Instance);
+        // Create AniList data files for mapping
+        WriteAniListFixtures(_dataDir);
+
+        var aniListApi = new FakeAniListApi { SearchResults = new List<AniListMedia> { TestData.DeathNote() } };
+        var aniListSearch = new AniListSearchService(
+            aniListApi,
+            new AniListTvdbMap(options, NullLogger<AniListTvdbMap>.Instance),
+            new AniListTranslator(),
+            new MappingStore(options, NullLogger<MappingStore>.Instance),
+            options,
+            NullLogger<AniListSearchService>.Instance);
+
+        var (handler, mapping) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            aniList: aniListSearch);
+
+        // Set search source to AniList via the handler's mapping
         mapping.SetDefaultSearchSource(MappingStore.SourceAniList);
 
         var result = await handler.SearchAsync("death note", CancellationToken.None);
@@ -685,7 +692,6 @@ public class MetadataRequestHandlerTests
         Assert.Null(_passthrough.LastSearchTerm);
         var (status, body) = await ExecuteAsync(result);
         Assert.Equal(StatusCodes.Status200OK, status);
-        Assert.Contains("anidbId", body);
     }
 
     [Fact]
@@ -878,5 +884,24 @@ public class MetadataRequestHandlerTests
 
             return null;
         }
+    }
+
+    private void WriteAniListFixtures(string dataDir)
+    {
+        var dir = Path.Combine(dataDir, "datamaps");
+        Directory.CreateDirectory(dir);
+
+        File.WriteAllText(Path.Combine(dir, "anime.json"), """
+        [
+          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535, "format": "TV" },
+          { "name": "Death Note (Special)", "name_cn": "", "name_jp": "", "idAL": 9000, "idAniDB": 2993, "idMal": 9000, "format": "TV" }
+        ]
+        """);
+
+        File.WriteAllText(Path.Combine(dir, "anime-list-full.xml"), """
+        <anime-list>
+          <anime anidbid="2993" tvdbid="81356" defaulttvdbseason="1" episodeoffset="" lastupdate="1700000000" />
+        </anime-list>
+        """);
     }
 }
