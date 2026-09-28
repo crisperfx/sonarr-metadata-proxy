@@ -1245,6 +1245,8 @@ public class SkyHookApiIntegrationTests
                     services.RemoveAll<IMalApi>();
                     services.RemoveAll<ITvmazeApi>();
                     services.RemoveAll<ITvdbToTvmazeResolver>();
+                    services.RemoveAll<ITvdbToAnidbResolver>();
+                    services.RemoveAll<IAnidbApi>();
                     services.AddSingleton<ITmdbApi>(tmdb);
                     services.AddSingleton<ITvdbToTmdbResolver>(resolver ?? new FakeTvdbResolver());
                     services.AddSingleton<ISkyHookPassthrough>(passthrough ?? new FakeSkyHookPassthrough());
@@ -1252,6 +1254,8 @@ public class SkyHookApiIntegrationTests
                     services.AddSingleton<IMalApi>(mal ?? new FakeMalApi());
                     services.AddSingleton<ITvmazeApi>(tvmaze ?? new FakeTvmazeApi());
                     services.AddSingleton<ITvdbToTvmazeResolver>(tvmazeResolver ?? new FakeTvdbTvmazeResolver());
+                    services.AddSingleton<ITvdbToAnidbResolver>(new FakeTvdbAnidbResolver());
+                    services.AddSingleton<IAnidbApi>(new FakeAnidbApi());
                 });
             });
     }

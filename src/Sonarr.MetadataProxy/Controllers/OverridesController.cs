@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Options;
+using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
+using System.Diagnostics;
 
 namespace Sonarr.MetadataProxy.Controllers;
 
@@ -18,6 +20,11 @@ public sealed class OverridesController : ControllerBase
     private readonly ITvdbToTmdbResolver _tvdbToTmdb;
     private readonly ITvdbToTvmazeResolver _tvdbToTvmaze;
     private readonly ITvdbToAnidbResolver _tvdbToAnidb;
+    private readonly ITmdbApi _tmdb;
+    private readonly IAniListApi _anilist;
+    private readonly IMalApi _mal;
+    private readonly ITvmazeApi _tvmaze;
+    private readonly IAnidbApi _anidb;
     private readonly ILogger<OverridesController> _logger;
 
     public OverridesController(
@@ -26,6 +33,11 @@ public sealed class OverridesController : ControllerBase
         ITvdbToTmdbResolver tvdbToTmdb,
         ITvdbToTvmazeResolver tvdbToTvmaze,
         ITvdbToAnidbResolver tvdbToAnidb,
+        ITmdbApi tmdb,
+        IAniListApi anilist,
+        IMalApi mal,
+        ITvmazeApi tvmaze,
+        IAnidbApi anidb,
         ILogger<OverridesController> logger)
     {
         _mapping = mapping;
@@ -33,6 +45,11 @@ public sealed class OverridesController : ControllerBase
         _tvdbToTmdb = tvdbToTmdb;
         _tvdbToTvmaze = tvdbToTvmaze;
         _tvdbToAnidb = tvdbToAnidb;
+        _tmdb = tmdb;
+        _anilist = anilist;
+        _mal = mal;
+        _tvmaze = tvmaze;
+        _anidb = anidb;
         _logger = logger;
     }
 
@@ -45,6 +62,8 @@ public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? An
     public sealed record SearchSourceRequest(string? Source);
 
     public sealed record ProviderDto(string Id, string Label, bool Configured);
+
+    public sealed record ProviderHealthDto(string Id, string Label, bool Configured, bool Online, long? LatencyMs, string? Error);
 
     [HttpGet("providers")]
     public IActionResult Providers()
@@ -60,6 +79,112 @@ public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? An
         };
 
         return Ok(new { providers = providers.Select(p => (object)p).ToList() });
+    }
+
+    [HttpGet("health/providers")]
+    public async Task<IActionResult> ProviderHealth(CancellationToken ct)
+    {
+        var providers = new List<ProviderHealthDto>
+        {
+            await CheckTmdbAsync(ct),
+            new("tvdb", "TVDB", true, true, 0, null),
+            await CheckAniListAsync(ct),
+            await CheckMalAsync(ct),
+            await CheckTvmazeAsync(ct),
+            await CheckAnidbAsync(ct)
+        };
+
+        return Ok(new { providers });
+    }
+
+    private async Task<ProviderHealthDto> CheckTmdbAsync(CancellationToken ct)
+    {
+        if (!_options.HasTmdbAuth)
+        {
+            return new("tmdb", "TMDB", false, false, null, "No API key/token configured");
+        }
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await _tmdb.SearchTvAsync("test", ct).ConfigureAwait(false);
+            sw.Stop();
+            return new("tmdb", "TMDB", true, true, sw.ElapsedMilliseconds, null);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new("tmdb", "TMDB", true, false, sw.ElapsedMilliseconds, ex.Message);
+        }
+    }
+
+    private async Task<ProviderHealthDto> CheckAniListAsync(CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            // AniList uses GraphQL; a simple search validates connectivity
+            await _anilist.SearchAsync("test", ct).ConfigureAwait(false);
+            sw.Stop();
+            return new("anilist", "AniList", true, true, sw.ElapsedMilliseconds, null);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new("anilist", "AniList", true, false, sw.ElapsedMilliseconds, ex.Message);
+        }
+    }
+
+    private async Task<ProviderHealthDto> CheckMalAsync(CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await _mal.SearchAsync("test", ct).ConfigureAwait(false);
+            sw.Stop();
+            return new("mal", "MAL", true, true, sw.ElapsedMilliseconds, null);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new("mal", "MAL", true, false, sw.ElapsedMilliseconds, ex.Message);
+        }
+    }
+
+    private async Task<ProviderHealthDto> CheckTvmazeAsync(CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await _tvmaze.SearchShowsAsync("test", ct).ConfigureAwait(false);
+            sw.Stop();
+            return new("tvmaze", "TVMaze", true, true, sw.ElapsedMilliseconds, null);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new("tvmaze", "TVMaze", true, false, sw.ElapsedMilliseconds, ex.Message);
+        }
+    }
+
+    private async Task<ProviderHealthDto> CheckAnidbAsync(CancellationToken ct)
+    {
+        if (!_options.HasAnidbClient)
+        {
+            return new("anidb", "AniDB", false, false, null, "No client configured");
+        }
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            // AniDB HTTP API: try to get a known anime (ID 1 = "Ginga Eiyuu Densetsu")
+            await _anidb.GetAnimeAsync(1, ct).ConfigureAwait(false);
+            sw.Stop();
+            return new("anidb", "AniDB", true, true, sw.ElapsedMilliseconds, null);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new("anidb", "AniDB", true, false, sw.ElapsedMilliseconds, ex.Message);
+        }
     }
 
     [HttpGet("searchsource")]

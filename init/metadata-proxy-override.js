@@ -98,7 +98,16 @@
       '.mpo-dot-on{background:#4ade80;}',
       '.mpo-dot-off{background:#f87171;}',
       '.mpo-bullets{margin:0;padding:0 0 0 16px;font-size:11px;line-height:1.7;color:#909293;}',
-      '.mpo-divider{border:none;border-top:1px solid #393f45;margin:10px 0 4px;}'
+      '.mpo-divider{border:none;border-top:1px solid #393f45;margin:10px 0 4px;}',
+      '.mpo-provider{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#222;border-radius:6px;border:1px solid #333;}',
+      '.mpo-provider-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}',
+      '.mpo-provider-dot-on{background:#4ade80;box-shadow:0 0 8px #4ade80;}',
+      '.mpo-provider-dot-off{background:#f87171;box-shadow:0 0 8px #f87171;}',
+      '.mpo-provider-label{font:500 12px/1 "Open Sans",sans-serif;color:#e1e2e3;}',
+      '.mpo-provider-latency{font:11px/1 "Open Sans",sans-serif;color:#909293;margin-left:auto;}',
+      '.mpo-provider-error{font:11px/1 "Open Sans",sans-serif;color:#f87171;margin-left:8px;}',
+      '.mpo-providers-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}',
+      '.mpo-section-title{font:600 11px/1 "Open Sans",sans-serif;color:#909293;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px;}'
     ].join('\n');
     (document.head || document.documentElement).appendChild(style);
   }
@@ -928,6 +937,11 @@
 
     ui._mpoBody.appendChild(row);
 
+    var healthContainer = document.createElement('div');
+    healthContainer.id = 'mpo-provider-health';
+    healthContainer.style.cssText = 'margin-top:8px;';
+    ui._mpoBody.appendChild(healthContainer);
+
     var list = document.createElement('ul');
     list.className = 'mpo-bullets';
     [
@@ -944,6 +958,7 @@
     ui.mpoCollapse(true);
     applySearchProvider(SEARCH_PROVIDER);
     refreshProxyStatus();
+    refreshProviderHealth();
     return ui;
   }
 
@@ -982,6 +997,81 @@
         if (label) {
           label.textContent = 'proxy offline';
         }
+      });
+  }
+
+  function refreshProviderHealth() {
+    var container = document.getElementById('mpo-provider-health');
+    if (!container) {
+      return;
+    }
+    var base = overridesApiBase();
+    if (!base) {
+      container.textContent = 'proxy unreachable';
+      return;
+    }
+    fetch(base + '/api/overrides/health/providers')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || !data.providers) {
+          container.textContent = 'no data';
+          return;
+        }
+        container.innerHTML = '';
+        var title = document.createElement('div');
+        title.className = 'mpo-section-title';
+        title.textContent = 'Provider Status';
+        container.appendChild(title);
+
+        var grid = document.createElement('div');
+        grid.className = 'mpo-providers-grid';
+        data.providers.forEach(function (p) {
+          var card = document.createElement('div');
+          card.className = 'mpo-provider';
+
+          var dot = document.createElement('span');
+          dot.className = 'mpo-provider-dot ' + (p.online ? 'mpo-provider-dot-on' : 'mpo-provider-dot-off');
+          card.appendChild(dot);
+
+          var label = document.createElement('span');
+          label.className = 'mpo-provider-label';
+          label.textContent = p.label;
+          card.appendChild(label);
+
+          if (p.configured === false) {
+            var badge = document.createElement('span');
+            badge.className = 'mpo-badge';
+            badge.style.fontSize = '10px';
+            badge.style.padding = '2px 6px';
+            badge.textContent = 'not configured';
+            card.appendChild(badge);
+          }
+
+          if (p.latencyMs != null && p.latencyMs > 0) {
+            var latency = document.createElement('span');
+            latency.className = 'mpo-provider-latency';
+            latency.textContent = p.latencyMs + ' ms';
+            card.appendChild(latency);
+          }
+
+          if (p.error) {
+            var err = document.createElement('span');
+            err.className = 'mpo-provider-error';
+            err.textContent = p.error;
+            card.appendChild(err);
+          }
+
+          grid.appendChild(card);
+        });
+        container.appendChild(grid);
+      })
+      .catch(function (err) {
+        container.textContent = 'failed to load: ' + err.message;
       });
   }
 
