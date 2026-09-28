@@ -20,6 +20,7 @@ public sealed class ProxyOptions
     public string? AnidbClientName { get; init; }
     public string? AnidbClientVersion { get; init; }
     public bool HasAnidbClient => !string.IsNullOrWhiteSpace(AnidbClientName) && !string.IsNullOrWhiteSpace(AnidbClientVersion);
+    public string? AnidbImageProxyUrl { get; init; }
     public IReadOnlyList<string> CorsAllowedOrigins { get; init; } = Array.Empty<string>();
 
     public static ProxyOptions FromConfiguration(IConfiguration cfg)
@@ -42,6 +43,7 @@ public sealed class ProxyOptions
             AniListDatamapDir = NonEmpty(cfg["ANILIST_DATAMAP_DIR"], "datamaps"),
             AnidbClientName = TrimToNull(cfg["ANIDB_CLIENT"]),
             AnidbClientVersion = TrimToNull(cfg["ANIDB_CLIENT_VERSION"]),
+            AnidbImageProxyUrl = TrimToNull(cfg["ANIDB_IMAGE_BASE_URL"]),
             CorsAllowedOrigins = ParseList(cfg["CORS_ALLOWED_ORIGINS"])
         };
     }

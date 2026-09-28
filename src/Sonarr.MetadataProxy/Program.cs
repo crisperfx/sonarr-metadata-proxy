@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Json;
 using Serilog;
@@ -74,6 +75,12 @@ builder.Services.AddHttpClient<AnidbTitleList>(http =>
     http.DefaultRequestHeaders.UserAgent.ParseAdd($"SonarrMetadataProxy/1.0 (anidb titles; {options.AnidbClientName ?? string.Empty})");
 });
 
+builder.Services.AddHttpClient<AnidbImageProxy>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(30);
+    http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0 (image proxy)");
+});
+
 builder.Services.AddSingleton<TenraiRateLimiter>();
 builder.Services.AddSingleton<TvmazeRateLimiter>();
 builder.Services.AddSingleton<AnidbRateLimiter>();
@@ -95,7 +102,8 @@ builder.Services.AddSingleton<AniListTranslator>();
 builder.Services.AddSingleton<AniListSearchService>();
 builder.Services.AddSingleton<MalTranslator>();
 builder.Services.AddSingleton<MalSearchService>();
-builder.Services.AddSingleton<AnidbTranslator>();
+builder.Services.AddSingleton<AnidbTranslator>(
+    _ => new AnidbTranslator(options.AnidbImageProxyUrl));
 builder.Services.AddSingleton<AnidbSearchService>();
 builder.Services.AddSingleton<IMetadataProvider>(
     serviceProvider => MetadataProviderRegistry.Create(options.MetadataSource, serviceProvider));
@@ -158,6 +166,14 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 
 var app = builder.Build();
 
+app.MapGet("/api/images/anidb/{picture}",
+    async (string picture, AnidbImageProxy images, CancellationToken ct) =>
+        await images.GetImageAsync(picture, ct).ConfigureAwait(false));
+
+var version = Assembly.GetExecutingAssembly()
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+    .InformationalVersion ?? "unknown";
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok", source = options.MetadataSource }));
 app.MapGet("/info", () => Results.Ok(new
 {
@@ -165,7 +181,7 @@ app.MapGet("/info", () => Results.Ok(new
     source = options.MetadataSource,
     tmdbConfigured = options.HasTmdbAuth,
     tvdbFallback = options.EnableTvdbFallback,
-    version = "1.6.0"
+version
 }));
 app.MapGet("/", () => Results.Text(
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sonarr Metadata Proxy</title></head>" +

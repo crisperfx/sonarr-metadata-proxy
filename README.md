@@ -96,6 +96,9 @@ Internally it calls `POST /api/overrides/reset/{tvdbId}` (see [Management API](#
 | `TMDB_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to real TVDB when the chosen source fails. |
 | `PORT` | `9697` | Management/health port. SkyHook/TLS is always on 443. |
+| `LOG_LEVEL` | `Information` | Log verbosity: `Trace`, `Debug`, `Information`, `Warning`, `Error`. |
+| `CACHE_TTL_MINUTES` | `1440` | How long successful responses are cached (minutes; 1440 = 24h). |
+| `SEARCH_RESULT_LIMIT` | `10` | Maximum search results returned per provider. |
 | `SKIP_TLS` | `false` | `true` = disable TLS/443 (dev only, won't work with Sonarr). |
 | `CORS_ALLOWED_ORIGINS` | — | Browser origins allowed to call the overrides API (needed for the dropdown). Multiple with commas, `*` = all (e.g. `https://sonarr.example.com,http://192.168.0.143`). |
 | `OVERRIDES_API_URL` | — | Set on **Sonarr** container when behind a reverse proxy (e.g. `https://proxy.example.com`). |

@@ -208,10 +208,15 @@ public sealed class AnidbSearchService
         }
     }
 
-    private static string PosterUrl(string picture)
+    private string PosterUrl(string picture)
     {
-        return picture.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? picture
+        if (picture.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return picture;
+        }
+
+        return !string.IsNullOrWhiteSpace(_options.AnidbImageProxyUrl)
+            ? _options.AnidbImageProxyUrl.Trim().TrimEnd('/') + "/api/images/anidb/" + picture
             : "https://cdn.anidb.net/images/main/" + picture;
     }
 
