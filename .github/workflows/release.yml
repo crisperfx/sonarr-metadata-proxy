@@ -44,7 +44,9 @@ jobs:
 
       - name: Generate release notes
         id: notes
-        if: steps.check.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
         run: |
           PREV=$(git describe --tags --exclude="$TAG" --abbrev=0 "$GITHUB_SHA" 2>/dev/null || echo "")
           if [ -z "$PREV" ]; then
@@ -53,7 +55,7 @@ jobs:
             BODY=$(git log --format='- %s' "$PREV..$GITHUB_SHA" | head -50)
           fi
           echo "body<<EOF" >> "$GITHUB_OUTPUT"
-          printf '# Sonarr Metadata Proxy %s\n\n%s\n' "$VERSION" "$BODY" >> "$GITHUB_OUTPUT"
+          printf '# Sonarr Metadata Proxy v%s\n\n%s\n' "$VERSION" "$BODY" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
@@ -64,3 +66,13 @@ jobs:
           name: Release ${{ steps.tag.outputs.tag }}
           body: ${{ steps.notes.outputs.body }}
           generate_release_notes: false
+
+      - name: Update existing GitHub release
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          printf '%s' "$BODY" > /tmp/notes.md
+          gh release edit "$TAG" --notes-file /tmp/notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          BODY: ${{ steps.notes.outputs.body }}
