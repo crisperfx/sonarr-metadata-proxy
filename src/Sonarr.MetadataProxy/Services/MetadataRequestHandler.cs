@@ -147,7 +147,7 @@ public sealed class MetadataRequestHandler
         {
             if (_tvmaze is not { IsConfigured: true })
             {
-                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, term.Value);
+                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(term.Value));
                 return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
 
@@ -164,7 +164,7 @@ public sealed class MetadataRequestHandler
         {
             if (_anidb is not { IsConfigured: true })
             {
-                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, term.Value);
+                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(term.Value));
                 return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
 
@@ -191,7 +191,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
-                    rawTerm);
+                    SanitizeForLog(rawTerm));
                 return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
 
@@ -208,7 +208,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
-                    rawTerm);
+                    SanitizeForLog(rawTerm));
                 var shows = await _aniList.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
@@ -226,7 +226,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
-                    rawTerm);
+                    SanitizeForLog(rawTerm));
                 var malShows = await _mal.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
@@ -243,7 +243,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
-                    rawTerm);
+                    SanitizeForLog(rawTerm));
                 return await SearchTmdbWithFallbackAsync(rawTerm, cancellationToken).ConfigureAwait(false);
             }
 
@@ -260,7 +260,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
-                    rawTerm);
+                    SanitizeForLog(rawTerm));
                 var tvmazeShows = await _tvmaze.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(tvmazeShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
@@ -278,7 +278,7 @@ public sealed class MetadataRequestHandler
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
-                    rawTerm);
+                    SanitizeForLog(rawTerm));
                 var anidbShows = await _anidb.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
                 return await ForwardWithFallbackAsync(anidbShows, rawTerm, cancellationToken).ConfigureAwait(false);
             }
@@ -294,13 +294,13 @@ public sealed class MetadataRequestHandler
     {
         if (shows is null)
         {
-            _logger.LogInformation("Search source failed or is misconfigured for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
+_logger.LogInformation("Search source failed or is misconfigured for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
         if (shows.Count == 0)
         {
-            _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
+_logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
@@ -940,14 +940,7 @@ try
         return Results.Content(response.Body, response.ContentType, null, response.StatusCode);
     }
 
-    private static string SanitizeForLog(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return input;
-        }
-        return input.Replace("\r", " ").Replace("\n", " ").Replace("\t", " ");
-    }
+    private static string SanitizeForLog(string input) => Infrastructure.LogSanitizer.Sanitize(input);
 
     private abstract record ShowResolution
     {

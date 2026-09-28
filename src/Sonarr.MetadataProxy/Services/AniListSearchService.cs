@@ -104,7 +104,7 @@ public sealed class AniListSearchService
         }
         catch (AniListApiException ex)
         {
-            _logger.LogWarning(ex, "AniList search failed for '{Key}'. Falling back to TVDB.", key);
+            _logger.LogWarning(ex, "AniList search failed for '{Key}'. Falling back to TVDB.", Infrastructure.LogSanitizer.Sanitize(key));
             return null;
         }
     }

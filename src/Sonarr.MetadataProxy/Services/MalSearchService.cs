@@ -88,7 +88,7 @@ public sealed class MalSearchService
         }
         catch (MalApiException ex)
         {
-            _logger.LogWarning(ex, "MAL (Jikan) search failed for '{Key}'. Falling back to TVDB.", key);
+            _logger.LogWarning(ex, "MAL (Jikan) search failed for '{Key}'. Falling back to TVDB.", Infrastructure.LogSanitizer.Sanitize(key));
             return null;
         }
     }

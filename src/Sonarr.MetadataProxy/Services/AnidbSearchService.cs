@@ -63,7 +63,7 @@ public sealed class AnidbSearchService
             await _titles.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
             if (!_titles.HasIndex)
             {
-                _logger.LogWarning("AniDB title index unavailable; falling back to TVDB for '{Query}'.", query);
+                _logger.LogWarning("AniDB title index unavailable; falling back to TVDB for '{Query}'.", Infrastructure.LogSanitizer.Sanitize(query));
                 return null;
             }
 
@@ -80,7 +80,7 @@ public sealed class AnidbSearchService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "AniDB title search failed for '{Query}'. Falling back to TVDB.", query);
+            _logger.LogWarning(ex, "AniDB title search failed for '{Query}'. Falling back to TVDB.", Infrastructure.LogSanitizer.Sanitize(query));
             return null;
         }
     }

@@ -36,7 +36,7 @@ public sealed class OverridesController : ControllerBase
         _logger = logger;
     }
 
-    public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? AniListId, int? MalId, int? TvmazeId, int? AnidbId);
+public sealed record OverrideDto(int TvdbId, string Source, int? TmdbId, int? AniListId, int? MalId, int? TvmazeId, int? AnidbId);
 
     public sealed record OverrideRequest(int TvdbId, string Source, int? TmdbId, string? Title, int? Year, int? TvmazeId, int? AnidbId);
 
@@ -93,7 +93,7 @@ public sealed class OverridesController : ControllerBase
                 kv.Value,
                 _mapping.TryResolveSeriesTmdb(kv.Key),
                 _mapping.TryGetAniListIdByTvdb(kv.Key),
-                _mapping.TryGetMalIdByTvdb(kv.Key),
+_mapping.TryGetMalIdByTvdb(kv.Key),
                 _mapping.TryGetTvmazeIdByTvdb(kv.Key),
                 _mapping.TryGetAnidbIdByTvdb(kv.Key)));
         return Ok(result);
@@ -136,7 +136,7 @@ public sealed class OverridesController : ControllerBase
                 _logger.LogWarning(
                     "Override source tmdb requested for TVDB id {TvdbId} (title: '{Title}') but no TMDB mapping is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId, request.Title);
+                    request.TvdbId, Infrastructure.LogSanitizer.Sanitize(request.Title));
             }
         }
 
@@ -157,7 +157,7 @@ public sealed class OverridesController : ControllerBase
                 _logger.LogWarning(
                     "Override source tvmaze requested for TVDB id {TvdbId} (title: '{Title}') but no TVMaze mapping is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId, request.Title);
+                    request.TvdbId, Infrastructure.LogSanitizer.Sanitize(request.Title));
             }
         }
 
@@ -191,7 +191,7 @@ public sealed class OverridesController : ControllerBase
                 _logger.LogWarning(
                     "Override source anidb requested for TVDB id {TvdbId} (title: '{Title}') but no AniDB id is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId, request.Title);
+                    request.TvdbId, Infrastructure.LogSanitizer.Sanitize(request.Title));
             }
         }
 
@@ -202,7 +202,7 @@ public sealed class OverridesController : ControllerBase
             request.Source,
             _mapping.TryResolveSeriesTmdb(request.TvdbId),
             _mapping.TryGetAniListIdByTvdb(request.TvdbId),
-            _mapping.TryGetMalIdByTvdb(request.TvdbId),
+_mapping.TryGetMalIdByTvdb(request.TvdbId),
             _mapping.TryGetTvmazeIdByTvdb(request.TvdbId),
             _mapping.TryGetAnidbIdByTvdb(request.TvdbId)));
     }
