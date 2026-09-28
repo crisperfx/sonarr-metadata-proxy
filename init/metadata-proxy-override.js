@@ -249,7 +249,7 @@
     var badge = document.createElement('span');
     badge.className = 'mpo-badge';
     badge.id = 'mpo-series-source-badge';
-    badge.textContent = 'Bron: Default';
+    badge.textContent = 'Source: Default';
     shell._mpoBody.appendChild(badge);
 
     var status = document.createElement('div');
@@ -260,9 +260,9 @@
     var isSynthetic = series.tvdbId >= 1000000000;
     var bullets = [];
     if (isSynthetic) {
-      bullets.push('Geen echte TVDB-ID — "TVDB" als bron werkt niet (fallback naar standaard bron).');
+      bullets.push('No real TVDB ID — "TVDB" as a source will not work (falls back to the default source).');
     }
-    bullets.push('After changing the source: Refresh & Scan on the serie.');
+    bullets.push('After changing the source: Refresh & Scan on the series.');
 
     if (bullets.length) {
       var list = document.createElement('ul');
@@ -278,7 +278,7 @@
     select.addEventListener('change', function () {
       var selectedSource = select.value;
       if (selectedSource === 'tvdb' && isSynthetic) {
-        setStatus('Waarschuwing: TVDB passthrough werkt niet voor deze serie (geen echte TVDB-ID). Fallback naar standaard bron.', '#fbbf24');
+        setStatus('Warning: TVDB passthrough does not work for this series (no real TVDB ID). Falling back to the default source.', '#fbbf24');
       }
       updateSeriesBadge(selectedSource);
       saveOverride(series.tvdbId, select.value)
@@ -310,7 +310,7 @@
     if (!badge) {
       return;
     }
-    badge.textContent = 'Bron: ' + (source ? sourceLabel(source) : 'Default');
+    badge.textContent = 'Source: ' + (source ? sourceLabel(source) : 'Default');
     badge.className = 'mpo-badge' + (source ? ' mpo-badge-active' : '');
   }
 
@@ -662,7 +662,7 @@
   }
 
   function loadSearchProvider() {
-    // 1. Direct localStorage als UI-truth (instant, geen flash)
+    // 1. Read localStorage directly as UI truth (instant, no flash)
     try {
       var ls = normalizeSearchSource(localStorage.getItem(LS_PROVIDER_KEY));
       if (ls) {
@@ -671,7 +671,7 @@
       }
     } catch (e) { /* ignore */ }
 
-    // 2. Achtergrond: haal serverwaarde op en sync
+    // 2. Background: fetch the server value and sync
     var base = overridesApiBase();
     if (!base) {
       return;
@@ -685,7 +685,7 @@
       })
       .then(function (data) {
         var server = data && data.source ? normalizeSearchSource(data.source) : '';
-        // Alleen overschrijven als server een geldige waarde heeft
+        // Only override when the server has a valid value
         if (server) {
           SEARCH_PROVIDER = server;
           try { localStorage.setItem(LS_PROVIDER_KEY, server); } catch (e) {}
@@ -694,7 +694,7 @@
         }
       })
       .catch(function () {
-        /* fallback naar localStorage blijft gelden */
+        /* fallback to localStorage remains in effect */
       });
   }
   loadSearchProvider();
@@ -812,7 +812,7 @@
         dot.className = 'mpo-dot mpo-dot-off';
       }
       if (label) {
-        label.textContent = 'proxy onbereikbaar (stel OVERRIDES_API_URL in)';
+        label.textContent = 'proxy unreachable (set OVERRIDES_API_URL)';
       }
       return;
     }

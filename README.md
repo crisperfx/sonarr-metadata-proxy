@@ -65,9 +65,9 @@ That's it.
 - AniList uses its own artwork (poster + banner). MAL pulls backgrounds from Tenrai. AniDB provides poster + synopsis; one API call returns series + all episodes.
 - No MyAnimeList art is mixed into AniList results.
 
-### Reset serie naar TVDB (per-series reset)
+### Reset series to TVDB (per-series reset)
 
-Below the metadata dropdown a **Reset serie naar TVDB** button wipes the stored state for a
+Below the metadata dropdown a **Reset series to TVDB** button wipes the stored state for a
 series and puts it back on the default TVDB source:
 
 - removes **all** provider IDs for the series (TMDB, TVMaze, AniDB, MAL, AniList) plus any
@@ -234,7 +234,7 @@ When a series shows the wrong show or metadata, the log lines tell you exactly w
 - `Serving TVDB id … as …` — what was actually returned: a mapped `'Title' (tvdbId)` from a
   mapped provider, or `tvdb passthrough`.
 
-Use the per-series **Reset serie naar TVDB** button to start clean when the TVDB id itself
+Use the per-series **Reset series to TVDB** button to start clean when the TVDB id itself
 points at the wrong production.
 
 ---
