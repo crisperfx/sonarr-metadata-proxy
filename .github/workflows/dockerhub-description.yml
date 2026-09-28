@@ -25,7 +25,7 @@ jobs:
           else
             git log --format='- %s' "$PREV..HEAD" | head -50 > /tmp/changelog.md
           fi
-          awk '/<!-- CHANGELOG -->/ { while ((getline line < "/tmp/changelog.md") > 0) print line; close("/tmp/changelog.md"); next } { print }' .github/dockerhub-overview.md > /tmp/overview.md
+          awk '/<!-- CHANGELOG -->/ { while ((getline line < "/tmp/changelog.md") > 0) print line; close("/tmp/changelog.md"); next } { print }' DOCKER_HUB_DESCRIPTION.txt > /tmp/overview.md
           echo "file=/tmp/overview.md" >> "$GITHUB_OUTPUT"
 
       - name: Update Docker Hub description
