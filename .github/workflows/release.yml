@@ -76,3 +76,40 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
           BODY: ${{ steps.notes.outputs.body }}
+
+  sync-develop:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: release
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check develop has no unique commits
+        id: check
+        run: |
+          git fetch origin develop
+          if git merge-base --is-ancestor origin/develop origin/main; then
+            echo "syncable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "syncable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::develop has commits not in main - skipping sync to avoid losing work"
+          fi
+
+      - name: Sync develop to main
+        if: steps.check.outputs.syncable == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Sonarr.MetadataProxy/Sonarr.MetadataProxy.csproj | head -1)
+          VERSION=${VERSION%-dev*}
+          VERSION=${VERSION%%+*}
+          git checkout -B develop origin/develop
+          git merge --ff-only origin/main
+          sed -i "s|<Version>.*<\/Version>|<Version>${VERSION}-dev</Version>|" src/Sonarr.MetadataProxy/Sonarr.MetadataProxy.csproj
+          git add src/Sonarr.MetadataProxy/Sonarr.MetadataProxy.csproj
+          git commit -m "chore: sync develop to main; track ${VERSION}-dev"
+          git push origin develop
