@@ -6,19 +6,13 @@ The proxy runs alongside an existing Sonarr installation and does **not require 
 
 ## Features
 
-- TMDB metadata support
-- AniList metadata support
-- MAL (MyAnimeList via Tenrai) metadata support
-- TVMaze metadata support
-- AniDB metadata support (via HTTP API + daily title dump)
-- TVDB / SkyHook support (passthrough)
-- Per-series metadata source selection
-- Provider-specific search
-- Sonarr-compatible metadata responses
-- Automatic HTTPS certificate handling
-- Docker network-based SkyHook interception
-- Works with an unmodified Sonarr installation
-- Persistent configuration and metadata mappings
+- **Multiple metadata sources** — pick TMDB, TVDB, AniList, MAL, TVMaze, or AniDB per series via the **Metadata source** dropdown, or per search via **Search via**.
+- **Anime-ready** — AniList/MAL/AniDB resolve to a single continuous season; no mixed artwork (AniList uses its own posters/banners, MAL pulls backgrounds from Tenrai).
+- **Reset series to TVDB** — one button wipes all provider IDs, episode mappings and overrides, pins the series to TVDB and triggers a Sonarr **Refresh & Scan** to re-fetch cleanly.
+- **Resolver auditing** — see exactly why a series resolved to a show/episode list (diagnoses wrong-show lookups).
+- **AniDB poster proxy** — posters are proxied through the container's own endpoint to bypass cdn hotlink blocking (browsers that send a Referer get blocked by AniDB otherwise).
+- **Log sanitization** — all user input in log sinks is sanitized to prevent log forging.
+- **Drop-in** — mounts a CA cert and patches Sonarr's UI via a shared folder; Sonarr resolves `skyhook.sonarr.tv` to the proxy. Works with stock Sonarr and Docker UIs (Synology, Portainer, Dockhand, ...).
 
 ## How It Works
 
@@ -102,19 +96,73 @@ networks:
 
 ## Configuration
 
-Configuration can be provided through environment variables or a `.env` file.
+Configuration can be provided through environment variables or a `.env` file. **All defaults below are pre-baked into the image**, so a container works out of the box. Only `TMDB_API_KEY` (or `TMDB_API_TOKEN`) and `CORS_ALLOWED_ORIGINS` need your own values.
 
-Example:
+Example `.env`:
 
 ```env
+# Primary metadata source used by the proxy (tmdb | tvdb | anilist | mal | tvmaze | anidb | imdb)
 METADATA_SOURCE=tmdb
-TMDB_API_KEY=your-api-key
-ANIDB_CLIENT=your-client-name
-ANIDB_CLIENT_VERSION=1
+
+# TMDB credentials: EITHER the v3 API key OR the v4 bearer token. You need at least one.
+# If both are set, the bearer token wins. Get them at https://www.themoviedb.org/settings/api
+TMDB_API_KEY=your-tmdb-v3-api-key
+TMDB_API_TOKEN=
+
+# Optional AniDB HTTP API credentials (for the AniDB provider / anidb: prefix).
+# Required to use AniDB as a search or per-series metadata source; leave blank to disable.
+# Register this client name + version at https://anidb.net/software/add ; you must set BOTH.
+ANIDB_CLIENT=
+ANIDB_CLIENT_VERSION=
+
+# Optional: browser-reachable base URL of this proxy (e.g. http://192.168.1.50:9697).
+# When set, AniDB posters are served through the proxy's own image proxy endpoint
+# instead of directly from cdn.anidb.net, because AniDB blocks browsers that send a
+# Referer (hotlink protection). Leave blank to use the direct cdn.anidb.net URLs.
+ANIDB_IMAGE_BASE_URL=
+
+# Optional: language requested from TMDB (default en-US)
+TMDb_LANGUAGE=en-US
+
+# When a series cannot be mapped or the source API fails, fall back to the real SkyHook/TVDB.
 ENABLE_TVDB_FALLBACK=true
+
+# Management/health HTTP port (the SkyHook/TLS listener is always on port 443)
 PORT=9697
+
+# Log level for the proxy (Trace | Debug | Information | Warning | Error)
+LOG_LEVEL=Information
+
+# How long successful responses are cached, in minutes (default 1440 = 24h)
+CACHE_TTL_MINUTES=1440
+
+# Maximum number of search results returned per provider
+SEARCH_RESULT_LIMIT=10
+
+# Directory that holds the AniList datamap export
+ANILIST_DATAMAP_DIR=datamaps
+
+# Set to true to disable the TLS listener (443) and run plain HTTP only. NOT for use with Sonarr.
 SKIP_TLS=false
+
+# Real SkyHook base URL used only for the TVDB fallback / passthrough.
 SKYHOOK_BASE_URL=https://skyhook.sonarr.tv
+
+# DNS-over-HTTPS endpoint used to resolve SKYHOOK_BASE_URL (avoids the Docker network
+# alias answering for skyhook.sonarr.tv and a hardcoded IP).
+SKYHOOK_RESOLVER_URL=https://cloudflare-dns.com/dns-query
+
+# CORS origins allowed to call the /api/overrides management API from a browser.
+# Required only for the optional in-Sonarr picker (init/50-sonarr-override-ui.sh).
+# Use the exact origin as seen in your browser, e.g. http://192.168.1.10:8989. "*" allows any.
+# Behind an HTTPS reverse proxy (e.g. Synology): CORS stays the browser origin of Sonarr
+# (e.g. https://sonarr.example.com), but you must ALSO set OVERRIDES_API_URL on the
+# Sonarr container so the picker talks to the proxied API (see README, reverse proxy).
+# Leave empty to disable CORS.
+CORS_ALLOWED_ORIGINS=
+
+# Data directory (mapping store + generated CA/certificates). Mounted as a volume in Docker.
+DATA_DIR=/app/data
 ```
 
 ### Metadata Sources
@@ -131,8 +179,8 @@ Supported metadata sources include:
 A global metadata source can be configured while individual series can use their own provider.
 
 **All credentials are optional** — only provide keys for the providers you actually use:
-- `TMDB_API_KEY` — only needed if using TMDB
-- `ANIDB_CLIENT` + `ANIDB_CLIENT_VERSION` — only needed if using AniDB (register at <https://anidb.net/creq/>)
+- `TMDB_API_KEY` / `TMDB_API_TOKEN` — only needed if using TMDB
+- `ANIDB_CLIENT` + `ANIDB_CLIENT_VERSION` — only needed if using AniDB (register at <https://anidb.net/software/add>)
 - AniList, MAL, TVMaze, TVDB require no API keys
 
 ## Ports
