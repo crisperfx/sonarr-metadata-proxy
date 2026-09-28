@@ -70,4 +70,32 @@ public class AnidbTranslatorTests
         Assert.Equal(TestData.DeathNoteAnidbId, show.AnidbId);
         Assert.Empty(show.Images);
     }
+
+    [Fact]
+    public void WhenImageProxyBaseUrlConfigured_PosterAndEpisodeImageGoThroughProxy()
+    {
+        var translator = new AnidbTranslator("http://192.168.1.50:9697");
+        var anime = TestData.DeathNoteAnime();
+        var special = anime.Episodes[2];
+
+        var series = translator.ToSeries(anime);
+        var episode = translator.ToEpisode(special);
+        var show = translator.ToSearchResult(anime, TestData.DeathNoteTvdbId);
+
+        Assert.Equal("http://192.168.1.50:9697/api/images/anidb/1", series.PosterPath);
+        Assert.Equal("http://192.168.1.50:9697/api/images/anidb/2010", episode.ImageUrl);
+        Assert.Equal("http://192.168.1.50:9697/api/images/anidb/1", show.Images[0].Url);
+    }
+
+    [Fact]
+    public void WhenImageProxyBaseUrlConfiguredAndPictureAbsoluteUrl_KeepsHttpUrlAsIs()
+    {
+        var translator = new AnidbTranslator("http://192.168.1.50:9697");
+        var anime = TestData.DeathNoteAnime();
+        anime.Picture = "https://cdn.anidb.net/images/main/224210.jpg";
+
+        var series = translator.ToSeries(anime);
+
+        Assert.Equal("https://cdn.anidb.net/images/main/224210.jpg", series.PosterPath);
+    }
 }

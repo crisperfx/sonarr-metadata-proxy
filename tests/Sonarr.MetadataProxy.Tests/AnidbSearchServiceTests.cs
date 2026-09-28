@@ -121,6 +121,32 @@ public class AnidbSearchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchByAnidbIdAsync_WithImageProxyBaseUrl_UsesProxyPosterUrl()
+    {
+        _api.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();
+        var options = new ProxyOptions
+        {
+            DataDir = _dataDir,
+            AnidbClientName = "test-client",
+            AnidbClientVersion = "1",
+            AnidbImageProxyUrl = "http://192.168.1.50:9697/"
+        };
+        var service = new AnidbSearchService(
+            _api,
+            new AnidbTitleList(options, new HttpClient(), NullLogger<AnidbTitleList>.Instance),
+            new AnidbTranslator(options.AnidbImageProxyUrl),
+            _mapping,
+            _map,
+            options,
+            NullLogger<AnidbSearchService>.Instance);
+
+        var results = await service.SearchByAnidbIdAsync(TestData.DeathNoteAnidbId, CancellationToken.None);
+
+        var first = Assert.Single(results!);
+        Assert.Equal("http://192.168.1.50:9697/api/images/anidb/1", first.Images[0].Url);
+    }
+
+    [Fact]
     public async Task SearchAsync_WithApiData_EnrichesTitleHitWithPosterAndOverview()
     {
         _api.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();

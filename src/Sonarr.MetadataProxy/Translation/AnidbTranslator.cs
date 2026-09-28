@@ -9,6 +9,13 @@ public sealed class AnidbTranslator
 {
     private const string MainImageBase = "https://cdn.anidb.net/images/main/";
 
+    private readonly string? _imageProxyBaseUrl;
+
+    public AnidbTranslator(string? imageProxyBaseUrl = null)
+    {
+        _imageProxyBaseUrl = NormalizeBaseUrl(imageProxyBaseUrl);
+    }
+
     public const int TypeRegularEpisode = 1;
     public const int TypeSpecial = 2;
 
@@ -134,16 +141,31 @@ public sealed class AnidbTranslator
         };
     }
 
-    private static string? PictureUrl(string? picture)
+    private string? PictureUrl(string? picture)
     {
         if (string.IsNullOrWhiteSpace(picture))
         {
             return null;
         }
 
-        return picture.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? picture
+        if (picture.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return picture;
+        }
+
+        return _imageProxyBaseUrl is not null
+            ? _imageProxyBaseUrl + "/api/images/anidb/" + picture
             : MainImageBase + picture;
+    }
+
+    private static string? NormalizeBaseUrl(string? baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return null;
+        }
+
+        return baseUrl.Trim().TrimEnd('/');
     }
 
     public static string? NormalizeDate(string? date)

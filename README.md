@@ -92,6 +92,7 @@ Internally it calls `POST /api/overrides/reset/{tvdbId}` (see [Management API](#
 | `TMDB_API_TOKEN` | — | TMDB v4 bearer token (alternative to the key; wins if both set). |
 | `ANIDB_CLIENT` | — | AniDB HTTP API client name. **Only needed if you use AniDB**. Both this and `ANIDB_CLIENT_VERSION` must be set. Register: 1) Create project at <https://anidb.net/software/add> (type HTTP) 2) Add client in your project with name + version 3) Use those values. |
 | `ANIDB_CLIENT_VERSION` | — | AniDB HTTP API client version. See `ANIDB_CLIENT`. |
+| `ANIDB_IMAGE_BASE_URL` | — | Browser-reachable base URL of the proxy (e.g. `http://192.168.1.50:9697`). AniDB posters/episodes are then served through the proxy's own `/api/images/anidb/...` endpoint instead of `cdn.anidb.net` directly, because AniDB blocks browsers sending a Referer (hotlink protection). Leave blank to use the direct URLs. |
 | `TMDB_LANGUAGE` | `en-US` | Language for TMDB requests. |
 | `ENABLE_TVDB_FALLBACK` | `true` | Fall back to real TVDB when the chosen source fails. |
 | `PORT` | `9697` | Management/health port. SkyHook/TLS is always on 443. |

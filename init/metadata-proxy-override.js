@@ -235,6 +235,7 @@
     if (poster) {
       var img = document.createElement('img');
       img.className = 'mpo-poster';
+      img.referrerPolicy = 'no-referrer';
       img.src = poster;
       img.alt = series.title || '';
       shell._mpoBody.appendChild(img);
