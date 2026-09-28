@@ -204,3 +204,5 @@ For issues, feature requests and development:
 ## Disclaimer
 
 This is an independent community project and is not affiliated with or endorsed by Sonarr, TVDB, TMDB, AniList, MAL, TVMaze, or AniDB.
+
+<!-- CHANGELOG -->
