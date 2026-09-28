@@ -136,7 +136,7 @@ _mapping.TryGetMalIdByTvdb(kv.Key),
                 _logger.LogWarning(
                     "Override source tmdb requested for TVDB id {TvdbId} (title: '{Title}') but no TMDB mapping is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId, request.Title);
+                    request.TvdbId, Infrastructure.LogSanitizer.Sanitize(request.Title));
             }
         }
 
@@ -157,7 +157,7 @@ _mapping.TryGetMalIdByTvdb(kv.Key),
                 _logger.LogWarning(
                     "Override source tvmaze requested for TVDB id {TvdbId} (title: '{Title}') but no TVMaze mapping is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId, request.Title);
+                    request.TvdbId, Infrastructure.LogSanitizer.Sanitize(request.Title));
             }
         }
 
@@ -191,7 +191,7 @@ _mapping.TryGetMalIdByTvdb(kv.Key),
                 _logger.LogWarning(
                     "Override source anidb requested for TVDB id {TvdbId} (title: '{Title}') but no AniDB id is known yet. "
                     + "It will fall back to TVDB until a mapping is recorded.",
-                    request.TvdbId, request.Title);
+                    request.TvdbId, Infrastructure.LogSanitizer.Sanitize(request.Title));
             }
         }
 

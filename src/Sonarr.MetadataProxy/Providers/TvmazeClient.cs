@@ -80,14 +80,14 @@ public sealed class TvmazeClient : ITvmazeApi
 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound && allowNotFound)
                 {
-                    _logger.LogInformation("TVMaze reported not found for '{Url}'.", url);
+                    _logger.LogInformation("TVMaze reported not found for '{Url}'.", Infrastructure.LogSanitizer.Sanitize(url));
                     return default;
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var status = (int)response.StatusCode;
-                    _logger.LogWarning("TVMaze returned {Status} for '{Url}'.", status, url);
+                    _logger.LogWarning("TVMaze returned {Status} for '{Url}'.", status, Infrastructure.LogSanitizer.Sanitize(url));
 
                     var isRetryable = status is 429 or >= 500;
                     if (isRetryable && attempt < maxRetries)

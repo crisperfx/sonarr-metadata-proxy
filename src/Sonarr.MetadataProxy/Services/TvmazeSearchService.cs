@@ -86,7 +86,7 @@ public sealed class TvmazeSearchService
         }
         catch (TvmazeApiException ex)
         {
-            _logger.LogWarning(ex, "TVMaze search failed for '{Key}'. Falling back to TVDB.", key);
+            _logger.LogWarning(ex, "TVMaze search failed for '{Key}'. Falling back to TVDB.", Infrastructure.LogSanitizer.Sanitize(key));
             return null;
         }
     }
