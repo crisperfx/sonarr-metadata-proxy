@@ -740,6 +740,50 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Show_TvmazeOverride_DoesNotInjectMalPictures()
+    {
+        WriteAniListFixtures();
+        const int deathNoteTvmazeId = 999;
+        var mal = new FakeMalApi
+        {
+            PicturesById =
+            {
+                [1535] = new MalPictures
+                {
+                    Posters = { "https://cdn.myanimelist.net/images/anime/9/9453l.jpg" },
+                    Backgrounds = { "https://cdn.myanimelist.net/images/anime/9/9453b.jpg" }
+                }
+            }
+        };
+        var tvmaze = new FakeTvmazeApi
+        {
+            ById = { [deathNoteTvmazeId] = TestData.AnimeTvmaze() },
+            EpisodesById = { [deathNoteTvmazeId] = TestData.AnimeTvmazeEpisodes() }
+        };
+        var tvmazeResolver = new FakeTvdbTvmazeResolver { Map = { [81356] = deathNoteTvmazeId } };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), mal: mal, tvmaze: tvmaze, tvmazeResolver: tvmazeResolver);
+        using var client = factory.CreateClient();
+
+        using var overridePost = await client.PostAsJsonAsync(
+            "/api/overrides",
+            new { tvdbId = 81356, source = "tvmaze" });
+        Assert.Equal(HttpStatusCode.OK, overridePost.StatusCode);
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/81356");
+        using var document = JsonDocument.Parse(body);
+
+        Assert.DoesNotContain("myanimelist.net", body);
+
+        var urls = document.RootElement.GetProperty("images").EnumerateArray()
+            .Select(image => image.GetProperty("url").GetString())
+            .ToList();
+        Assert.NotEmpty(urls);
+        Assert.Contains(urls, url => url!.Contains("tvmaze.com"));
+        Assert.DoesNotContain(urls, url => url!.Contains("myanimelist.net"));
+    }
+
+    [Fact]
     public async Task Show_SeriesWithoutAniListBinding_IsNotFlattened()
     {
         var tmdb = new FakeTmdbApi
@@ -1101,6 +1145,39 @@ public class SkyHookApiIntegrationTests
         Assert.Contains((81189, "tvdb"), entries);
     }
 
+    [Fact]
+    public async Task Providers_ReportsTvdbConfiguredAndAnidbUnconfigured()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/overrides/providers");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var providers = document.RootElement.GetProperty("providers");
+        var tmdb = providers.EnumerateArray().First(p => p.GetProperty("id").GetString() == "tmdb");
+        var anidb = providers.EnumerateArray().First(p => p.GetProperty("id").GetString() == "anidb");
+
+        Assert.True(tmdb.GetProperty("configured").GetBoolean());
+        Assert.False(anidb.GetProperty("configured").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Search_AnidbTerm_WhenUnconfigured_FallsThroughToTvdb()
+    {
+        using var factory = CreateFactory(new FakeTmdbApi());
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=anidb%3Adeath+note");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        Assert.Empty(document.RootElement.EnumerateArray());
+    }
+
     private void WriteAniListFixtures()
     {
         var dir = Path.Combine(_dataDir, "datamaps");
@@ -1108,8 +1185,8 @@ public class SkyHookApiIntegrationTests
 
         File.WriteAllText(Path.Combine(dir, "anime.json"), """
         [
-          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535 },
-          { "name": "Death Note (Special)", "name_cn": "", "name_jp": "", "idAL": 9000, "idAniDB": 2993, "idMal": 9000 }
+          { "name": "Death Note", "name_cn": "", "name_jp": "", "idAL": 1535, "idAniDB": 2993, "idMal": 1535, "format": "TV" },
+          { "name": "Death Note (Special)", "name_cn": "", "name_jp": "", "idAL": 9000, "idAniDB": 2993, "idMal": 9000, "format": "TV" }
         ]
         """);
 
@@ -1126,6 +1203,8 @@ public class SkyHookApiIntegrationTests
         FakeSkyHookPassthrough? passthrough = null,
         FakeAniListApi? aniList = null,
         FakeMalApi? mal = null,
+        FakeTvmazeApi? tvmaze = null,
+        FakeTvdbTvmazeResolver? tvmazeResolver = null,
         bool fallbackEnabled = true)
     {
         return new WebApplicationFactory<Program>()
@@ -1164,11 +1243,15 @@ public class SkyHookApiIntegrationTests
                     services.RemoveAll<ISkyHookPassthrough>();
                     services.RemoveAll<IAniListApi>();
                     services.RemoveAll<IMalApi>();
+                    services.RemoveAll<ITvmazeApi>();
+                    services.RemoveAll<ITvdbToTvmazeResolver>();
                     services.AddSingleton<ITmdbApi>(tmdb);
                     services.AddSingleton<ITvdbToTmdbResolver>(resolver ?? new FakeTvdbResolver());
                     services.AddSingleton<ISkyHookPassthrough>(passthrough ?? new FakeSkyHookPassthrough());
                     services.AddSingleton<IAniListApi>(aniList ?? new FakeAniListApi());
                     services.AddSingleton<IMalApi>(mal ?? new FakeMalApi());
+                    services.AddSingleton<ITvmazeApi>(tvmaze ?? new FakeTvmazeApi());
+                    services.AddSingleton<ITvdbToTvmazeResolver>(tvmazeResolver ?? new FakeTvdbTvmazeResolver());
                 });
             });
     }

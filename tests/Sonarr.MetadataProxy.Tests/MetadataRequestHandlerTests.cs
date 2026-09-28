@@ -21,6 +21,8 @@ public class MetadataRequestHandlerTests
     private readonly string _dataDir;
     private readonly FakeTmdbApi _tmdb;
     private readonly FakeTvdbResolver _resolver;
+    private readonly FakeTvdbTvmazeResolver _tvmazeResolver;
+    private readonly FakeTvmazeApi _tvmaze;
     private readonly FakeSkyHookPassthrough _passthrough;
 
     public MetadataRequestHandlerTests()
@@ -28,6 +30,8 @@ public class MetadataRequestHandlerTests
         _dataDir = Path.Combine(Path.GetTempPath(), "metadataproxy-tests", Guid.NewGuid().ToString("N"));
         _tmdb = new FakeTmdbApi();
         _resolver = new FakeTvdbResolver();
+        _tvmazeResolver = new FakeTvdbTvmazeResolver();
+        _tvmaze = new FakeTvmazeApi();
         _passthrough = new FakeSkyHookPassthrough();
     }
 
@@ -483,6 +487,255 @@ public class MetadataRequestHandlerTests
         Assert.Equal(0, _tmdb.SearchCallCount);
     }
 
+    [Fact]
+    public async Task Search_TvmazeIdTerm_UsesTvmazeAndRegistersMapping()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+
+        var result = await handler.SearchAsync("tvmaze:169", CancellationToken.None);
+
+        Assert.Null(_passthrough.LastSearchTerm);
+        Assert.Equal(TestData.BreakingBadTvmazeId, mapping.TryGetTvmazeIdByTvdb(TestData.BreakingBadTvdbId));
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_TvmazeTextTerm_UsesTvmaze()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tvmaze.SearchResults = TestData.BreakingBadTvmazeSearchHit();
+
+        var result = await handler.SearchAsync("tvmaze:breaking bad", CancellationToken.None);
+
+        Assert.True(_tvmaze.SearchCallCount > 0);
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_TvmazeTextTerm_EmptyResults_FallsThroughToTvdb()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+
+        var result = await handler.SearchAsync("tvmaze:totally nonexistent show", CancellationToken.None);
+
+        Assert.Equal("tvmaze:totally nonexistent show", _passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Search_Title_WithTvmazeSearchSourcePreference_UsesTvmaze()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvmaze);
+        _tvmaze.SearchResults = TestData.BreakingBadTvmazeSearchHit();
+
+        var result = await handler.SearchAsync("breaking bad", CancellationToken.None);
+
+        Assert.True(_tvmaze.SearchCallCount > 0);
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Show_OverrideTvmaze_WithMapping_UsesTvmazeProvider()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetOverride(TestData.BreakingBadTvdbId, MappingStore.SourceTvmaze);
+        mapping.RegisterTvmazeId(TestData.BreakingBadTvdbId, TestData.BreakingBadTvmazeId);
+        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _tvmaze.EpisodesById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeEpisodes();
+
+        var result = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        Assert.Equal(0, _tvmazeResolver.CallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Show_OverrideTvmaze_SyntheticTvdbId_UsesTvmazeProvider()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        var syntheticTvdbId = SyntheticIds.TvmazeSeriesId(TestData.BreakingBadTvmazeId);
+        mapping.SetOverride(syntheticTvdbId, MappingStore.SourceTvmaze);
+        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _tvmaze.EpisodesById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeEpisodes();
+
+        var result = await handler.ShowAsync(syntheticTvdbId, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        Assert.Equal(0, _tvmazeResolver.CallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Show_OverrideTvmaze_NoMapping_FallsThroughToTvdbWhenEnabled()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
+        mapping.SetOverride(999999, MappingStore.SourceTvmaze);
+
+        var result = await handler.ShowAsync(999999, CancellationToken.None);
+
+        Assert.Equal(1, _passthrough.ShowCallCount);
+        Assert.Equal(1, _tvmazeResolver.CallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(200, status);
+    }
+
+    [Fact]
+    public async Task Show_OverrideTvmaze_NoMapping_ReturnsNotFoundWhenFallbackDisabled()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: false);
+        mapping.SetOverride(999999, MappingStore.SourceTvmaze);
+
+        var result = await handler.ShowAsync(999999, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status404NotFound, status);
+    }
+
+    [Fact]
+    public async Task Show_MetadataSourceTvmaze_ReverseMapsRealTvdbViaTvmaze()
+    {
+        var handler = CreateHandler(fallbackEnabled: true, source: "tvmaze");
+        _tvmazeResolver.Map[TestData.BreakingBadTvdbId] = TestData.BreakingBadTvmazeId;
+        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _tvmaze.EpisodesById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeEpisodes();
+
+        var result = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None);
+
+        Assert.Equal(0, _passthrough.ShowCallCount);
+        Assert.Equal(0, _resolver.CallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+    }
+
+    [Fact]
+    public async Task Show_TvmazeSearchSourcePreference_MetadataSourceTvdb_UsesTvmaze()
+    {
+        var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true, source: "tvmaze");
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvdb);
+        _tvmazeResolver.Map[TestData.BreakingBadTvdbId] = TestData.BreakingBadTvmazeId;
+        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _tvmaze.EpisodesById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeEpisodes();
+
+        var result = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None);
+
+        Assert.Equal(1, _passthrough.ShowCallCount);
+        var (status, _) = await ExecuteAsync(result);
+        Assert.Equal(200, status);
+    }
+
+    [Fact]
+    public async Task Show_TvmazeSyntheticId_DoesNotLeakIntoTmdbResolution()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        var syntheticTvdbId = SyntheticIds.TvmazeSeriesId(TestData.BreakingBadTvmazeId);
+        _resolver.Map[syntheticTvdbId] = 99999;
+
+        var result = await handler.ShowAsync(syntheticTvdbId, CancellationToken.None);
+
+        Assert.Equal(0, _resolver.CallCount);
+    }
+
+    [Fact]
+    public async Task Search_AnidbTextTerm_WhenConfigured_UsesAnidbSearchService()
+    {
+        TestData.WriteTitleDumpFile(_dataDir, "2993|1|en|Death Note");
+        var options = new ProxyOptions
+        {
+            DataDir = _dataDir,
+            AnidbClientName = "c",
+            AnidbClientVersion = "1"
+        };
+        var anidbApi = new FakeAnidbApi();
+        var anidbTitles = new AnidbTitleList(options, new HttpClient(), NullLogger<AnidbTitleList>.Instance);
+        var (handler, _) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            anidbSearch: new AnidbSearchService(
+                anidbApi,
+                anidbTitles,
+                new AnidbTranslator(),
+                new MappingStore(options, NullLogger<MappingStore>.Instance),
+                new AniListTvdbMap(options, NullLogger<AniListTvdbMap>.Instance),
+                options,
+                NullLogger<AnidbSearchService>.Instance));
+
+        var result = await handler.SearchAsync("anidb:death note", CancellationToken.None);
+
+        Assert.Null(_passthrough.LastSearchTerm);
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("anidbId", body);
+    }
+
+    [Fact]
+    public async Task Search_AnidbTerm_WhenNotConfigured_FallsThroughToTvdb()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+
+        await handler.SearchAsync("anidb:death note", CancellationToken.None);
+
+        Assert.Equal("anidb:death note", _passthrough.LastSearchTerm);
+    }
+
+    [Fact]
+    public async Task Show_AnidbOverride_UsesAnidbProvider()
+    {
+        var anidbApi = new FakeAnidbApi();
+        anidbApi.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();
+        var anidbProvider = new AnidbMetadataProvider(anidbApi, new AnidbTranslator(), NullLogger<AnidbMetadataProvider>.Instance);
+        var resolver = new FakeTvdbAnidbResolver();
+        resolver.Map[TestData.DeathNoteTvdbId] = TestData.DeathNoteAnidbId;
+        var (handler, mapping) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            anidbProvider: anidbProvider,
+            anidbResolver: resolver,
+            anidbSearch: null);
+
+        mapping.SetOverride(TestData.DeathNoteTvdbId, MappingStore.SourceAnidb);
+
+        var result = await handler.ShowAsync(TestData.DeathNoteTvdbId, CancellationToken.None);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("Death Note", body);
+        Assert.Equal(0, _passthrough.ShowCallCount);
+    }
+
+    [Fact]
+    public async Task Show_AnidbSyntheticId_UsesAnidbProviderWithoutResolver()
+    {
+        var anidbApi = new FakeAnidbApi();
+        anidbApi.ById[TestData.DeathNoteAnidbId] = TestData.DeathNoteAnime();
+        var anidbProvider = new AnidbMetadataProvider(anidbApi, new AnidbTranslator(), NullLogger<AnidbMetadataProvider>.Instance);
+        var resolver = new FakeTvdbAnidbResolver();
+        var (handler, mapping) = CreateHandlerWithMapping(
+            fallbackEnabled: true,
+            anidbProvider: anidbProvider,
+            anidbResolver: resolver,
+            anidbSearch: null);
+
+        var syntheticTvdbId = SyntheticIds.AnidbSeriesId(TestData.DeathNoteAnidbId);
+        mapping.SetOverride(syntheticTvdbId, MappingStore.SourceAnidb);
+
+        var result = await handler.ShowAsync(syntheticTvdbId, CancellationToken.None);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("Death Note", body);
+        Assert.Equal(0, resolver.CallCount);
+    }
+
     private MetadataRequestHandler CreateHandler(bool fallbackEnabled, string source = "tmdb")
     {
         return CreateHandlerWithMapping(fallbackEnabled, source).Handler;
@@ -492,36 +745,54 @@ public class MetadataRequestHandlerTests
         bool fallbackEnabled,
         string source = "tmdb",
         AniListSearchService? aniList = null,
-        MalSearchService? mal = null)
+        MalSearchService? mal = null,
+        TvmazeSearchService? tvmazeSearch = null,
+        AnidbSearchService? anidbSearch = null,
+        AnidbMetadataProvider? anidbProvider = null,
+        FakeTvdbAnidbResolver? anidbResolver = null)
     {
         var options = new ProxyOptions
         {
             MetadataSource = source,
             TmdbApiKey = "test-key",
+            AnidbClientName = "test-client",
+            AnidbClientVersion = "1",
             EnableTvdbFallback = fallbackEnabled,
             DataDir = _dataDir
         };
 
         var mapping = new MappingStore(options, NullLogger<MappingStore>.Instance);
         var translator = new SkyHookTranslator(mapping, NullLogger<SkyHookTranslator>.Instance);
-        var providerSource = new DummyServiceProvider(_tmdb, options);
+        var providerSource = new DummyServiceProvider(_tmdb, _tvmaze, options);
         var activeProvider = MetadataProviderRegistry.Create(source, providerSource);
         var tmdbProvider = new TmdbMetadataProvider(_tmdb, options, NullLogger<TmdbMetadataProvider>.Instance);
+        var tvmazeTranslator = new TvmazeTranslator();
+        var tvmazeProvider = new TvmazeMetadataProvider(
+            _tvmaze, options, tvmazeTranslator, NullLogger<TvmazeMetadataProvider>.Instance);
+        var effectiveTvmazeSearch = tvmazeSearch ?? new TvmazeSearchService(
+            _tvmaze, tvmazeTranslator, mapping, options, NullLogger<TvmazeSearchService>.Instance);
+        var effectiveAnidbResolver = anidbResolver ?? new FakeTvdbAnidbResolver();
 
         var handler = new MetadataRequestHandler(
             options,
             mapping,
             _resolver,
+            _tvmazeResolver,
             _passthrough,
             translator,
             aniList,
             mal,
+            effectiveTvmazeSearch,
             null,
             null,
             activeProvider,
             tmdbProvider,
             null,
             null,
+            tvmazeProvider,
+            anidbProvider,
+            anidbSearch,
+            effectiveAnidbResolver,
             TestServiceProvider,
             NullLogger<MetadataRequestHandler>.Instance);
 
@@ -552,11 +823,13 @@ public class MetadataRequestHandlerTests
     private sealed class DummyServiceProvider : IServiceProvider
     {
         private readonly FakeTmdbApi _tmdb;
+        private readonly FakeTvmazeApi _tvmaze;
         private readonly ProxyOptions _options;
 
-        public DummyServiceProvider(FakeTmdbApi tmdb, ProxyOptions options)
+        public DummyServiceProvider(FakeTmdbApi tmdb, FakeTvmazeApi tvmaze, ProxyOptions options)
         {
             _tmdb = tmdb;
+            _tvmaze = tvmaze;
             _options = options;
         }
 
@@ -570,6 +843,16 @@ public class MetadataRequestHandlerTests
             if (serviceType == typeof(TmdbMetadataProvider))
             {
                 return new TmdbMetadataProvider(_tmdb, _options, NullLogger<TmdbMetadataProvider>.Instance);
+            }
+
+            if (serviceType == typeof(ITvmazeApi))
+            {
+                return _tvmaze;
+            }
+
+            if (serviceType == typeof(TvmazeMetadataProvider))
+            {
+                return new TvmazeMetadataProvider(_tvmaze, _options, new TvmazeTranslator(), NullLogger<TvmazeMetadataProvider>.Instance);
             }
 
             if (serviceType == typeof(AniListMetadataProvider))

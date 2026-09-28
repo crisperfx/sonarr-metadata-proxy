@@ -195,7 +195,19 @@
 
   function sourceLabel(v) {
     v = normalizeSearchSource(v);
-    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : '';
+    return v === 'tmdb' ? 'TMDB' : v === 'tvdb' ? 'TVDB' : v === 'anilist' ? 'AniList' : v === 'mal' ? 'MAL' : v === 'tvmaze' ? 'TVMaze' : v === 'anidb' ? 'AniDB' : '';
+  }
+
+  function providerConfigured(id) {
+    if (!PROVIDERS || !PROVIDERS.length) {
+      return true;
+    }
+    for (var i = 0; i < PROVIDERS.length; i++) {
+      if (PROVIDERS[i].id === id) {
+        return PROVIDERS[i].configured !== false;
+      }
+    }
+    return true;
   }
 
   function seriesPoster() {
@@ -236,8 +248,13 @@
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
       { value: 'anilist', label: 'AniList' },
-      { value: 'mal', label: 'MAL' }
+      { value: 'mal', label: 'MAL' },
+      { value: 'tvmaze', label: 'TVMaze' },
+      { value: 'anidb', label: 'AniDB' }
     ].forEach(function (opt) {
+      if (opt.value && !providerConfigured(opt.value)) {
+        return;
+      }
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
@@ -256,6 +273,15 @@
     status.id = 'mpo-series-id-badges';
     shell._mpoBody.appendChild(status);
     updateSeriesIdBadges(null);
+
+    var resetBtn = document.createElement('button');
+    resetBtn.className = 'mpo-btn-primary';
+    resetBtn.style.cssText = 'margin-top:10px;width:100%;background:#9c4d2e;border-color:#a0542f;';
+    resetBtn.textContent = 'Reset series to TVDB';
+    resetBtn.addEventListener('click', function () {
+      resetSeries(select);
+    });
+    shell._mpoBody.appendChild(resetBtn);
 
     var isSynthetic = series.tvdbId >= 1000000000;
     var bullets = [];
@@ -291,6 +317,12 @@
               setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
             } else {
               setStatus('Saved, but no TMDB id found — falling back to TVDB.', '#fbbf24');
+            }
+          } else if (dto && dto.source === 'tvmaze') {
+            if (dto.tvmazeId) {
+              setStatus('Saved: TVMaze (id ' + dto.tvmazeId + '). Now run Refresh & Scan.', '#4ade80');
+            } else {
+              setStatus('Saved, but no TVMaze id found — falling back to TVDB.', '#fbbf24');
             }
           } else {
             setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', '#fbbf24');
@@ -330,6 +362,12 @@
       }
       if (entry.malId) {
         pairs.push(['MAL', entry.malId]);
+      }
+      if (entry.tvmazeId) {
+        pairs.push(['TVMaze', entry.tvmazeId]);
+      }
+      if (entry.anidbId) {
+        pairs.push(['AniDB', entry.anidbId]);
       }
     }
     for (var i = 0; i < pairs.length; i++) {
@@ -398,6 +436,81 @@
       return window.Sonarr.apiRoot.replace(/\/+$/, '') + '/series';
     }
     return '/api/v3/series';
+  }
+
+  function sonarrCommandUrl() {
+    if (window.Sonarr && window.Sonarr.apiRoot) {
+      return window.Sonarr.apiRoot.replace(/\/+$/, '') + '/command';
+    }
+    return '/api/v3/command';
+  }
+
+  function resetSeries(select) {
+    var tvdbId = series.tvdbId;
+    var title = series.title || ('TVDB ' + tvdbId);
+    if (!window.confirm(
+      'Reset "' + title + '" to TVDB?\n\n' +
+      'All stored IDs (TMDB, TVMaze, AniDB, MAL, AniList)\n' +
+      'and episode mappings will be removed and the source\n' +
+      'will be set to TVDB. After that, Refresh & Scan is\n' +
+      'started automatically.'
+    )) {
+      return;
+    }
+    var url = proxyUrl();
+    if (!url) {
+      setStatus(
+        'HTTPS page: set OVERRIDES_API_URL on the Sonarr container.',
+        '#f87171'
+      );
+      return;
+    }
+    var fail = function (err) {
+      setStatus('Reset failed: ' + err.message, '#f87171');
+    };
+    fetch(url + '/reset/' + tvdbId, { method: 'POST' })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+        return response.json();
+      })
+      .then(function (dto) {
+        if (select) {
+          select.value = dto.source || '';
+        }
+        updateSeriesBadge(dto.source);
+        updateSeriesIdBadges(dto);
+        setStatus('Reset done: back to TVDB. Refresh & Scan is starting...', '#4ade80');
+        return triggerRefreshScan();
+      })
+      .then(function () {
+        setStatus('Reset done and Refresh & Scan started.', '#4ade80');
+      })
+      .catch(fail);
+  }
+
+  function triggerRefreshScan() {
+    if (!series || !series.id) {
+      setStatus('No Sonarr series id found; run Refresh & Scan manually.', '#fbbf24');
+      return Promise.resolve();
+    }
+    return waitForSonarrKey(6000).then(function (apiKey) {
+      var options = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'RefreshSeries', seriesId: series.id, doSearch: false })
+      };
+      if (apiKey) {
+        options.headers['X-Api-Key'] = apiKey;
+      }
+      return fetch(sonarrCommandUrl(), options);
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('Sonarr RefreshSeries: HTTP ' + response.status);
+      }
+      return response;
+    });
   }
 
   function waitForSonarrKey(maxMs) {
@@ -638,11 +751,12 @@
   var SEARCH_UI_ID = 'metadata-search-ui';
   var LS_PROVIDER_KEY = 'sonarrMetadataOverride.searchProvider';
   var SEARCH_PROVIDER = '';
+  var PROVIDERS = null;
   var lastSearchInput = null;
 
   function normalizeSearchSource(value) {
     var v = String(value || '').trim().toLowerCase().replace(/:$/, '');
-    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal') {
+    if (v !== 'tmdb' && v !== 'tvdb' && v !== 'anilist' && v !== 'mal' && v !== 'tvmaze' && v !== 'anidb') {
       return '';
     }
     return v;
@@ -659,6 +773,29 @@
       badge.textContent = SEARCH_PROVIDER ? sourceLabel(SEARCH_PROVIDER) : 'Automatic';
       badge.className = 'mpo-badge' + (SEARCH_PROVIDER ? ' mpo-badge-active' : '');
     }
+  }
+
+  function loadProviders() {
+    var base = overridesApiBase();
+    if (!base) {
+      return;
+    }
+    fetch(base + '/api/overrides/providers')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('bad status ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.providers) {
+          PROVIDERS = data.providers;
+          refreshSearchPickers();
+        }
+      })
+      .catch(function () {
+        /* keep static full list */
+      });
   }
 
   function loadSearchProvider() {
@@ -698,6 +835,7 @@
       });
   }
   loadSearchProvider();
+  loadProviders();
 
   function triggerSearchRestart() {
     var pick = lastSearchInput;
@@ -750,8 +888,13 @@
       { value: 'tmdb', label: 'TMDB' },
       { value: 'tvdb', label: 'TVDB' },
       { value: 'anilist', label: 'AniList' },
-      { value: 'mal', label: 'MAL' }
+      { value: 'mal', label: 'MAL' },
+      { value: 'tvmaze', label: 'TVMaze' },
+      { value: 'anidb', label: 'AniDB' }
     ].forEach(function (opt) {
+      if (opt.value && !providerConfigured(opt.value)) {
+        return;
+      }
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
@@ -788,7 +931,7 @@
     list.className = 'mpo-bullets';
     [
       'Automatic = METADATA_SOURCE (.env), TVDB fallback on empty/error',
-      'Prefixes: tmdb: / tvdb: / anilist: / mal:'
+      'Prefixes: tmdb: / tvdb: / anilist: / mal: / tvmaze: / anidb:'
     ].forEach(function (text) {
       var li = document.createElement('li');
       li.textContent = text;
@@ -929,7 +1072,7 @@
     }
     var ui = document.getElementById(SEARCH_UI_ID);
     if (ui && ui.dataset.mpoCollapsed !== '1' && !ui.contains(target)) {
-      ui.mpoCollapse();
+      ui.mpoCollapse(true);
     }
   });
 

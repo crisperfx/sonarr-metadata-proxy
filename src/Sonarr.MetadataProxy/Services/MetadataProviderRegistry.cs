@@ -15,6 +15,10 @@ public static class MetadataProviderRegistry
                 return serviceProvider.GetRequiredService<MalMetadataProvider>();
             case "anilist":
                 return serviceProvider.GetRequiredService<AniListMetadataProvider>();
+            case "tvmaze":
+                return serviceProvider.GetRequiredService<TvmazeMetadataProvider>();
+            case "anidb":
+                return serviceProvider.GetRequiredService<AnidbMetadataProvider>();
             case "imdb":
                 return new NotImplementedProvider("imdb");
             case "tvdb":

@@ -49,4 +49,36 @@ public class SyntheticIdsTests
         Assert.True(synthetic > int.MaxValue / 3);
         Assert.False(SyntheticIds.IsSyntheticSeries(4_000_000));
     }
+
+    [Fact]
+    public void TvmazeSeriesId_SynthesizesInDedicatedRange()
+    {
+        Assert.Equal(2_000_000_169, SyntheticIds.TvmazeSeriesId(169));
+    }
+
+    [Fact]
+    public void TvmazeSeriesId_IsInvertible()
+    {
+        var synthesized = SyntheticIds.TvmazeSeriesId(169);
+
+        Assert.Equal(169, SyntheticIds.TryDecomposeTvmazeSeries(synthesized));
+    }
+
+    [Fact]
+    public void TvmazeAndTmdbRanges_DoNotOverlap()
+    {
+        Assert.False(SyntheticIds.IsTmdbSyntheticSeries(SyntheticIds.TvmazeSeriesId(169)));
+        Assert.Null(SyntheticIds.TryDecomposeSeries(SyntheticIds.TvmazeSeriesId(169)));
+        Assert.False(SyntheticIds.IsTvmazeSyntheticSeries(SyntheticIds.SeriesId(1396)));
+        Assert.Null(SyntheticIds.TryDecomposeTvmazeSeries(SyntheticIds.SeriesId(1396)));
+    }
+
+    [Theory]
+    [InlineData(81189)]
+    [InlineData(1_000_000_000)]
+    public void IsTvmazeSyntheticSeries_ReturnsFalseForNonTvmazeRanges(int tvdbId)
+    {
+        Assert.False(SyntheticIds.IsTvmazeSyntheticSeries(tvdbId));
+        Assert.Null(SyntheticIds.TryDecomposeTvmazeSeries(tvdbId));
+    }
 }

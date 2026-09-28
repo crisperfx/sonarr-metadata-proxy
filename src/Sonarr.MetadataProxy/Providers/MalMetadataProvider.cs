@@ -41,9 +41,9 @@ public sealed class MalMetadataProvider : IMetadataProvider
         return new[] { MapSeries(details, malId) };
     }
 
-    public async Task<IReadOnlyList<SeriesMetadata>> SearchByImdbId(string imdbId, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<SeriesMetadata>> SearchByImdbId(string imdbId, CancellationToken cancellationToken)
     {
-        return Array.Empty<SeriesMetadata>();
+        return Task.FromResult<IReadOnlyList<SeriesMetadata>>(Array.Empty<SeriesMetadata>());
     }
 
     public async Task<SeriesMetadata> GetSeries(string providerId, CancellationToken cancellationToken)

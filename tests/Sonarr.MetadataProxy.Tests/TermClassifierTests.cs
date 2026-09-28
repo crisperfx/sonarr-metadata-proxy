@@ -23,6 +23,11 @@ public class TermClassifierTests
     [InlineData("imdb:  tt0903747", TermKind.ImdbId, "tt0903747")]
     [InlineData("mal:1535", TermKind.MalId, "1535")]
     [InlineData("anilist:1535", TermKind.AniListId, "1535")]
+    [InlineData("tvmaze:169", TermKind.TvmazeId, "169")]
+    [InlineData("tvmaze: 169", TermKind.TvmazeId, "169")]
+    [InlineData("tvmaze:0", TermKind.TvmazeSearch, "0")]
+    [InlineData("tvmaze:abc", TermKind.TvmazeSearch, "abc")]
+    [InlineData("tvmaze: breaking bad", TermKind.TvmazeSearch, "breaking bad")]
     [InlineData("", TermKind.Title, "")]
     [InlineData("   ", TermKind.Title, "")]
     public void Classify_ReturnsExpected(string raw, TermKind expectedKind, string expectedValue)

@@ -17,12 +17,18 @@ public sealed class MappingStore
     private readonly Dictionary<int, int> _malByTvdb = new();
     private readonly Dictionary<int, int> _tvdbByMal = new();
     private readonly Dictionary<int, int> _tvdbByAniList = new();
+    private readonly Dictionary<int, int> _tvmazeByTvdb = new();
+    private readonly Dictionary<int, int> _tvdbByTvmaze = new();
+    private readonly Dictionary<int, int> _anidbByTvdb = new();
+    private readonly Dictionary<int, int> _tvdbByAnidb = new();
     private string _defaultSearchSource = "";
 
     public const string SourceTmdb = "tmdb";
     public const string SourceTvdb = "tvdb";
     public const string SourceAniList = "anilist";
     public const string SourceMal = "mal";
+    public const string SourceTvmaze = "tvmaze";
+    public const string SourceAnidb = "anidb";
 
     public MappingStore(ProxyOptions options, ILogger<MappingStore> logger)
     {
@@ -191,6 +197,98 @@ public sealed class MappingStore
         }
     }
 
+    public int? TryGetTvmazeIdByTvdb(int tvdbId)
+    {
+        lock (_sync)
+        {
+            return _tvmazeByTvdb.TryGetValue(tvdbId, out var tvmazeId) ? tvmazeId : null;
+        }
+    }
+
+    public int? TryGetTvdbByTvmazeId(int tvmazeId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByTvmaze.TryGetValue(tvmazeId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public void RegisterTvmazeId(int tvdbId, int tvmazeId)
+    {
+        if (tvmazeId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            var changed = false;
+
+            if (!_tvmazeByTvdb.ContainsKey(tvdbId))
+            {
+                _tvmazeByTvdb[tvdbId] = tvmazeId;
+                changed = true;
+            }
+
+            if (!_tvdbByTvmaze.ContainsKey(tvmazeId))
+            {
+                _tvdbByTvmaze[tvmazeId] = tvdbId;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
+    public int? TryGetAnidbIdByTvdb(int tvdbId)
+    {
+        lock (_sync)
+        {
+            return _anidbByTvdb.TryGetValue(tvdbId, out var anidbId) ? anidbId : null;
+        }
+    }
+
+    public int? TryGetTvdbByAnidbId(int anidbId)
+    {
+        lock (_sync)
+        {
+            return _tvdbByAnidb.TryGetValue(anidbId, out var tvdbId) ? tvdbId : null;
+        }
+    }
+
+    public void RegisterAnidbId(int tvdbId, int anidbId)
+    {
+        if (anidbId <= 0)
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            var changed = false;
+
+            if (!_anidbByTvdb.ContainsKey(tvdbId))
+            {
+                _anidbByTvdb[tvdbId] = anidbId;
+                changed = true;
+            }
+
+            if (!_tvdbByAnidb.ContainsKey(anidbId))
+            {
+                _tvdbByAnidb[anidbId] = tvdbId;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Save();
+            }
+        }
+    }
+
     public void RegisterIds(int tvdbId, int? tmdbId = null, int? malId = null, int? anilistId = null)
     {
         if (tvdbId <= 0)
@@ -253,9 +351,9 @@ public sealed class MappingStore
 
     public void SetOverride(int tvdbId, string source)
     {
-        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceMal))
+        if (source is not (SourceTmdb or SourceTvdb or SourceAniList or SourceMal or SourceTvmaze or SourceAnidb))
         {
-            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
+            throw new ArgumentException("Source must be 'tmdb', 'tvdb', 'anilist', 'mal', 'tvmaze' or 'anidb'.", nameof(source));
         }
 
         if (tvdbId <= 0)
@@ -278,8 +376,99 @@ public sealed class MappingStore
             var removedMapping = _seriesReal.Remove(tvdbId);
             var removedAniList = _aniListByTvdb.Remove(tvdbId);
             var removedMal = _malByTvdb.Remove(tvdbId);
+            var removedTvmaze = _tvmazeByTvdb.Remove(tvdbId);
+            var removedAnidb = _anidbByTvdb.Remove(tvdbId);
 
-            if (!removedOverride && !removedMapping && !removedAniList && !removedMal)
+            var orphanedTvmazeTvdbIds = _tvdbByTvmaze
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedTvmazeId in orphanedTvmazeTvdbIds)
+            {
+                _tvdbByTvmaze.Remove(orphanedTvmazeId);
+            }
+
+            var orphanedAnidbIds = _tvdbByAnidb
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedAnidbId in orphanedAnidbIds)
+            {
+                _tvdbByAnidb.Remove(orphanedAnidbId);
+            }
+
+            if (!removedOverride && !removedMapping && !removedAniList && !removedMal && !removedTvmaze && !removedAnidb
+                && orphanedTvmazeTvdbIds.Count == 0 && orphanedAnidbIds.Count == 0)
+            {
+                return false;
+            }
+
+            Save();
+            return true;
+        }
+    }
+
+    public bool ResetShow(int tvdbId)
+    {
+        lock (_sync)
+        {
+            var removedOverride = _overrides.Remove(tvdbId);
+            var removedMapping = _seriesReal.Remove(tvdbId);
+            var removedAniList = _aniListByTvdb.Remove(tvdbId);
+            var removedMal = _malByTvdb.Remove(tvdbId);
+            var removedTvmaze = _tvmazeByTvdb.Remove(tvdbId);
+            var removedAnidb = _anidbByTvdb.Remove(tvdbId);
+
+            var orphanedTvmazeTvdbIds = _tvdbByTvmaze
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedTvmazeId in orphanedTvmazeTvdbIds)
+            {
+                _tvdbByTvmaze.Remove(orphanedTvmazeId);
+            }
+
+            var orphanedAnidbIds = _tvdbByAnidb
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedAnidbId in orphanedAnidbIds)
+            {
+                _tvdbByAnidb.Remove(orphanedAnidbId);
+            }
+
+            var orphanedMalIds = _tvdbByMal
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedMalId in orphanedMalIds)
+            {
+                _tvdbByMal.Remove(orphanedMalId);
+            }
+
+            var orphanedAniListIds = _tvdbByAniList
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedAniListId in orphanedAniListIds)
+            {
+                _tvdbByAniList.Remove(orphanedAniListId);
+            }
+
+            var episodePrefix = tvdbId + ":";
+            var resetEpisodes = _episodes.Keys
+                .Where(key => key.StartsWith(episodePrefix, StringComparison.Ordinal))
+                .ToList();
+            foreach (var episodeKey in resetEpisodes)
+            {
+                _episodes.Remove(episodeKey);
+            }
+            var removedSequence = _nextEpisodeSequence.Remove(tvdbId);
+
+            if (!removedOverride && !removedMapping && !removedAniList && !removedMal && !removedTvmaze && !removedAnidb
+                && orphanedTvmazeTvdbIds.Count == 0 && orphanedAnidbIds.Count == 0
+                && orphanedMalIds.Count == 0 && orphanedAniListIds.Count == 0
+                && resetEpisodes.Count == 0 && !removedSequence)
             {
                 return false;
             }
@@ -308,9 +497,9 @@ public sealed class MappingStore
     public void SetDefaultSearchSource(string source)
     {
         var normalized = (source ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList and not SourceMal)
+        if (normalized is not "" and not SourceTmdb and not SourceTvdb and not SourceAniList and not SourceMal and not SourceTvmaze and not SourceAnidb)
         {
-            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb', 'anilist' or 'mal'.", nameof(source));
+            throw new ArgumentException("Search source must be '', 'tmdb', 'tvdb', 'anilist', 'mal', 'tvmaze' or 'anidb'.", nameof(source));
         }
 
         lock (_sync)
@@ -350,6 +539,10 @@ public sealed class MappingStore
                     _malByTvdb.Clear();
                     _tvdbByMal.Clear();
                     _tvdbByAniList.Clear();
+                    _tvmazeByTvdb.Clear();
+                    _tvdbByTvmaze.Clear();
+                    _anidbByTvdb.Clear();
+                    _tvdbByAnidb.Clear();
 
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
@@ -390,6 +583,26 @@ public sealed class MappingStore
                     {
                         _tvdbByAniList[key] = value;
                     }
+
+                    foreach (var (key, value) in persisted.TvmazeByTvdb)
+                    {
+                        _tvmazeByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByTvmaze)
+                    {
+                        _tvdbByTvmaze[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.AnidbByTvdb)
+                    {
+                        _anidbByTvdb[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.TvdbByAnidb)
+                    {
+                        _tvdbByAnidb[key] = value;
+                    }
                 }
 
                 _logger.LogInformation(
@@ -424,6 +637,10 @@ public sealed class MappingStore
                 MalByTvdb = new Dictionary<int, int>(_malByTvdb),
                 TvdbByMal = new Dictionary<int, int>(_tvdbByMal),
                 TvdbByAniList = new Dictionary<int, int>(_tvdbByAniList),
+                TvmazeByTvdb = new Dictionary<int, int>(_tvmazeByTvdb),
+                TvdbByTvmaze = new Dictionary<int, int>(_tvdbByTvmaze),
+                AnidbByTvdb = new Dictionary<int, int>(_anidbByTvdb),
+                TvdbByAnidb = new Dictionary<int, int>(_tvdbByAnidb),
                 DefaultSearchSource = _defaultSearchSource
             };
 
@@ -450,6 +667,10 @@ public sealed class MappingStore
         public Dictionary<int, int> MalByTvdb { get; set; } = new();
         public Dictionary<int, int> TvdbByMal { get; set; } = new();
         public Dictionary<int, int> TvdbByAniList { get; set; } = new();
+        public Dictionary<int, int> TvmazeByTvdb { get; set; } = new();
+        public Dictionary<int, int> TvdbByTvmaze { get; set; } = new();
+        public Dictionary<int, int> AnidbByTvdb { get; set; } = new();
+        public Dictionary<int, int> TvdbByAnidb { get; set; } = new();
         public string DefaultSearchSource { get; set; } = "";
     }
 }
