@@ -1,0 +1,36 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV=$(git describe --tags --abbrev=0 ${GITHUB_REF_NAME}^ 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            BODY=$(git log --format='- %s' "$GITHUB_SHA")
+          else
+            BODY=$(git log --format='- %s' "$PREV..$GITHUB_SHA")
+          fi
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          printf '# Sonarr Metadata Proxy %s\n\n%s\n' "${GITHUB_REF_NAME#v}" "$BODY" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
+          generate_release_notes: false
