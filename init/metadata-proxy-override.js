@@ -274,6 +274,15 @@
     shell._mpoBody.appendChild(status);
     updateSeriesIdBadges(null);
 
+    var resetBtn = document.createElement('button');
+    resetBtn.className = 'mpo-btn-primary';
+    resetBtn.style.cssText = 'margin-top:10px;width:100%;background:#9c4d2e;border-color:#a0542f;';
+    resetBtn.textContent = 'Reset serie naar TVDB';
+    resetBtn.addEventListener('click', function () {
+      resetSeries(select);
+    });
+    shell._mpoBody.appendChild(resetBtn);
+
     var isSynthetic = series.tvdbId >= 1000000000;
     var bullets = [];
     if (isSynthetic) {
@@ -427,6 +436,81 @@
       return window.Sonarr.apiRoot.replace(/\/+$/, '') + '/series';
     }
     return '/api/v3/series';
+  }
+
+  function sonarrCommandUrl() {
+    if (window.Sonarr && window.Sonarr.apiRoot) {
+      return window.Sonarr.apiRoot.replace(/\/+$/, '') + '/command';
+    }
+    return '/api/v3/command';
+  }
+
+  function resetSeries(select) {
+    var tvdbId = series.tvdbId;
+    var title = series.title || ('TVDB ' + tvdbId);
+    if (!window.confirm(
+      'Reset "' + title + '" naar TVDB?\n\n' +
+      'Alle opgeslagen IDs (TMDB, TVMaze, AniDB, MAL, AniList)\n' +
+      'en episode-mappings worden verwijderd en de bron\n' +
+      'wordt op TVDB gezet. Daarna wordt automatisch\n' +
+      'Refresh & Scan gestart.'
+    )) {
+      return;
+    }
+    var url = proxyUrl();
+    if (!url) {
+      setStatus(
+        'HTTPS page: set OVERRIDES_API_URL on the Sonarr container.',
+        '#f87171'
+      );
+      return;
+    }
+    var fail = function (err) {
+      setStatus('Reset mislukt: ' + err.message, '#f87171');
+    };
+    fetch(url + '/reset/' + tvdbId, { method: 'POST' })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+        return response.json();
+      })
+      .then(function (dto) {
+        if (select) {
+          select.value = dto.source || '';
+        }
+        updateSeriesBadge(dto.source);
+        updateSeriesIdBadges(dto);
+        setStatus('Reset gedaan: terug naar TVDB. Refresh & Scan wordt gestart...', '#4ade80');
+        return triggerRefreshScan();
+      })
+      .then(function () {
+        setStatus('Reset gedaan en Refresh & Scan gestart.', '#4ade80');
+      })
+      .catch(fail);
+  }
+
+  function triggerRefreshScan() {
+    if (!series || !series.id) {
+      setStatus('Geen Sonarr series id gevonden; voer Refresh & Scan handmatig uit.', '#fbbf24');
+      return Promise.resolve();
+    }
+    return waitForSonarrKey(6000).then(function (apiKey) {
+      var options = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'RefreshSeries', seriesId: series.id, doSearch: false })
+      };
+      if (apiKey) {
+        options.headers['X-Api-Key'] = apiKey;
+      }
+      return fetch(sonarrCommandUrl(), options);
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('Sonarr RefreshSeries: HTTP ' + response.status);
+      }
+      return response;
+    });
   }
 
   function waitForSonarrKey(maxMs) {

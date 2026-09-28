@@ -218,4 +218,36 @@ public sealed class OverridesController : ControllerBase
         _logger.LogInformation("Override and associated mappings removed for TVDB id {TvdbId}.", tvdbId);
         return NoContent();
     }
+
+    [HttpPost("reset/{tvdbId:int}")]
+    public IActionResult Reset(int tvdbId)
+    {
+        if (tvdbId <= 0)
+        {
+            return BadRequest(new { error = "tvdbId must be positive" });
+        }
+
+        var isSynthetic = SyntheticIds.IsSyntheticSeries(tvdbId);
+
+        _mapping.ResetShow(tvdbId);
+
+        if (isSynthetic)
+        {
+            _logger.LogWarning(
+                "Reset requested for synthetic TVDB id {TvdbId}; TVDB override will not passthrough (no real TVDB mapping).",
+                tvdbId);
+        }
+
+        _mapping.SetOverride(tvdbId, MappingStore.SourceTvdb);
+
+        _logger.LogInformation("Series reset for TVDB id {TvdbId}; all mappings cleared and source set to TVDB.", tvdbId);
+        return Ok(new OverrideDto(
+            tvdbId,
+            MappingStore.SourceTvdb,
+            _mapping.TryResolveSeriesTmdb(tvdbId),
+            _mapping.TryGetAniListIdByTvdb(tvdbId),
+            _mapping.TryGetMalIdByTvdb(tvdbId),
+            _mapping.TryGetTvmazeIdByTvdb(tvdbId),
+            _mapping.TryGetAnidbIdByTvdb(tvdbId)));
+    }
 }

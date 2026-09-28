@@ -260,6 +260,68 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void ResetShow_ClearsAllAssociationsAndOverride()
+    {
+        var store = CreateStore();
+        store.RegisterSeries(81189, 1396);
+        store.RegisterAniListId(81189, 12345);
+        store.RegisterMalId(81189, 67890);
+        store.RegisterTvmazeId(81189, 169);
+        store.RegisterAnidbId(81189, 930);
+        store.SetOverride(81189, MappingStore.SourceTmdb);
+
+        var removed = store.ResetShow(81189);
+
+        Assert.True(removed);
+        Assert.Null(store.GetOverride(81189));
+        Assert.Null(store.TryResolveSeriesTmdb(81189));
+        Assert.Null(store.TryGetAniListIdByTvdb(81189));
+        Assert.Null(store.TryGetMalIdByTvdb(81189));
+        Assert.Null(store.TryGetTvmazeIdByTvdb(81189));
+        Assert.Null(store.TryGetAnidbIdByTvdb(81189));
+    }
+
+    [Fact]
+    public void ResetShow_ClearsEpisodesAndSequenceForSeries()
+    {
+        var dir = _dataDir;
+        var store = CreateStore(dir);
+        var seriesId = SyntheticIds.SeriesId(1396);
+        store.EpisodeTvdbId(seriesId, 1, 1);
+        store.EpisodeTvdbId(seriesId, 1, 2);
+
+        var removed = store.ResetShow(seriesId);
+
+        Assert.True(removed);
+        var json = File.ReadAllText(Path.Combine(dir, "mappings", "mappings.json"));
+        Assert.DoesNotContain(seriesId + ":1:1", json);
+        Assert.DoesNotContain(seriesId + ":1:2", json);
+    }
+
+    [Fact]
+    public void ResetShow_ReturnsFalseWhenNothingRegistered()
+    {
+        var store = CreateStore();
+
+        var removed = store.ResetShow(81189);
+
+        Assert.False(removed);
+    }
+
+    [Fact]
+    public void ResetShow_ClearsReverseMappings()
+    {
+        var store = CreateStore();
+        store.RegisterTvmazeId(81189, 169);
+        store.RegisterAnidbId(81189, 930);
+
+        store.ResetShow(81189);
+
+        Assert.Null(store.TryGetTvdbByTvmazeId(169));
+        Assert.Null(store.TryGetTvdbByAnidbId(930));
+    }
+
+    [Fact]
     public void SearchSource_EmptyByDefault()
     {
         var store = CreateStore();

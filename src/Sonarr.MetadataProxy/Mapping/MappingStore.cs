@@ -408,6 +408,76 @@ public sealed class MappingStore
         }
     }
 
+    public bool ResetShow(int tvdbId)
+    {
+        lock (_sync)
+        {
+            var removedOverride = _overrides.Remove(tvdbId);
+            var removedMapping = _seriesReal.Remove(tvdbId);
+            var removedAniList = _aniListByTvdb.Remove(tvdbId);
+            var removedMal = _malByTvdb.Remove(tvdbId);
+            var removedTvmaze = _tvmazeByTvdb.Remove(tvdbId);
+            var removedAnidb = _anidbByTvdb.Remove(tvdbId);
+
+            var orphanedTvmazeTvdbIds = _tvdbByTvmaze
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedTvmazeId in orphanedTvmazeTvdbIds)
+            {
+                _tvdbByTvmaze.Remove(orphanedTvmazeId);
+            }
+
+            var orphanedAnidbIds = _tvdbByAnidb
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedAnidbId in orphanedAnidbIds)
+            {
+                _tvdbByAnidb.Remove(orphanedAnidbId);
+            }
+
+            var orphanedMalIds = _tvdbByMal
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedMalId in orphanedMalIds)
+            {
+                _tvdbByMal.Remove(orphanedMalId);
+            }
+
+            var orphanedAniListIds = _tvdbByAniList
+                .Where(kvp => kvp.Value == tvdbId)
+                .Select(kvp => kvp.Key)
+                .ToList();
+            foreach (var orphanedAniListId in orphanedAniListIds)
+            {
+                _tvdbByAniList.Remove(orphanedAniListId);
+            }
+
+            var episodePrefix = tvdbId + ":";
+            var resetEpisodes = _episodes.Keys
+                .Where(key => key.StartsWith(episodePrefix, StringComparison.Ordinal))
+                .ToList();
+            foreach (var episodeKey in resetEpisodes)
+            {
+                _episodes.Remove(episodeKey);
+            }
+            var removedSequence = _nextEpisodeSequence.Remove(tvdbId);
+
+            if (!removedOverride && !removedMapping && !removedAniList && !removedMal && !removedTvmaze && !removedAnidb
+                && orphanedTvmazeTvdbIds.Count == 0 && orphanedAnidbIds.Count == 0
+                && orphanedMalIds.Count == 0 && orphanedAniListIds.Count == 0
+                && resetEpisodes.Count == 0 && !removedSequence)
+            {
+                return false;
+            }
+
+            Save();
+            return true;
+        }
+    }
+
     public IReadOnlyDictionary<int, string> AllOverrides()
     {
         lock (_sync)
