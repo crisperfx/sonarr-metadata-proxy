@@ -250,13 +250,18 @@ public class SkyHookApiIntegrationTests
         WriteAniListFixtures();
         var aniList = new FakeAniListApi
         {
+            SearchResults = new List<AniListMedia> { TestData.DeathNote() },
             ById = { [1535] = TestData.DeathNote() }
         };
 
         using var factory = CreateFactory(new FakeTmdbApi(), aniList: aniList);
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=anilist%3A1535");
+        // Set search source to AniList via API (replaces prefix parsing)
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "anilist" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=death+note");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -271,13 +276,18 @@ public class SkyHookApiIntegrationTests
         WriteAniListFixtures();
         var mal = new FakeMalApi
         {
+            SearchResults = new List<MalAnime> { TestData.DeathNoteMal() },
             ById = { [1535] = TestData.DeathNoteMal() }
         };
 
         using var factory = CreateFactory(new FakeTmdbApi(), mal: mal);
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=mal%3A1535");
+        // Set search source to MAL via API (replaces prefix parsing)
+        using var set = await client.PostAsJsonAsync("/api/overrides/searchsource", new { source = "mal" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=death+note");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();

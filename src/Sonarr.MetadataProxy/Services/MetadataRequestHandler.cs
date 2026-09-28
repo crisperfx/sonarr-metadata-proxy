@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text.Json.Nodes;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
@@ -21,6 +21,7 @@ public sealed class MetadataRequestHandler
     private readonly MappingStore _mapping;
     private readonly ITvdbToTmdbResolver _tvdbToTmdb;
     private readonly ITvdbToTvmazeResolver _tvdbToTvmaze;
+    private readonly ITmdbApi _tmdb;
     private readonly ISkyHookPassthrough _passthrough;
     private readonly SkyHookTranslator _translator;
     private readonly AniListSearchService? _aniList;
@@ -44,6 +45,7 @@ public sealed class MetadataRequestHandler
         MappingStore mapping,
         ITvdbToTmdbResolver tvdbToTmdb,
         ITvdbToTvmazeResolver tvdbToTvmaze,
+        ITmdbApi tmdb,
         ISkyHookPassthrough passthrough,
         SkyHookTranslator translator,
         AniListSearchService? aniList,
@@ -66,6 +68,7 @@ public sealed class MetadataRequestHandler
         _mapping = mapping;
         _tvdbToTmdb = tvdbToTmdb;
         _tvdbToTvmaze = tvdbToTvmaze;
+        _tmdb = tmdb;
         _passthrough = passthrough;
         _translator = translator;
         _aniList = aniList;
@@ -77,6 +80,10 @@ public sealed class MetadataRequestHandler
         _tmdbProvider = tmdbProvider;
         _malProvider = malProvider;
         _aniListProvider = aniListProvider;
+        _tvmazeProvider = tvmazeProvider;
+        _anidbProvider = anidbProvider;
+        _anidb = anidb;
+        _tvdbToAnidb = tvdbToAnidb;
         _tvmazeProvider = tvmazeProvider;
         _anidbProvider = anidbProvider;
         _anidb = anidb;
@@ -116,6 +123,33 @@ public sealed class MetadataRequestHandler
             };
         }
 
+        if (term.Kind == TermKind.ImdbId)
+        {
+            var tmdbShows = await _tmdb.FindByImdbAsync(term.Value, cancellationToken).ConfigureAwait(false);
+            if (tmdbShows.Count > 0)
+            {
+                var shows = await _tmdbProvider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
+                if (shows is null || shows.Count == 0)
+                {
+                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                }
+                var translated = shows.Select(_translator.ToSearchResult).ToList();
+                return await ForwardWithFallbackAsync(translated, rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (term.Kind == TermKind.TmdbId)
+        {
+            var shows = await _tmdbProvider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
+            if (shows is null || shows.Count == 0)
+            {
+                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            }
+            var translated = shows.Select(_translator.ToSearchResult).ToList();
+            return await ForwardWithFallbackAsync(translated, rawTerm, cancellationToken).ConfigureAwait(false);
+        }
+
         if (term.Kind is TermKind.AniListId or TermKind.MalId)
         {
             if (term.Kind == TermKind.MalId && _mal is { IsConfigured: true })
@@ -143,49 +177,14 @@ public sealed class MetadataRequestHandler
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
-        if (term.Kind is TermKind.TvmazeId or TermKind.TvmazeSearch)
-        {
-            if (_tvmaze is not { IsConfigured: true })
-            {
-                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(term.Value));
-                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-            }
-
-            _logger.LogInformation("Explicit TVMaze search (tvmaze:) for '{Term}'.", SanitizeForLog(term.Value));
-            var shows = term.Kind switch
-            {
-                TermKind.TvmazeId => await _tvmaze.SearchByTvmazeIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false),
-                _ => await _tvmaze.SearchAsync(term.Value, cancellationToken).ConfigureAwait(false)
-            };
-            return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (term.Kind is TermKind.AnidbId or TermKind.AnidbSearch)
-        {
-            if (_anidb is not { IsConfigured: true })
-            {
-                _logger.LogInformation("Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(term.Value));
-                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-            }
-
-            _logger.LogInformation("Explicit AniDB search (anidb:) for '{Term}'.", SanitizeForLog(term.Value));
-            var shows = term.Kind switch
-            {
-                TermKind.AnidbId => await _anidb.SearchByAnidbIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false),
-                _ => await _anidb.SearchAsync(term.Value, cancellationToken).ConfigureAwait(false)
-            };
-            return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (term.Kind == TermKind.TvdbSearch)
-        {
-            _logger.LogInformation("Explicit TVDB search (tvdb:) for '{Term}'.", SanitizeForLog(term.Value));
-            return await ForwardToTvdbSearchAsync(term.Value, cancellationToken).ConfigureAwait(false);
-        }
-
         if (term.Kind == TermKind.Title)
         {
             var searchSource = _mapping.GetDefaultSearchSource();
+            if (string.IsNullOrEmpty(searchSource))
+            {
+                searchSource = _options.MetadataSource;
+            }
+
             if (searchSource == MappingStore.SourceTvdb)
             {
                 _logger.LogInformation(
@@ -284,7 +283,8 @@ public sealed class MetadataRequestHandler
             }
         }
 
-        return await SearchAutomaticAsync(term, rawTerm, cancellationToken).ConfigureAwait(false);
+        // All search source preferences are handled above; fallback to TVDB
+        return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IResult> ForwardWithFallbackAsync(
@@ -376,15 +376,12 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }
 
-        var explicitTmdbSearch = term.Kind == TermKind.TmdbSearch;
-
         IReadOnlyList<SeriesMetadata> results;
         try
         {
             results = term.Kind switch
             {
                 TermKind.TmdbId => await _activeProvider.SearchById(term.Value, cancellationToken).ConfigureAwait(false),
-                TermKind.TmdbSearch => await _activeProvider.Search(term.Value, cancellationToken).ConfigureAwait(false),
                 TermKind.ImdbId => await _activeProvider.SearchByImdbId(term.Value, cancellationToken).ConfigureAwait(false),
                 _ => await _activeProvider.Search(term.Value, cancellationToken).ConfigureAwait(false)
             };
@@ -407,12 +404,6 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
 
         if (results.Count == 0)
         {
-            if (explicitTmdbSearch)
-            {
-                _logger.LogInformation("Explicit TMDB search (tmdb:) returned no results for '{Term}'.", SanitizeForLog(term.Value));
-                return Results.Ok(Array.Empty<ShowResource>());
-            }
-
             _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(rawTerm));
             return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
         }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -75,7 +75,7 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
-    public async Task Search_AniListTerm_FallsThroughToTvdb()
+    public async Task Search_AnilistTerm_TreatedAsTitle()
     {
         var handler = CreateHandler(fallbackEnabled: true);
 
@@ -85,7 +85,7 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
-    public async Task Search_TvdbTextTerm_ForcesTvdbSearchWithUnprefixedTerm()
+    public async Task Search_TvdbPrefix_TreatedAsTitle()
     {
         var handler = CreateHandler(fallbackEnabled: true);
         _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
@@ -95,18 +95,18 @@ public class MetadataRequestHandlerTests
 
         await handler.SearchAsync("tvdb:breaking bad", CancellationToken.None);
 
-        Assert.Equal("breaking bad", _passthrough.LastSearchTerm);
-        Assert.Equal(0, _tmdb.SearchCallCount);
+        Assert.Null(_passthrough.LastSearchTerm);
+        Assert.Equal(1, _tmdb.SearchCallCount);
     }
 
     [Fact]
-    public async Task Search_TmdbTextTerm_DoesNotFallThroughToTvdbOnEmptyResults()
+    public async Task Search_TmdbPrefix_TreatedAsTitleFallsThroughOnEmpty()
     {
         var handler = CreateHandler(fallbackEnabled: true);
 
         var result = await handler.SearchAsync("tmdb:totally nonexistent show", CancellationToken.None);
 
-        Assert.Null(_passthrough.LastSearchTerm);
+        Assert.Equal("tmdb:totally nonexistent show", _passthrough.LastSearchTerm);
         var (status, _) = await ExecuteAsync(result);
         Assert.Equal(StatusCodes.Status200OK, status);
     }
@@ -130,7 +130,7 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
-    public async Task Search_MalTerm_FallsThroughToTvdb()
+    public async Task Search_MalTerm_TreatedAsTitle()
     {
         var handler = CreateHandler(fallbackEnabled: true);
 
@@ -422,7 +422,7 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
-    public async Task Search_Title_WithTvdbSearchSourcePreference_ForcesTvdbPassthrough()
+    public async Task Search_Title_WithTvdbSearchSourcePreference_UsesTvdb()
     {
         var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
         mapping.SetDefaultSearchSource(MappingStore.SourceTvdb);
@@ -472,7 +472,7 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
-    public async Task Search_ExplicitTvdbPrefix_OverridesSearchSourcePreference()
+    public async Task Search_TvdbPrefix_WithTmdbDefault_UsesTmdb()
     {
         var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
         mapping.SetDefaultSearchSource(MappingStore.SourceTmdb);
@@ -483,33 +483,39 @@ public class MetadataRequestHandlerTests
 
         await handler.SearchAsync("tvdb:breaking bad", CancellationToken.None);
 
-        Assert.Equal("breaking bad", _passthrough.LastSearchTerm);
-        Assert.Equal(0, _tmdb.SearchCallCount);
+        Assert.Null(_passthrough.LastSearchTerm);
+        Assert.Equal(1, _tmdb.SearchCallCount);
     }
 
     [Fact]
-    public async Task Search_TvmazeIdTerm_UsesTvmazeAndRegistersMapping()
+    public async Task Search_TvmazeTextTerm_WithTvmazeSearchSource_UsesTvmaze()
     {
         var (handler, mapping) = CreateHandlerWithMapping(fallbackEnabled: true);
-        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        mapping.SetDefaultSearchSource(MappingStore.SourceTvmaze);
+        _tvmaze.SearchResults = TestData.BreakingBadTvmazeSearchHit();
 
-        var result = await handler.SearchAsync("tvmaze:169", CancellationToken.None);
+        var result = await handler.SearchAsync("breaking bad", CancellationToken.None);
 
+        Assert.True(_tvmaze.SearchCallCount > 0);
         Assert.Null(_passthrough.LastSearchTerm);
-        Assert.Equal(TestData.BreakingBadTvmazeId, mapping.TryGetTvmazeIdByTvdb(TestData.BreakingBadTvdbId));
         var (status, _) = await ExecuteAsync(result);
         Assert.Equal(StatusCodes.Status200OK, status);
     }
 
     [Fact]
-    public async Task Search_TvmazeTextTerm_UsesTvmaze()
+    public async Task Search_TvmazeTextTerm_WithDefaultSearchSource_UsesTmdb()
     {
         var handler = CreateHandler(fallbackEnabled: true);
         _tvmaze.SearchResults = TestData.BreakingBadTvmazeSearchHit();
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
 
         var result = await handler.SearchAsync("tvmaze:breaking bad", CancellationToken.None);
 
-        Assert.True(_tvmaze.SearchCallCount > 0);
+        // With default tmdb search source, tvmaze should not be called
+        Assert.Equal(0, _tvmaze.SearchCallCount);
         Assert.Null(_passthrough.LastSearchTerm);
         var (status, _) = await ExecuteAsync(result);
         Assert.Equal(StatusCodes.Status200OK, status);
@@ -648,7 +654,7 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
-    public async Task Search_AnidbTextTerm_WhenConfigured_UsesAnidbSearchService()
+    public async Task Search_AnidbTextTerm_WithAniListSearchSource_UsesAnidbSearchService()
     {
         TestData.WriteTitleDumpFile(_dataDir, "2993|1|en|Death Note");
         var options = new ProxyOptions
@@ -670,7 +676,11 @@ public class MetadataRequestHandlerTests
                 options,
                 NullLogger<AnidbSearchService>.Instance));
 
-        var result = await handler.SearchAsync("anidb:death note", CancellationToken.None);
+        // Set search source to AniList via mapping
+        var mapping = new MappingStore(new ProxyOptions { DataDir = _dataDir }, NullLogger<MappingStore>.Instance);
+        mapping.SetDefaultSearchSource(MappingStore.SourceAniList);
+
+        var result = await handler.SearchAsync("death note", CancellationToken.None);
 
         Assert.Null(_passthrough.LastSearchTerm);
         var (status, body) = await ExecuteAsync(result);
@@ -778,6 +788,7 @@ public class MetadataRequestHandlerTests
             mapping,
             _resolver,
             _tvmazeResolver,
+            _tmdb,
             _passthrough,
             translator,
             aniList,
