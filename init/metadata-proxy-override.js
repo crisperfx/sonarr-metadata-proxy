@@ -322,8 +322,17 @@
           if (dto) {
             updateSeriesIdBadges(dto);
             // Check if selected provider has an ID for this series
-            var idField = selectedSource + 'Id';
-            var hasId = dto[idField];
+            // DTO uses PascalCase: TmdbId, AniListId, MalId, TvmazeId, AnidbId, TvdbId
+            var idFieldMap = {
+              tmdb: 'TmdbId',
+              anilist: 'AniListId',
+              mal: 'MalId',
+              tvmaze: 'TvmazeId',
+              anidb: 'AnidbId',
+              tvdb: 'TvdbId'
+            };
+            var idField = idFieldMap[selectedSource];
+            var hasId = idField ? dto[idField] : false;
             if (selectedSource && !hasId) {
               setStatus('Warning: No ' + sourceLabel(selectedSource) + ' ID found for this series. Using at your own risk — may result in wrong metadata.', '#f87171');
             } else {
