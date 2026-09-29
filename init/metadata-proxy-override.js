@@ -322,14 +322,14 @@
           if (dto) {
             updateSeriesIdBadges(dto);
             // Check if selected provider has an ID for this series
-            // DTO uses PascalCase: TmdbId, AniListId, MalId, TvmazeId, AnidbId, TvdbId
+            // DTO uses camelCase due to JSON CamelCase policy: tmdbId, aniListId, malId, tvmazeId, anidbId, tvdbId
             var idFieldMap = {
-              tmdb: 'TmdbId',
-              anilist: 'AniListId',
-              mal: 'MalId',
-              tvmaze: 'TvmazeId',
-              anidb: 'AnidbId',
-              tvdb: 'TvdbId'
+              tmdb: 'tmdbId',
+              anilist: 'aniListId',
+              mal: 'malId',
+              tvmaze: 'tvmazeId',
+              anidb: 'anidbId',
+              tvdb: 'tvdbId'
             };
             var idField = idFieldMap[selectedSource];
             var hasId = idField ? dto[idField] : false;
