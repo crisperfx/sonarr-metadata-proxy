@@ -332,7 +332,7 @@
               tvdb: 'tvdbId'
             };
             var idField = idFieldMap[selectedSource];
-            var hasId = idField ? dto[idField] : false;
+            var hasId = idField && dto[idField] != null && dto[idField] !== undefined && dto[idField] !== '';
             if (selectedSource && !hasId) {
               setStatus('Warning: No ' + sourceLabel(selectedSource) + ' ID found for this series. Using at your own risk — may result in wrong metadata.', '#f87171');
             } else {
