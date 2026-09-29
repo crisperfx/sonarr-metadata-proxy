@@ -49,8 +49,9 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
         int? effectiveTvdbId = overrideTvdbId ?? metadata.ExternalIds.TvdbId;
 
         // Determine TMDB ID for synthetic ID generation
+        // Only use ProviderId as TMDB ID if it's actually a TMDB ID (from TMDB provider)
         int? tmdbId = metadata.ExternalIds.TmdbId;
-        if (!tmdbId.HasValue && int.TryParse(metadata.ProviderId, out var parsedProviderId))
+        if (!tmdbId.HasValue && metadata.Source == "tmdb" && int.TryParse(metadata.ProviderId, out var parsedProviderId))
         {
             tmdbId = parsedProviderId;
         }

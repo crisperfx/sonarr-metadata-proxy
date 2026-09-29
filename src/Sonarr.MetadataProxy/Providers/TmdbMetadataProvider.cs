@@ -133,6 +133,7 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
         return new SeriesMetadata
         {
             ProviderId = result.Id.ToString(),
+            Source = "tmdb",
             Title = !string.IsNullOrWhiteSpace(result.Name) ? result.Name : string.Empty,
             Overview = result.Overview,
             OriginalTitle = result.OriginalName,
@@ -154,6 +155,7 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
         return new SeriesMetadata
         {
             ProviderId = details.Id.ToString(),
+            Source = "tmdb",
             Title = !string.IsNullOrWhiteSpace(details.Name) ? details.Name : string.Empty,
             Overview = details.Overview,
             OriginalTitle = details.OriginalName,

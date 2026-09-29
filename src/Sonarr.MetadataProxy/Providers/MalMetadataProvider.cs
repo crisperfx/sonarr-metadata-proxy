@@ -177,6 +177,7 @@ public sealed class MalMetadataProvider : IMetadataProvider
         return new SeriesMetadata
         {
             ProviderId = result.Id.ToString(),
+            Source = "mal",
             Title = !string.IsNullOrWhiteSpace(result.Title) ? result.Title : string.Empty,
             Overview = result.Synopsis,
             OriginalTitle = result.TitleJapanese,
@@ -219,6 +220,7 @@ public sealed class MalMetadataProvider : IMetadataProvider
         return new SeriesMetadata
         {
             ProviderId = details.Id.ToString(),
+            Source = "mal",
             Title = !string.IsNullOrWhiteSpace(details.Title) ? details.Title : string.Empty,
             Overview = details.Synopsis,
             OriginalTitle = details.TitleJapanese,

@@ -168,6 +168,7 @@ public sealed class AniListMetadataProvider : IMetadataProvider
         return new SeriesMetadata
         {
             ProviderId = anilistId.ToString(),
+            Source = "anilist",
             Title = !string.IsNullOrWhiteSpace(media.TitleEnglish) ? media.TitleEnglish : !string.IsNullOrWhiteSpace(media.TitleRomaji) ? media.TitleRomaji : media.TitleNative ?? string.Empty,
             Overview = media.Description,
             OriginalTitle = media.TitleNative ?? media.TitleRomaji,

@@ -14,6 +14,7 @@ public sealed class TvmazeTranslator
         return new SeriesMetadata
         {
             ProviderId = show.Id.ToString(),
+            Source = "tvmaze",
             Title = !string.IsNullOrWhiteSpace(show.Name) ? show.Name : string.Empty,
             Overview = StripHtml(show.Summary),
             FirstAirDate = NormalizeDate(show.Premiered),

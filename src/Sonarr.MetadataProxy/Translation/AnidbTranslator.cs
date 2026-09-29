@@ -26,6 +26,7 @@ public sealed class AnidbTranslator
         return new SeriesMetadata
         {
             ProviderId = anime.AnidbId.ToString(),
+            Source = "anidb",
             Title = !string.IsNullOrWhiteSpace(anime.Title) ? anime.Title : string.Empty,
             Overview = anime.Description,
             FirstAirDate = NormalizeDate(anime.StartDate),
