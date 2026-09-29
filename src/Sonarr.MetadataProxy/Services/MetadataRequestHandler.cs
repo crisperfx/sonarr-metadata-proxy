@@ -760,9 +760,13 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             _logger.LogWarning("AniDB override for TVDB id {TvdbId} but no AniDB ID found or provider unavailable. Falling back.", tvdbId);
         }
 
+        var hasExplicitOverride = !string.IsNullOrEmpty(sourceOverride);
+
         bool tvmazePreferred =
             sourceOverride == MappingStore.SourceTvmaze ||
-            (_activeProvider?.Name == "tvmaze" && _mapping.GetDefaultSearchSource() != MappingStore.SourceTvdb);
+            (!hasExplicitOverride && (
+                _mapping.GetDefaultSearchSource() == MappingStore.SourceTvmaze ||
+                (_activeProvider?.Name == "tvmaze" && _mapping.GetDefaultSearchSource() == "")));
 
         if (tvmazePreferred)
         {
