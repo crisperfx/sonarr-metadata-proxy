@@ -272,6 +272,11 @@
     });
     select.value = '';
     shell._mpoBody.appendChild(select);
+    // Proof text always visible under provider dropdown
+    var proofText = document.createElement('span');
+    proofText.style.cssText = 'font-size:11px;color:#666;margin-top:4px;display:block;';
+    proofText.textContent = 'hellonim';
+    shell._mpoBody.appendChild(proofText);
 
     var badge = document.createElement('span');
     badge.className = 'mpo-badge';
