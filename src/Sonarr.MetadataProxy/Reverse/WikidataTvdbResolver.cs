@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Sonarr.MetadataProxy.Models.Tmdb;
+using Sonarr.MetadataProxy.Providers;
 
 namespace Sonarr.MetadataProxy.Reverse;
 
@@ -14,10 +16,12 @@ public sealed class WikidataTvdbResolver : ITvdbToTmdbResolver
     private readonly ConcurrentDictionary<int, int?> _cache = new();
     private readonly ILogger<WikidataTvdbResolver> _logger;
     private readonly HttpClient _http;
+    private readonly ITmdbApi _tmdb;
 
-    public WikidataTvdbResolver(ILogger<WikidataTvdbResolver> logger)
+    public WikidataTvdbResolver(ITmdbApi tmdb, ILogger<WikidataTvdbResolver> logger)
     {
         _logger = logger;
+        _tmdb = tmdb;
         _http = new HttpClient
         {
             BaseAddress = new Uri("https://query.wikidata.org/sparql"),
@@ -65,6 +69,25 @@ public sealed class WikidataTvdbResolver : ITvdbToTmdbResolver
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Wikidata reverse lookup failed for TVDB {TvdbId}.", tvdbId);
+        }
+
+        // Validate that the resolved ID actually exists on TMDB
+        if (result is > 0)
+        {
+            try
+            {
+                var details = await _tmdb.GetTvDetailsAsync(result.Value, cancellationToken).ConfigureAwait(false);
+                if (details is null)
+                {
+                    _logger.LogWarning("Wikidata resolved TMDB ID {TmdbId} for TVDB {TvdbId} does not exist on TMDB (likely a numeric collision).", result, tvdbId);
+                    result = null;
+                }
+            }
+            catch (TmdbApiException ex)
+            {
+                _logger.LogWarning("TMDB validation failed for Wikidata resolved ID {TmdbId} for TVDB {TvdbId}: {Message}", result, tvdbId, ex.Message);
+                result = null;
+            }
         }
 
         _cache[tvdbId] = result;

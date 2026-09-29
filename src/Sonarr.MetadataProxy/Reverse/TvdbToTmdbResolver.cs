@@ -63,6 +63,25 @@ public sealed class TvdbToTmdbResolver : ITvdbToTmdbResolver
             result = await _wikidata.ResolveTmdbIdAsync(tvdbId, title, year, cancellationToken).ConfigureAwait(false);
         }
 
+        // Validate that the resolved ID actually exists on TMDB (not just a numeric collision with another provider)
+        if (result is > 0)
+        {
+            try
+            {
+                var details = await _tmdb.GetTvDetailsAsync(result.Value, cancellationToken).ConfigureAwait(false);
+                if (details is null)
+                {
+                    _logger.LogWarning("Resolved TMDB ID {TmdbId} for TVDB {TvdbId} does not exist on TMDB (likely a numeric collision with another provider).", result, tvdbId);
+                    result = null;
+                }
+            }
+            catch (TmdbApiException ex)
+            {
+                _logger.LogWarning("TMDB validation failed for resolved ID {TmdbId} for TVDB {TvdbId}: {Message}", result, tvdbId, ex.Message);
+                result = null;
+            }
+        }
+
         if (result is > 0)
         {
             _found[tvdbId] = result.Value;

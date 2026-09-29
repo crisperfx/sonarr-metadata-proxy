@@ -55,6 +55,25 @@ public sealed class TvdbToTvmazeResolver : ITvdbToTvmazeResolver
             }
         }
 
+        // Validate that the resolved ID actually exists on TVMaze (not just a numeric collision with another provider)
+        if (result is > 0)
+        {
+            try
+            {
+                var show = await _tvmaze.GetShowAsync(result.Value, cancellationToken).ConfigureAwait(false);
+                if (show is null)
+                {
+                    _logger.LogWarning("Resolved TVMaze ID {TvmazeId} for TVDB {TvdbId} does not exist on TVMaze (likely a numeric collision with another provider).", result, tvdbId);
+                    result = null;
+                }
+            }
+            catch (TvmazeApiException ex)
+            {
+                _logger.LogWarning("TVMaze validation failed for resolved ID {TvmazeId} for TVDB {TvdbId}: {Message}", result, tvdbId, ex.Message);
+                result = null;
+            }
+        }
+
         if (result is > 0)
         {
             _found[tvdbId] = result.Value;
