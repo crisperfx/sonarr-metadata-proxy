@@ -321,23 +321,27 @@
         .then(function (dto) {
           if (dto) {
             updateSeriesIdBadges(dto);
-          }
-          if (dto && dto.source === 'tmdb') {
-            if (dto.tmdbId) {
-              setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
+            // Check if selected provider has an ID for this series
+            var idField = selectedSource + 'Id';
+            var hasId = dto[idField];
+            if (selectedSource && !hasId) {
+              setStatus('Warning: No ' + sourceLabel(selectedSource) + ' ID found for this series. Using at your own risk — may result in wrong metadata.', '#f87171');
+            } else if (dto && dto.source === 'tmdb') {
+              if (dto.tmdbId) {
+                setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
+              } else {
+                setStatus('Saved, but no TMDB id found — falling back to TVDB.', '#fbbf24');
+              }
+            } else if (dto && dto.source === 'tvmaze') {
+              if (dto.tvmazeId) {
+                setStatus('Saved: TVMaze (id ' + dto.tvmazeId + '). Now run Refresh & Scan.', '#4ade80');
+              } else {
+                setStatus('Saved, but no TVMaze id found — falling back to TVDB.', '#fbbf24');
+              }
             } else {
-              setStatus('Saved, but no TMDB id found — falling back to TVDB.', '#fbbf24');
+              setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', '#fbbf24');
             }
-          } else if (dto && dto.source === 'tvmaze') {
-            if (dto.tvmazeId) {
-              setStatus('Saved: TVMaze (id ' + dto.tvmazeId + '). Now run Refresh & Scan.', '#4ade80');
-            } else {
-              setStatus('Saved, but no TVMaze id found — falling back to TVDB.', '#fbbf24');
-            }
-          } else {
-            setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', '#fbbf24');
-          }
-        })
+          })
         .catch(function (err) {
           setStatus('Error: ' + err.message, '#f87171');
         });
