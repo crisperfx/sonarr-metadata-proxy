@@ -177,6 +177,7 @@
     if (status) {
       status.textContent = text;
       status.style.color = color || '#909293';
+      status.style.display = text ? 'block' : 'none';
     }
   }
 
@@ -275,7 +276,7 @@
     // Proof text always visible under provider dropdown
     var proofText = document.createElement('span');
     proofText.style.cssText = 'font-size:11px;color:#666;margin-top:4px;display:block;';
-    proofText.textContent = 'hellonim';
+    proofText.textContent = 'hellonim proof';
     shell._mpoBody.appendChild(proofText);
 
     var badge = document.createElement('span');
@@ -288,6 +289,11 @@
     status.id = 'mpo-series-id-badges';
     shell._mpoBody.appendChild(status);
     updateSeriesIdBadges(null);
+
+    var statusText = document.createElement('div');
+    statusText.className = 'mpo-status';
+    statusText.style.cssText = 'margin-top:8px;padding:8px 10px;border-radius:6px;display:none;word-wrap:break-word;';
+    shell._mpoBody.appendChild(statusText);
 
     var resetBtn = document.createElement('button');
     resetBtn.className = 'mpo-btn-primary';
