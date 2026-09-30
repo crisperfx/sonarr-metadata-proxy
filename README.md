@@ -2,6 +2,11 @@
 
 A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, AniList, MAL, TVMaze, AniDB, and TVDB** — no fork, no patched Sonarr, just a Docker container.
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/crisperfx/sonarr-metadata-proxy)](https://hub.docker.com/r/crisperfx/sonarr-metadata-proxy)
+[![CI develop](https://img.shields.io/github/actions/workflow/status/crisperfx/sonarr-metadata-proxy/ci.yml?branch=develop&label=CI%20develop)](https://github.com/crisperfx/sonarr-metadata-proxy/actions)
+[![CI latest](https://img.shields.io/github/actions/workflow/status/crisperfx/sonarr-metadata-proxy/ci.yml?branch=main&label=CI%20latest)](https://github.com/crisperfx/sonarr-metadata-proxy/actions)
+[![Latest tag](https://img.shields.io/docker/v/crisperfx/sonarr-metadata-proxy?sort=semver&label=latest)](https://hub.docker.com/r/crisperfx/sonarr-metadata-proxy/tags)
+
 # Screenshots interface
 
 | **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Overview**<br>Single and add/new search |
