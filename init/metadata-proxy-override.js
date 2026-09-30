@@ -129,11 +129,12 @@
 
     var header = document.createElement('div');
     header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;';
+      'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;';
     var title = document.createElement('span');
     title.className = 'mpo-panel-title';
     title.style.cssText =
-      'font:600 12px/1.4 "Open Sans",sans-serif;text-transform:uppercase;letter-spacing:.12em;color:#e1e2e3;';
+      'font:600 12px/1.4 "Open Sans",sans-serif;text-transform:uppercase;letter-spacing:.12em;color:#e1e2e3;' +
+      'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     title.textContent = titleText;
     var toggle = document.createElement('button');
     toggle.className = 'mpo-toggle';
@@ -301,22 +302,28 @@
     });
     select.value = '';
     shell._mpoBody.appendChild(select);
-    // Proof text always visible under provider dropdown
-    var proofText = document.createElement('span');
-    proofText.style.cssText = 'font-size:11px;color:#666;margin-top:4px;display:block;';
-    proofText.textContent = 'hellonim proof';
-    shell._mpoBody.appendChild(proofText);
 
-    var badge = document.createElement('span');
-    badge.className = 'mpo-badge';
-    badge.id = 'mpo-series-source-badge';
-    badge.textContent = 'Source: Default';
-    shell._mpoBody.appendChild(badge);
-
-    var status = document.createElement('div');
-    status.id = 'mpo-series-id-badges';
-    shell._mpoBody.appendChild(status);
-    updateSeriesIdBadges(null);
+    var refreshBtn = document.createElement('button');
+    refreshBtn.className = 'mpo-btn-primary';
+    refreshBtn.style.cssText = 'margin-top:8px;width:100%;display:none;background:#2f7a44;border-color:#389a52;';
+    refreshBtn.textContent = 'Refresh & Scan';
+    refreshBtn.addEventListener('click', function () {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+      triggerRefreshScan()
+        .then(function () {
+          setStatus('Refresh & Scan started.', '#4ade80');
+        })
+        .catch(function (err) {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = 'Refresh & Scan';
+          setStatus('Refresh & Scan failed: ' + err.message, '#f87171');
+        })
+        .then(function () {
+          shell.mpoCollapse(true);
+        });
+    });
+    shell._mpoBody.appendChild(refreshBtn);
 
     var someStatus = document.createElement('div');
     someStatus.id = 'mpo-series-status-plain';
@@ -341,6 +348,18 @@
     warnBox.appendChild(warnBody);
     shell._mpoBody.appendChild(warnBox);
 
+    var badge = document.createElement('span');
+    badge.className = 'mpo-badge';
+    badge.id = 'mpo-series-source-badge';
+    badge.style.cssText = 'margin-top:10px;';
+    badge.textContent = 'Source: Default';
+    shell._mpoBody.appendChild(badge);
+
+    var status = document.createElement('div');
+    status.id = 'mpo-series-id-badges';
+    shell._mpoBody.appendChild(status);
+    updateSeriesIdBadges(null);
+
     var resetBtn = document.createElement('button');
     resetBtn.className = 'mpo-btn-primary';
     resetBtn.style.cssText = 'margin-top:10px;width:100%;background:#9c4d2e;border-color:#a0542f;';
@@ -351,22 +370,6 @@
     shell._mpoBody.appendChild(resetBtn);
 
     var isSynthetic = series.tvdbId >= 1000000000;
-    var bullets = [];
-    if (isSynthetic) {
-      bullets.push('No real TVDB ID — "TVDB" as a source will not work (falls back to the default source).');
-    }
-    bullets.push('After changing the source: Refresh & Scan on the series.');
-
-    if (bullets.length) {
-      var list = document.createElement('ul');
-      list.className = 'mpo-bullets';
-      bullets.forEach(function (text) {
-        var li = document.createElement('li');
-        li.textContent = text;
-        list.appendChild(li);
-      });
-      shell._mpoBody.appendChild(list);
-    }
 
     select.addEventListener('change', function () {
       var selectedSource = select.value;
@@ -374,6 +377,7 @@
         setStatus('Warning: TVDB passthrough does not work for this series (no real TVDB ID). Falling back to the default source.', '#fbbf24');
       }
       updateSeriesBadge(selectedSource);
+      refreshBtn.style.display = 'block';
       saveOverride(series.tvdbId, select.value)
         .then(function (dto) {
           if (dto) {
