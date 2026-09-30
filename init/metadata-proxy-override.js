@@ -134,7 +134,7 @@
     title.className = 'mpo-panel-title';
     title.style.cssText =
       'font:600 12px/1.4 "Open Sans",sans-serif;text-transform:uppercase;letter-spacing:.12em;color:#e1e2e3;' +
-      'flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      'margin-right:auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     title.textContent = titleText;
     var toggle = document.createElement('button');
     toggle.className = 'mpo-toggle';
@@ -864,6 +864,81 @@
       badge.textContent = SEARCH_PROVIDER ? sourceLabel(SEARCH_PROVIDER) : 'Automatic';
       badge.className = 'mpo-badge' + (SEARCH_PROVIDER ? ' mpo-badge-active' : '');
     }
+    scanFooter();
+  }
+
+  var FOOTER_PROVIDER_RE = /\b(The\s*TVDB|TMDB|TVDB|AniList|MAL|TVMaze|AniDB)\b/gi;
+  function footerLabel() {
+    return sourceLabel(SEARCH_PROVIDER);
+  }
+  function scanFooter() {
+    if (!document.body) {
+      return;
+    }
+    var label = footerLabel();
+    if (!label) {
+      return;
+    }
+    var walker;
+    try {
+      walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, null);
+    } catch (e) {
+      return;
+    }
+    var containers = [];
+    while (walker.nextNode()) {
+      var el = walker.currentNode;
+      if (el.textContent && el.textContent.indexOf('Metadata is provided by') !== -1) {
+        containers.push(el);
+      }
+    }
+    for (var i = 0; i < containers.length; i++) {
+      var isSmallest = true;
+      for (var j = 0; j < containers.length; j++) {
+        if (i !== j && containers[i] !== containers[j] && containers[j].contains(containers[i])) {
+          isSmallest = false;
+          break;
+        }
+      }
+      if (isSmallest) {
+        rewriteFooterNode(containers[i], label);
+      }
+    }
+  }
+
+  function rewriteFooterNode(root, label) {
+    var walker;
+    try {
+      walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    } catch (e) {
+      return;
+    }
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      var next = node.nodeValue ? node.nodeValue.replace(FOOTER_PROVIDER_RE, label) : node.nodeValue;
+      if (next !== node.nodeValue) {
+        node.nodeValue = next;
+      }
+    }
+  }
+  var footerObserver = null;
+  var footerTimer = null;
+  function watchFooter() {
+    scanFooter();
+    if (!window.MutationObserver || footerObserver) {
+      return;
+    }
+    try {
+      footerObserver = new MutationObserver(function () {
+        if (footerTimer) {
+          clearTimeout(footerTimer);
+        }
+        footerTimer = setTimeout(scanFooter, 250);
+      });
+      footerObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function loadProviders() {
@@ -1205,6 +1280,7 @@
     ensurePortalRoot();
     ensureStylesheet();
     refreshSearchPickers();
+    watchFooter();
     if (!document.body) {
       return;
     }
