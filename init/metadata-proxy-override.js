@@ -312,15 +312,15 @@
       refreshBtn.textContent = 'Refreshing...';
       triggerRefreshScan()
         .then(function () {
-          setStatus('Refresh & Scan started.', '#4ade80');
+          setStatus('Refresh & Scan started. Reloading this page\u2026', '#4ade80');
+          window.setTimeout(function () {
+            window.location.reload();
+          }, 2000);
         })
         .catch(function (err) {
           refreshBtn.disabled = false;
           refreshBtn.textContent = 'Refresh & Scan';
           setStatus('Refresh & Scan failed: ' + err.message, '#f87171');
-        })
-        .then(function () {
-          shell.mpoCollapse(true);
         });
     });
     shell._mpoBody.appendChild(refreshBtn);
