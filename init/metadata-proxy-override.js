@@ -87,6 +87,11 @@
       '.mpo-select:focus{outline:none;border-color:#5d9cec;box-shadow:0 0 0 2px rgba(93,156,236,.25);}',
       '.mpo-status{font-size:11px;line-height:1.5;color:#909293;}',
       '.mpo-warn{font-size:11px;line-height:1.5;color:#ffa500;}',
+      '.mpo-alert-warning{display:none;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);border-left:3px solid #f87171;box-shadow:0 1px 3px rgba(0,0,0,.15);word-wrap:break-word;}',
+      '.mpo-alert-icon{flex-shrink:0;font-size:14px;line-height:1.3;color:#f87171;}',
+      '.mpo-alert-body{flex:1;min-width:0;}',
+      '.mpo-alert-title{font:600 12px/1.4 "Open Sans",sans-serif;color:#fca5a5;margin-bottom:2px;}',
+      '.mpo-alert-text{font-size:11px;line-height:1.5;color:#fecaca;}',
       '.mpo-btn-primary{font:600 12px/1.5 "Open Sans",sans-serif;color:#fff;background:#5d9cec;border:1px solid #5899eb;border-radius:4px;padding:6px 12px;cursor:pointer;}',
       '.mpo-btn-primary:hover{background:#4b91ea;}',
       '.mpo-title{font:600 15px/1.3 "Open Sans","Segoe UI",sans-serif;color:#fff;}',
@@ -178,6 +183,29 @@
       status.textContent = text;
       status.style.color = color || '#909293';
       status.style.display = text ? 'block' : 'none';
+    }
+  }
+
+  function setSeriesWarn(title, text) {
+    var box = el && el.querySelector('#mpo-series-warn');
+    if (!box) {
+      return;
+    }
+    var t = box.querySelector('.mpo-alert-title');
+    var b = box.querySelector('.mpo-alert-text');
+    if (t) {
+      t.textContent = title;
+    }
+    if (b) {
+      b.textContent = text;
+    }
+    box.style.display = 'flex';
+  }
+
+  function clearSeriesWarn() {
+    var box = el && el.querySelector('#mpo-series-warn');
+    if (box) {
+      box.style.display = 'none';
     }
   }
 
@@ -290,10 +318,28 @@
     shell._mpoBody.appendChild(status);
     updateSeriesIdBadges(null);
 
-    var statusText = document.createElement('div');
-    statusText.className = 'mpo-status';
-    statusText.style.cssText = 'margin-top:8px;padding:8px 10px;border-radius:6px;display:none;word-wrap:break-word;';
-    shell._mpoBody.appendChild(statusText);
+    var someStatus = document.createElement('div');
+    someStatus.id = 'mpo-series-status-plain';
+    someStatus.className = 'mpo-status';
+    shell._mpoBody.appendChild(someStatus);
+
+    var warnBox = document.createElement('div');
+    warnBox.className = 'mpo-alert-warning';
+    warnBox.id = 'mpo-series-warn';
+    var warnIcon = document.createElement('span');
+    warnIcon.className = 'mpo-alert-icon';
+    warnIcon.textContent = '\u26A0';
+    warnBox.appendChild(warnIcon);
+    var warnBody = document.createElement('span');
+    warnBody.className = 'mpo-alert-body';
+    var warnTitle = document.createElement('div');
+    warnTitle.className = 'mpo-alert-title';
+    warnBody.appendChild(warnTitle);
+    var warnText = document.createElement('div');
+    warnText.className = 'mpo-alert-text';
+    warnBody.appendChild(warnText);
+    warnBox.appendChild(warnBody);
+    shell._mpoBody.appendChild(warnBox);
 
     var resetBtn = document.createElement('button');
     resetBtn.className = 'mpo-btn-primary';
@@ -345,8 +391,12 @@
             var idField = idFieldMap[selectedSource];
             var hasId = idField && typeof dto[idField] === 'number' && !isNaN(dto[idField]) && dto[idField] !== 0;
             if (selectedSource && !hasId) {
-              setStatus('Warning: No ' + sourceLabel(selectedSource) + ' ID found for this series. Using at your own risk — may result in wrong metadata. [PROOF_NOCACHE]', '#f87171');
+              setSeriesWarn(
+                'No ' + sourceLabel(selectedSource) + ' ID found',
+                'This series has no ' + sourceLabel(selectedSource) + ' ID yet. Switching source may result in wrong metadata until a mapping is recorded.'
+              );
             } else {
+              clearSeriesWarn();
               if (dto && dto.source === 'tmdb') {
                 if (dto.tmdbId) {
                   setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
