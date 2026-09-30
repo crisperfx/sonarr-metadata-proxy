@@ -81,6 +81,10 @@ fi
 # index.html: whenever the mounted JS changes, the hash changes and browsers
 # request a fresh URL instead of reusing the cached script. Clients therefore pick
 # up updates on a normal reload (no manual hard-refresh/cache clear needed).
+# The rebuilt index.html also carries no-cache meta tags so browsers always
+# revalidate the HTML document itself; otherwise the browser can keep serving a
+# cached index.html (with the old ?v= hash) and the old script URL until a hard
+# refresh, even though the container already deployed the new version.
 js_version() {
   if [ -f "${UI_DIR}/metadata-proxy-override.js" ]; then
     md5sum "${UI_DIR}/metadata-proxy-override.js" 2>/dev/null | cut -c1-16
@@ -98,6 +102,9 @@ rebuild_index() {
   local tmp="${INDEX}.mpo.tmp"
   {
     printf '<!doctype html><html lang="en"><head><meta charset="utf-8"/>\n'
+    printf '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n'
+    printf '<meta http-equiv="Pragma" content="no-cache">\n'
+    printf '<meta http-equiv="Expires" content="0">\n'
     printf '<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'
     printf '<link rel="stylesheet" href="/Content/Fonts/fonts.css">\n'
     printf '<link rel="stylesheet" href="/Content/styles.css">\n'
