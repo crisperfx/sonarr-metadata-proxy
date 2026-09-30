@@ -418,6 +418,7 @@
               }
             }
           }
+          loadOverrides(true);
         })
         .catch(function (err) {
           setStatus('Error: ' + err.message, '#f87171');
@@ -572,6 +573,7 @@
         }
         updateSeriesBadge(dto.source);
         updateSeriesIdBadges(dto);
+        loadOverrides(true);
         setStatus('Reset done: back to TVDB. Refresh & Scan is starting...', '#4ade80');
         return triggerRefreshScan();
       })
@@ -740,6 +742,7 @@
           throw new Error('No tvdbId received from Sonarr');
         }
         series = data;
+        scanFooter();
         var select = buildPickerPanel();
         el = document.getElementById(PANEL_ID);
 
@@ -762,12 +765,14 @@
           })
           .then(function (list) {
             console.debug('[metadata-proxy-override] overrides list:', list);
+            overridesCache = list || [];
             var entry = currentOverrideEntry(list, series.tvdbId);
             var overrideSource = entry ? entry.source : '';
             console.debug('[metadata-proxy-override] current override for', series.tvdbId, ':', overrideSource);
             select.value = overrideSource;
             updateSeriesBadge(select.value);
             updateSeriesIdBadges(entry);
+            scanFooter();
           })
           .catch(function (err) {
             console.error('[metadata-proxy-override] overrides fetch failed:', err);
@@ -843,6 +848,7 @@
   var LS_PROVIDER_KEY = 'sonarrMetadataOverride.searchProvider';
   var SEARCH_PROVIDER = '';
   var PROVIDERS = null;
+  var overridesCache = null;
   var lastSearchInput = null;
 
   function normalizeSearchSource(value) {
@@ -869,7 +875,17 @@
 
   var FOOTER_PROVIDER_RE = /\b(The\s*TVDB|TMDB|TVDB|AniList|MAL|TVMaze|AniDB)\b/gi;
   function footerLabel() {
-    return sourceLabel(SEARCH_PROVIDER);
+    var src = '';
+    if (series && series.tvdbId && overridesCache && overridesCache.length) {
+      var entry = currentOverrideEntry(overridesCache, series.tvdbId);
+      if (entry && entry.source) {
+        src = entry.source;
+      }
+    }
+    if (!src) {
+      src = SEARCH_PROVIDER;
+    }
+    return sourceLabel(src);
   }
   function scanFooter() {
     if (!document.body) {
@@ -941,6 +957,31 @@
     }
   }
 
+  function loadOverrides(force) {
+    var base = overridesApiBase();
+    if (!base) {
+      return;
+    }
+    if (!force && overridesCache) {
+      scanFooter();
+      return;
+    }
+    fetch(base + '/api/overrides')
+      .then(function (res) {
+        if (!res.ok) {
+          throw new Error('HTTP ' + res.status);
+        }
+        return res.json();
+      })
+      .then(function (list) {
+        overridesCache = list || [];
+        scanFooter();
+      })
+      .catch(function () {
+        /* keep existing cache */
+      });
+  }
+
   function loadProviders() {
     var base = overridesApiBase();
     if (!base) {
@@ -1002,6 +1043,7 @@
   }
   loadSearchProvider();
   loadProviders();
+  loadOverrides();
 
   function triggerSearchRestart() {
     var pick = lastSearchInput;
