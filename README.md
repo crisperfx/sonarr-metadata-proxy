@@ -81,6 +81,21 @@ A confirmation dialog runs first. This is the quick fix when a series shows the 
 wrong provider metadata — it clears any poisoned/stale mappings and re-fetches cleanly.
 Internally it calls `POST /api/overrides/reset/{tvdbId}` (see [Management API](#management-api)).
 
+### After changing the source
+
+Picking a different provider in the **Metadata source** dropdown:
+
+- A green **Refresh & Scan** button appears below the dropdown — click it to re-fetch the series from the new provider; the page reloads automatically when the command is started.
+- If the chosen provider has **no ID** for the series yet, a warning box explains that switching may serve wrong metadata until a mapping is recorded.
+- The panel shows the selected source as a **Source** badge together with **all stored provider IDs** (TVDB, TMDB, TVMaze, AniDB, MAL, AniList), so you always see exactly where a series' metadata comes from.
+
+### Provider credits
+
+The Sonarr UI credits the provider that actually supplies a series' metadata: the line
+`Metadata is provided by …` shows the per-series source, or the global default when a series
+has no override. We give credit to the provider from which the metadata comes — no provider's
+data is presented as if it originated elsewhere.
+
 ---
 
 ## Configuration (all optional)
