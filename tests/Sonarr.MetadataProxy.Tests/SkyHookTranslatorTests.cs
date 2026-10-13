@@ -109,7 +109,7 @@ public class SkyHookTranslatorTests : IDisposable
     }
 
     [Fact]
-    public void ToSearchResult_RoundsRatingToAvoidFloatArtifacts()
+    public void ToSearchResult_RoundsRatingToOneDecimal()
     {
         var metadata = new SeriesMetadata
         {
@@ -120,7 +120,26 @@ public class SkyHookTranslatorTests : IDisposable
 
         var show = _translator.ToSearchResult(metadata);
 
-        Assert.Equal(8.023m, show.Rating!.Value);
+        Assert.Equal(8.0m, show.Rating!.Value);
+    }
+
+    [Fact]
+    public void ToSearchResult_UsesBackdropAsFanart()
+    {
+        var metadata = new SeriesMetadata
+        {
+            Title = "Breaking Bad",
+            PosterPath = "https://img/poster.jpg",
+            BackdropPath = "https://img/backdrop.jpg",
+            ExternalIds = new ExternalIdSet(81189, "tt0903747", 1396)
+        };
+
+        var show = _translator.ToSearchResult(metadata);
+
+        Assert.Equal("poster", show.Images[0].CoverType);
+        Assert.Equal("https://img/poster.jpg", show.Images[0].Url);
+        Assert.Equal("fanart", show.Images[1].CoverType);
+        Assert.Equal("https://img/backdrop.jpg", show.Images[1].Url);
     }
 
     [Fact]

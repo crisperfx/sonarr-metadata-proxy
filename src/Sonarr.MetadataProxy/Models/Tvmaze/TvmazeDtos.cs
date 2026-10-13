@@ -110,6 +110,42 @@ public sealed class TvmazeImage
     public string? Original { get; set; }
 }
 
+public sealed class TvmazeShowImage
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("main")]
+    public bool Main { get; set; }
+
+    [JsonPropertyName("resolutions")]
+    public TvmazeImageResolutions? Resolutions { get; set; }
+}
+
+public sealed class TvmazeImageResolutions
+{
+    [JsonPropertyName("original")]
+    public TvmazeImageResolution? Original { get; set; }
+
+    [JsonPropertyName("medium")]
+    public TvmazeImageResolution? Medium { get; set; }
+}
+
+public sealed class TvmazeImageResolution
+{
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    [JsonPropertyName("width")]
+    public int? Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public int? Height { get; set; }
+}
+
 public sealed class TvmazeEmbedded
 {
     [JsonPropertyName("seasons")]

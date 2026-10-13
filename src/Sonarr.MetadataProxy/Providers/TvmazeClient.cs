@@ -53,6 +53,13 @@ public sealed class TvmazeClient : ITvmazeApi
         return episodes ?? new List<TvmazeEpisode>();
     }
 
+    public async Task<IReadOnlyList<TvmazeShowImage>> GetShowImagesAsync(int tvmazeId, CancellationToken cancellationToken)
+    {
+        var url = $"{Endpoint}/shows/{tvmazeId}/images";
+        var images = await GetAsync<List<TvmazeShowImage>>(url, cancellationToken, allowNotFound: true).ConfigureAwait(false);
+        return images ?? new List<TvmazeShowImage>();
+    }
+
     public async Task<IReadOnlyList<TvmazeAlternateList>> GetAlternateListsAsync(int tvmazeId, CancellationToken cancellationToken)
     {
         var url = $"{Endpoint}/shows/{tvmazeId}/alternatelists";

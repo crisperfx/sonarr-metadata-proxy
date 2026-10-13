@@ -57,7 +57,8 @@ public sealed class TvmazeMetadataProvider : IMetadataProvider, IEpisodeOrderPro
             throw new InvalidOperationException($"TVMaze series {providerId} not found.");
         }
 
-        var metadata = _translator.ToSeries(show);
+        var backdrop = await FetchBackdrop(show.Id, cancellationToken).ConfigureAwait(false);
+        var metadata = _translator.ToSeries(show, backdrop);
         await AttachSeasonTypes(metadata, cancellationToken).ConfigureAwait(false);
         return metadata;
     }
@@ -230,5 +231,45 @@ public sealed class TvmazeMetadataProvider : IMetadataProvider, IEpisodeOrderPro
         }
 
         return await _api.GetShowAsync(tvmazeId, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string?> FetchBackdrop(int tvmazeId, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<TvmazeShowImage> images;
+        try
+        {
+            images = await _api.GetShowImagesAsync(tvmazeId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TvmazeApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not fetch TVMaze images for {TvmazeId}.", tvmazeId);
+            return null;
+        }
+
+        return PickBackdrop(images);
+    }
+
+    private static string? PickBackdrop(IReadOnlyList<TvmazeShowImage> images)
+    {
+        foreach (var type in new[] { "background", "banner" })
+        {
+            var url = images
+                .Where(image => string.Equals(image.Type, type, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(image => image.Main)
+                .Select(ResolveImageUrl)
+                .FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
+
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                return url;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ResolveImageUrl(TvmazeShowImage image)
+    {
+        return image.Resolutions?.Original?.Url ?? image.Resolutions?.Medium?.Url;
     }
 }

@@ -71,6 +71,36 @@ public class TvmazeMetadataProviderTests
     }
 
     [Fact]
+    public async Task GetSeries_UsesMainBackgroundAsBackdrop()
+    {
+        _api.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _api.ImagesByShow[TestData.BreakingBadTvmazeId] = new List<TvmazeShowImage>
+        {
+            new() { Id = 1, Type = "poster", Main = true, Resolutions = new TvmazeImageResolutions { Original = new TvmazeImageResolution { Url = "https://img/poster.jpg" } } },
+            new() { Id = 2, Type = "background", Main = false, Resolutions = new TvmazeImageResolutions { Original = new TvmazeImageResolution { Url = "https://img/background-nonmain.jpg" } } },
+            new() { Id = 3, Type = "background", Main = true, Resolutions = new TvmazeImageResolutions { Original = new TvmazeImageResolution { Url = "https://img/background-main.jpg" } } }
+        };
+
+        var series = await _provider.GetSeries("169", CancellationToken.None);
+
+        Assert.Equal("https://img/background-main.jpg", series.BackdropPath);
+    }
+
+    [Fact]
+    public async Task GetSeries_FallsBackToBannerWhenNoBackground()
+    {
+        _api.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _api.ImagesByShow[TestData.BreakingBadTvmazeId] = new List<TvmazeShowImage>
+        {
+            new() { Id = 1, Type = "banner", Main = true, Resolutions = new TvmazeImageResolutions { Medium = new TvmazeImageResolution { Url = "https://img/banner.jpg" } } }
+        };
+
+        var series = await _provider.GetSeries("169", CancellationToken.None);
+
+        Assert.Equal("https://img/banner.jpg", series.BackdropPath);
+    }
+
+    [Fact]
     public async Task GetSeries_ThrowsWhenShowMissing()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(() => _provider.GetSeries("169", CancellationToken.None));

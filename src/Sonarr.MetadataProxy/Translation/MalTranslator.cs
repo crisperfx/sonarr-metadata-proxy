@@ -28,7 +28,7 @@ public sealed class MalTranslator
             Rating = new RatingResource
             {
                 Count = anime.ScoreCount ?? 0,
-                Value = (decimal)(anime.Score ?? 0)
+                Value = SkyHookTranslator.ToDecimal((double)(anime.Score ?? 0))
             }
         };
 

@@ -262,11 +262,11 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
         });
     }
 
-    private static decimal ToDecimal(double value)
+    public static decimal ToDecimal(double value)
     {
         try
         {
-            return decimal.Round((decimal)value, 3, MidpointRounding.AwayFromZero);
+            return decimal.Round((decimal)value, 1, MidpointRounding.AwayFromZero);
         }
         catch (OverflowException)
         {

@@ -8,6 +8,9 @@ namespace Sonarr.MetadataProxy.Translation;
 public sealed class TvmazeTranslator
 {
     public SeriesMetadata ToSeries(TvmazeShow show)
+        => ToSeries(show, null);
+
+    public SeriesMetadata ToSeries(TvmazeShow show, string? backdropPath)
     {
         var countryCode = show.Network?.Country?.Code ?? show.WebChannel?.Country?.Code;
 
@@ -28,6 +31,7 @@ public sealed class TvmazeTranslator
             VoteCount = 0,
             Genres = show.Genres.Where(genre => !string.IsNullOrWhiteSpace(genre)).ToList(),
             PosterPath = PosterOf(show),
+            BackdropPath = backdropPath,
             ExternalIds = new ExternalIdSet(EffectiveTvdbId(show), show.Externals?.Imdb, null),
             Seasons = MapSeasons(show),
             Actors = MapActors(show)
@@ -78,7 +82,7 @@ public sealed class TvmazeTranslator
             Rating = new RatingResource
             {
                 Count = 0,
-                Value = ToDecimal(show.Rating?.Average ?? 0)
+                Value = SkyHookTranslator.ToDecimal(show.Rating?.Average ?? 0)
             }
         };
     }
@@ -218,17 +222,5 @@ public sealed class TvmazeTranslator
 
         var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
         return System.Net.WebUtility.HtmlDecode(stripped).Trim();
-    }
-
-    private static decimal ToDecimal(double value)
-    {
-        try
-        {
-            return (decimal)value;
-        }
-        catch (OverflowException)
-        {
-            return 0m;
-        }
     }
 }

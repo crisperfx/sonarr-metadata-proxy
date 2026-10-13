@@ -87,7 +87,7 @@ public sealed class AnidbTranslator
             Rating = new RatingResource
             {
                 Count = 0,
-                Value = ToDecimal(anime.Rating)
+                Value = SkyHookTranslator.ToDecimal(anime.Rating)
             }
         };
     }
@@ -185,17 +185,5 @@ public sealed class AnidbTranslator
             out _)
             ? date
             : null;
-    }
-
-    private static decimal ToDecimal(double value)
-    {
-        try
-        {
-            return (decimal)value;
-        }
-        catch (OverflowException)
-        {
-            return 0m;
-        }
     }
 }

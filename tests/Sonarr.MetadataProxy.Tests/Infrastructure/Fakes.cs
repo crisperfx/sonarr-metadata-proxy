@@ -218,6 +218,7 @@ public sealed class FakeTvmazeApi : ITvmazeApi
     public List<TvmazeShow> SearchResults { get; set; } = new();
     public Dictionary<int, TvmazeShow> ById { get; set; } = new();
     public Dictionary<int, List<TvmazeEpisode>> EpisodesById { get; set; } = new();
+    public Dictionary<int, List<TvmazeShowImage>> ImagesByShow { get; set; } = new();
     public Dictionary<int, List<TvmazeAlternateList>> AlternateListsByShow { get; set; } = new();
     public Dictionary<int, List<TvmazeAlternateEpisode>> AlternateEpisodesByList { get; set; } = new();
     public Exception? Exception { get; set; }
@@ -240,6 +241,12 @@ public sealed class FakeTvmazeApi : ITvmazeApi
     {
         ThrowIf();
         return Task.FromResult(EpisodesById.TryGetValue(tvmazeId, out var episodes) ? (IReadOnlyList<TvmazeEpisode>)episodes : Array.Empty<TvmazeEpisode>());
+    }
+
+    public Task<IReadOnlyList<TvmazeShowImage>> GetShowImagesAsync(int tvmazeId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(ImagesByShow.TryGetValue(tvmazeId, out var images) ? (IReadOnlyList<TvmazeShowImage>)images : Array.Empty<TvmazeShowImage>());
     }
 
     public Task<IReadOnlyList<TvmazeAlternateList>> GetAlternateListsAsync(int tvmazeId, CancellationToken cancellationToken)
