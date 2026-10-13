@@ -2,6 +2,14 @@ namespace Sonarr.MetadataProxy.Models.Metadata;
 
 public sealed record ExternalIdSet(int? TvdbId, string? ImdbId, int? TmdbId);
 
+public sealed class SeasonTypeMetadata
+{
+    public string Type { get; init; } = "";
+    public string Name { get; init; } = "";
+    public List<int> SeasonNumbers { get; init; } = new();
+    public int EpisodeCount { get; init; }
+}
+
 public sealed class SeriesMetadata
     {
         public string ProviderId { get; init; } = "";
@@ -24,6 +32,7 @@ public sealed class SeriesMetadata
         public string? BackdropPath { get; init; }
         public ExternalIdSet ExternalIds { get; init; } = new(null, null, null);
         public List<SeasonSummaryMetadata> Seasons { get; init; } = new();
+        public List<SeasonTypeMetadata> SeasonTypes { get; init; } = new();
         public List<ActorMetadata> Actors { get; init; } = new();
     }
 
@@ -52,6 +61,7 @@ public sealed class EpisodeMetadata
 {
     public int EpisodeNumber { get; init; }
     public int? AbsoluteEpisodeNumber { get; init; }
+    public int? SourceEpisodeId { get; init; }
     public string? Title { get; init; }
     public string? Overview { get; init; }
     public string? AirDate { get; init; }

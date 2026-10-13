@@ -9,6 +9,8 @@ public interface ITmdbApi
     Task<List<TmdbTvSearchResult>> FindByTvdbAsync(int tvdbId, CancellationToken cancellationToken);
     Task<TmdbTvDetails> GetTvDetailsAsync(int tmdbId, CancellationToken cancellationToken);
     Task<List<TmdbEpisode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, CancellationToken cancellationToken);
+    Task<List<TmdbEpisodeGroupSummary>> GetEpisodeGroupsAsync(int tmdbId, CancellationToken cancellationToken);
+    Task<TmdbEpisodeGroup> GetEpisodeGroupAsync(string episodeGroupId, CancellationToken cancellationToken);
 }
 
 public sealed class TmdbApiException : Exception

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Models.AniList;
 using Sonarr.MetadataProxy.Options;
+using Sonarr.MetadataProxy.Passthrough;
 using Sonarr.MetadataProxy.Providers;
 using Sonarr.MetadataProxy.Reverse;
 using Sonarr.MetadataProxy.Services;
@@ -220,6 +221,92 @@ public class MetadataRequestHandlerTests
         Assert.Equal(0, _passthrough.ShowCallCount);
         var (status, _) = await ExecuteAsync(result);
         Assert.Equal(StatusCodes.Status404NotFound, status);
+    }
+
+    [Fact]
+    public async Task Show_TmdbAlternateOrder_ServesGroupLayoutAndAdvertisesSeasonTypes()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+        _tmdb.EpisodeGroups[1396] = TestData.BreakingBadEpisodeGroups();
+        _tmdb.EpisodeGroupById[TestData.BreakingBadDvdGroupId] = TestData.BreakingBadDvdGroup();
+
+        var result = await handler.ShowAsync(1000001396, CancellationToken.None, SkyHookApiVersion.V2, TestData.BreakingBadDvdGroupId);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("Cat's in the Bag...", body);
+        Assert.Contains("DVD Order", body);
+    }
+
+    [Fact]
+    public async Task Show_TmdbAlternateOrder_SkipsSingleSeasonFlatten()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+        _tmdb.EpisodeGroupById[TestData.BreakingBadDvdGroupId] = TestData.BreakingBadSingleSectionDvdGroup();
+
+        var result = await handler.ShowAsync(1000001396, CancellationToken.None, SkyHookApiVersion.V2, TestData.BreakingBadDvdGroupId);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.True(
+            body.IndexOf("Cat's in the Bag...", StringComparison.Ordinal) < body.IndexOf("Pilot", StringComparison.Ordinal),
+            "Alternate order should not be renumbered by air date.");
+    }
+
+    [Fact]
+    public async Task Show_TmdbAlternateOrder_KeepsEpisodeIdsStable()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+        _tmdb.EpisodeGroups[1396] = TestData.BreakingBadEpisodeGroups();
+        _tmdb.EpisodeGroupById[TestData.BreakingBadDvdGroupId] = TestData.BreakingBadSingleSectionDvdGroup();
+
+        var official = await handler.ShowAsync(1000001396, CancellationToken.None);
+        var alternate = await handler.ShowAsync(1000001396, CancellationToken.None, SkyHookApiVersion.V2, TestData.BreakingBadDvdGroupId);
+
+        var officialBody = (await ExecuteAsync(official)).Body;
+        var alternateBody = (await ExecuteAsync(alternate)).Body;
+
+        Assert.Equal(
+            EpisodeTvdbIdByTitle(officialBody, "Pilot"),
+            EpisodeTvdbIdByTitle(alternateBody, "Pilot"));
+        Assert.Equal(
+            EpisodeTvdbIdByTitle(officialBody, "Cat's in the Bag..."),
+            EpisodeTvdbIdByTitle(alternateBody, "Cat's in the Bag..."));
+    }
+
+    [Fact]
+    public async Task Search_Tmdb_AdvertisesSeasonTypes()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.SearchResults = new List<Sonarr.MetadataProxy.Models.Tmdb.TmdbTvSearchResult>
+        {
+            new() { Id = 1396, Name = "Breaking Bad" }
+        };
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.EpisodeGroups[1396] = TestData.BreakingBadEpisodeGroups();
+
+        var result = await handler.SearchAsync("breaking bad", CancellationToken.None);
+
+        var (status, body) = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Contains("seasonTypes", body);
+        Assert.Contains("DVD Order", body);
+    }
+
+    [Fact]
+    public async Task Show_UnknownTvdb_ForwardsSeasonTypeToPassthrough()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+
+        await handler.ShowAsync(999999, CancellationToken.None, SkyHookApiVersion.V2, "dvd");
+
+        Assert.Equal("dvd", _passthrough.LastShowSeasonType);
     }
 
     [Fact]
@@ -814,6 +901,20 @@ public class MetadataRequestHandlerTests
             NullLogger<MetadataRequestHandler>.Instance);
 
         return (handler, mapping);
+    }
+
+    private static int EpisodeTvdbIdByTitle(string body, string title)
+    {
+        using var document = JsonDocument.Parse(body);
+        foreach (var episode in document.RootElement.GetProperty("episodes").EnumerateArray())
+        {
+            if (string.Equals(episode.GetProperty("title").GetString(), title, StringComparison.Ordinal))
+            {
+                return episode.GetProperty("tvdbId").GetInt32();
+            }
+        }
+
+        throw new InvalidOperationException($"Episode '{title}' not found.");
     }
 
     private static async Task<(int Status, string Body)> ExecuteAsync(IResult result)

@@ -31,13 +31,13 @@ public sealed class SkyHookController : ControllerBase
     [HttpGet("/v1/tvdb/shows/{language}/{tvdbId:int}")]
     public Task<IResult> ShowV1(string language, int tvdbId, CancellationToken cancellationToken)
     {
-        return _handler.ShowAsync(tvdbId, cancellationToken, SkyHookApiVersion.V1);
+        return _handler.ShowAsync(tvdbId, cancellationToken, SkyHookApiVersion.V1, "official");
     }
 
     [HttpGet("/v2/tvdb/shows/{language}/{tvdbId:int}/{seasonType}")]
     public Task<IResult> ShowV2(string language, int tvdbId, string seasonType, CancellationToken cancellationToken)
     {
-        return _handler.ShowAsync(tvdbId, cancellationToken, SkyHookApiVersion.V2);
+        return _handler.ShowAsync(tvdbId, cancellationToken, SkyHookApiVersion.V2, string.IsNullOrWhiteSpace(seasonType) ? "official" : seasonType);
     }
 
     private Task<IResult> Search(string? term, SkyHookApiVersion version, CancellationToken cancellationToken)

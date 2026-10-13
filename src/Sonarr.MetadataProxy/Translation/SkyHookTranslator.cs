@@ -20,10 +20,16 @@ public sealed class SkyHookTranslator
 
     public ShowResource ToSearchResult(SeriesMetadata metadata)
     {
-        return BuildBase(metadata, null);
+        var show = BuildBase(metadata, null);
+        show.SeasonTypes = BuildSeasonTypes(show, metadata);
+        return show;
     }
 
-    public ShowResource ToFullSeries(SeriesMetadata metadata, IReadOnlyList<SeasonMetadata> seasons, int? overrideTvdbId = null)
+    public ShowResource ToFullSeries(
+        SeriesMetadata metadata,
+        IReadOnlyList<SeasonMetadata> seasons,
+        int? overrideTvdbId = null,
+        IReadOnlyDictionary<int, (int Season, int Episode)>? episodeIdSource = null)
     {
         var show = BuildBase(metadata, overrideTvdbId);
 
@@ -31,11 +37,68 @@ public sealed class SkyHookTranslator
         {
             foreach (var episode in season.Episodes)
             {
-                show.Episodes.Add(BuildEpisode(show.TvdbId, season.SeasonNumber, episode));
+                var idSource = episode.SourceEpisodeId.HasValue &&
+                               episodeIdSource is not null &&
+                               episodeIdSource.TryGetValue(episode.SourceEpisodeId.Value, out var official)
+                    ? official
+                    : (Season: season.SeasonNumber, Episode: episode.EpisodeNumber);
+
+                show.Episodes.Add(BuildEpisode(show.TvdbId, season.SeasonNumber, episode, idSource));
             }
         }
 
+        show.SeasonTypes = BuildSeasonTypes(show, metadata);
+
         return show;
+    }
+
+    private static List<SeasonTypeResource> BuildSeasonTypes(ShowResource show, SeriesMetadata metadata)
+    {
+        var result = new List<SeasonTypeResource> { BuildOfficialSeasonType(show, metadata) };
+        result.AddRange(metadata.SeasonTypes.Select(seasonType => new SeasonTypeResource
+        {
+            Type = seasonType.Type,
+            Name = seasonType.Name,
+            SeasonNumbers = seasonType.SeasonNumbers.ToList(),
+            EpisodeCount = seasonType.EpisodeCount
+        }));
+
+        return result;
+    }
+
+    private static SeasonTypeResource BuildOfficialSeasonType(ShowResource show, SeriesMetadata metadata)
+    {
+        var summaries = metadata.Seasons.Where(season => season.SeasonNumber > 0).ToList();
+        List<int> seasonNumbers;
+        int episodeCount;
+
+        if (summaries.Count > 0)
+        {
+            seasonNumbers = summaries.Select(season => season.SeasonNumber).Distinct().OrderBy(number => number).ToList();
+            episodeCount = summaries.Sum(season => season.EpisodeCount);
+        }
+        else
+        {
+            var regular = show.Episodes.Where(episode => episode.SeasonNumber > 0).ToList();
+            if (regular.Count > 0)
+            {
+                seasonNumbers = regular.Select(episode => episode.SeasonNumber).Distinct().OrderBy(number => number).ToList();
+                episodeCount = regular.Count;
+            }
+            else
+            {
+                seasonNumbers = show.Seasons.Where(season => season.SeasonNumber > 0).Select(season => season.SeasonNumber).Distinct().OrderBy(number => number).ToList();
+                episodeCount = 0;
+            }
+        }
+
+        return new SeasonTypeResource
+        {
+            Type = "official",
+            Name = "Aired Order",
+            SeasonNumbers = seasonNumbers,
+            EpisodeCount = episodeCount
+        };
     }
 
 private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
@@ -132,9 +195,9 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
         return show;
     }
 
-    private EpisodeResource BuildEpisode(int seriesTvdbId, int seasonNumber, EpisodeMetadata episode)
+    private EpisodeResource BuildEpisode(int seriesTvdbId, int seasonNumber, EpisodeMetadata episode, (int Season, int Episode) idSource)
     {
-        var episodeTvdbId = _mapping.EpisodeTvdbId(seriesTvdbId, seasonNumber, episode.EpisodeNumber);
+        var episodeTvdbId = _mapping.EpisodeTvdbId(seriesTvdbId, idSource.Season, idSource.Episode);
 
         return new EpisodeResource
         {

@@ -98,9 +98,65 @@ public class SkyHookTranslatorTests : IDisposable
         Assert.NotNull(show.Slug);
     }
 
-    private static SeriesMetadata SeriesWithExternalIds(int? tvdbId, string? imdbId)
+    [Fact]
+    public void ToSearchResult_IncludesOfficialSeasonType()
     {
-        return new SeriesMetadata
+        var metadata = SeriesWithExternalIds(81189, "tt0903747");
+
+        var show = _translator.ToSearchResult(metadata);
+
+        var official = Assert.Single(show.SeasonTypes);
+        Assert.Equal("official", official.Type);
+        Assert.Equal(new[] { 1, 2 }, official.SeasonNumbers);
+        Assert.Equal(20, official.EpisodeCount);
+    }
+
+    [Fact]
+    public void ToSearchResult_AppendsProviderSuppliedSeasonTypes()
+    {
+        var metadata = SeriesWithExternalIds(81189, "tt0903747", new SeasonTypeMetadata
+        {
+            Type = "dvd-group",
+            Name = "DVD Order",
+            SeasonNumbers = { 1, 2 },
+            EpisodeCount = 20
+        });
+
+        var show = _translator.ToSearchResult(metadata);
+
+        Assert.Equal(2, show.SeasonTypes.Count);
+        Assert.Equal("official", show.SeasonTypes[0].Type);
+        Assert.Equal("dvd-group", show.SeasonTypes[1].Type);
+        Assert.Equal("DVD Order", show.SeasonTypes[1].Name);
+    }
+
+    [Fact]
+    public void ToFullSeries_OfficialSeasonTypeReflectsAiredSeasons()
+    {
+        var metadata = SeriesWithExternalIds(null, null);
+        var seasons = new List<SeasonMetadata>
+        {
+            new()
+            {
+                SeasonNumber = 1,
+                Episodes = new List<EpisodeMetadata>
+                {
+                    new() { EpisodeNumber = 1 }, new() { EpisodeNumber = 2 }
+                }
+            }
+        };
+
+        var show = _translator.ToFullSeries(metadata, seasons);
+
+        var official = Assert.Single(show.SeasonTypes);
+        Assert.Equal("official", official.Type);
+        Assert.Equal(new[] { 1, 2 }, official.SeasonNumbers);
+        Assert.Equal(20, official.EpisodeCount);
+    }
+
+    private static SeriesMetadata SeriesWithExternalIds(int? tvdbId, string? imdbId, params SeasonTypeMetadata[] seasonTypes)
+    {
+        var metadata = new SeriesMetadata
         {
             ProviderId = "1396",
             Title = "Breaking Bad",
@@ -123,8 +179,11 @@ public class SkyHookTranslatorTests : IDisposable
             {
                 new SeasonSummaryMetadata { SeasonNumber = 1, EpisodeCount = 7, PosterPath = "/s1.jpg" },
                 new SeasonSummaryMetadata { SeasonNumber = 2, EpisodeCount = 13, PosterPath = "/s2.jpg" }
-            }
+            },
+            SeasonTypes = seasonTypes.ToList()
         };
+
+        return metadata;
     }
 
     public void Dispose()

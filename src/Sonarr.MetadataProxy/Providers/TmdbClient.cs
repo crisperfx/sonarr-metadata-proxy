@@ -98,6 +98,23 @@ public sealed class TmdbClient : ITmdbApi
         return response.Episodes;
     }
 
+    public async Task<List<TmdbEpisodeGroupSummary>> GetEpisodeGroupsAsync(int tmdbId, CancellationToken cancellationToken)
+    {
+        ThrowIfUnauthorized();
+
+        var parameters = "language=" + Uri.EscapeDataString(_options.TmdBLanguage);
+        var response = await GetAsync<TmdbEpisodeGroupListResponse>($"tv/{tmdbId}/episode_groups?{parameters}", cancellationToken).ConfigureAwait(false);
+        return response.Results;
+    }
+
+    public async Task<TmdbEpisodeGroup> GetEpisodeGroupAsync(string episodeGroupId, CancellationToken cancellationToken)
+    {
+        ThrowIfUnauthorized();
+
+        var parameters = "language=" + Uri.EscapeDataString(_options.TmdBLanguage);
+        return await GetAsync<TmdbEpisodeGroup>($"tv/episode_group/{Uri.EscapeDataString(episodeGroupId)}?{parameters}", cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<T> GetAsync<T>(string requestUri, CancellationToken cancellationToken)
     {
         var uri = requestUri;

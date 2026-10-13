@@ -56,6 +56,14 @@ public sealed class AlternativeTitleResource
     public string? Title { get; set; }
 }
 
+public sealed class SeasonTypeResource
+{
+    public string? Type { get; set; }
+    public string? Name { get; set; }
+    public List<int> SeasonNumbers { get; set; } = new();
+    public int EpisodeCount { get; set; }
+}
+
 public sealed class ShowResource
 {
     public int TvdbId { get; set; }
@@ -86,6 +94,7 @@ public sealed class ShowResource
     public List<ActorResource> Actors { get; set; } = new();
     public List<ImageResource> Images { get; set; } = new();
     public List<SeasonResource> Seasons { get; set; } = new();
+    public List<SeasonTypeResource> SeasonTypes { get; set; } = new();
     public List<EpisodeResource> Episodes { get; set; } = new();
     public bool NoTVDBMapping { get; set; }
 }

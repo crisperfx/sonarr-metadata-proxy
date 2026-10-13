@@ -2,6 +2,17 @@ using System.Text.Json.Serialization;
 
 namespace Sonarr.MetadataProxy.Models.Tmdb;
 
+public static class TmdbEpisodeGroupTypes
+{
+    public const int OriginalAirDate = 1;
+    public const int Absolute = 2;
+    public const int Dvd = 3;
+    public const int Digital = 4;
+    public const int StoryArc = 5;
+    public const int Production = 6;
+    public const int Tv = 7;
+}
+
 public sealed class TmdbTvSearchResponse
 {
     [JsonPropertyName("results")]
@@ -279,4 +290,118 @@ public sealed class TmdbFindResponse
 {
     [JsonPropertyName("tv_results")]
     public List<TmdbTvSearchResult> TvResults { get; set; } = new();
+}
+
+public sealed class TmdbEpisodeGroupListResponse
+{
+    [JsonPropertyName("results")]
+    public List<TmdbEpisodeGroupSummary> Results { get; set; } = new();
+}
+
+public sealed class TmdbEpisodeGroupSummary
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("episode_count")]
+    public int EpisodeCount { get; set; }
+
+    [JsonPropertyName("group_count")]
+    public int GroupCount { get; set; }
+
+    [JsonPropertyName("type")]
+    public int Type { get; set; }
+
+    [JsonPropertyName("network")]
+    public TmdbNetwork? Network { get; set; }
+}
+
+public sealed class TmdbEpisodeGroup
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("episode_count")]
+    public int EpisodeCount { get; set; }
+
+    [JsonPropertyName("group_count")]
+    public int GroupCount { get; set; }
+
+    [JsonPropertyName("type")]
+    public int Type { get; set; }
+
+    [JsonPropertyName("groups")]
+    public List<TmdbEpisodeGroupSection> Groups { get; set; } = new();
+}
+
+public sealed class TmdbEpisodeGroupSection
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("order")]
+    public int Order { get; set; }
+
+    [JsonPropertyName("locked")]
+    public bool Locked { get; set; }
+
+    [JsonPropertyName("episodes")]
+    public List<TmdbEpisodeGroupEpisode> Episodes { get; set; } = new();
+}
+
+public sealed class TmdbEpisodeGroupEpisode
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("overview")]
+    public string? Overview { get; set; }
+
+    [JsonPropertyName("season_number")]
+    public int SeasonNumber { get; set; }
+
+    [JsonPropertyName("episode_number")]
+    public int EpisodeNumber { get; set; }
+
+    [JsonPropertyName("order")]
+    public int Order { get; set; }
+
+    [JsonPropertyName("air_date")]
+    public string? AirDate { get; set; }
+
+    [JsonPropertyName("runtime")]
+    public int? Runtime { get; set; }
+
+    [JsonPropertyName("still_path")]
+    public string? StillPath { get; set; }
+
+    [JsonPropertyName("vote_average")]
+    public double VoteAverage { get; set; }
+
+    [JsonPropertyName("vote_count")]
+    public int VoteCount { get; set; }
+
+    [JsonPropertyName("production_code")]
+    public string? ProductionCode { get; set; }
+
+    [JsonPropertyName("show_id")]
+    public int ShowId { get; set; }
 }

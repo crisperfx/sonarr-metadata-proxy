@@ -114,6 +114,52 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task V2_Show_ForwardsSeasonTypeToPassthrough()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            Details = TestData.BreakingBadDetails(),
+            Exception = new TmdbApiException("TMDB is down", 503)
+        };
+        var resolver = new FakeTvdbResolver { Map = { [81189] = 1396 } };
+        var passthrough = new FakeSkyHookPassthrough();
+
+        using var factory = CreateFactory(tmdb, resolver: resolver, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v2/tvdb/shows/eng/81189/dvd");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SkyHookApiVersion.V2, passthrough.LastShowVersion);
+        Assert.Equal("dvd", passthrough.LastShowSeasonType);
+    }
+
+    [Fact]
+    public async Task Search_Tmdb_IncludesSeasonTypesJson()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            SearchResults = new List<TmdbTvSearchResult> { TestData.BreakingBadSearchResult() },
+            Details = TestData.BreakingBadDetails(),
+            EpisodeGroups = { [TestData.BreakingBadTmdbId] = TestData.BreakingBadEpisodeGroups() }
+        };
+
+        using var factory = CreateFactory(tmdb);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v2/tvdb/search/?language=eng&term=breaking+bad");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var first = document.RootElement.EnumerateArray().ToList()[0];
+        var seasonTypes = first.GetProperty("seasonTypes");
+        Assert.True(seasonTypes.GetArrayLength() >= 2);
+        Assert.Equal("official", seasonTypes[0].GetProperty("type").GetString());
+        Assert.Equal(TestData.BreakingBadDvdGroupId, seasonTypes[1].GetProperty("type").GetString());
+    }
+
+    [Fact]
     public async Task V1_Show_RoutesToV1Passthrough()
     {
         var tmdb = new FakeTmdbApi

@@ -15,6 +15,7 @@ public static class TestData
     public const int BreakingBadTvmazeId = 169;
     public const int DeathNoteAnidbId = 2993;
     public const int DeathNoteTvdbId = 81356;
+    public const string BreakingBadDvdGroupId = "dvd-group-1396";
 
     public static TmdbTvSearchResult BreakingBadSearchResult()
     {
@@ -114,6 +115,85 @@ public static class TestData
                 VoteAverage = 8.4,
                 VoteCount = 150,
                 EpisodeType = "standard"
+            }
+        };
+    }
+
+    public static List<TmdbEpisodeGroupSummary> BreakingBadEpisodeGroups()
+    {
+        return new List<TmdbEpisodeGroupSummary>
+        {
+            new()
+            {
+                Id = "aired-1396",
+                Name = "Original air date",
+                Type = TmdbEpisodeGroupTypes.OriginalAirDate,
+                EpisodeCount = 3,
+                GroupCount = 2
+            },
+            new()
+            {
+                Id = BreakingBadDvdGroupId,
+                Name = "DVD Order",
+                Type = TmdbEpisodeGroupTypes.Dvd,
+                EpisodeCount = 3,
+                GroupCount = 2
+            }
+        };
+    }
+
+    public static TmdbEpisodeGroup BreakingBadDvdGroup()
+    {
+        return new TmdbEpisodeGroup
+        {
+            Id = BreakingBadDvdGroupId,
+            Name = "DVD Order",
+            Type = TmdbEpisodeGroupTypes.Dvd,
+            EpisodeCount = 3,
+            GroupCount = 2,
+            Groups =
+            {
+                new TmdbEpisodeGroupSection
+                {
+                    Order = 1,
+                    Episodes =
+                    {
+                        new TmdbEpisodeGroupEpisode { Id = 62086, Name = "Cat's in the Bag...", Order = 1, SeasonNumber = 1, EpisodeNumber = 2, AirDate = "2008-01-27" },
+                        new TmdbEpisodeGroupEpisode { Id = 62085, Name = "Pilot", Order = 2, SeasonNumber = 1, EpisodeNumber = 1, AirDate = "2008-01-20" }
+                    }
+                },
+                new TmdbEpisodeGroupSection
+                {
+                    Order = 2,
+                    Episodes =
+                    {
+                        new TmdbEpisodeGroupEpisode { Id = 62101, Name = "Seven Thirty-Seven", Order = 1, SeasonNumber = 2, EpisodeNumber = 1, AirDate = "2009-03-08" }
+                    }
+                }
+            }
+        };
+    }
+
+    public static TmdbEpisodeGroup BreakingBadSingleSectionDvdGroup()
+    {
+        return new TmdbEpisodeGroup
+        {
+            Id = BreakingBadDvdGroupId,
+            Name = "DVD Order",
+            Type = TmdbEpisodeGroupTypes.Dvd,
+            EpisodeCount = 2,
+            GroupCount = 1,
+            Groups =
+            {
+                new TmdbEpisodeGroupSection
+                {
+                    Order = 1,
+                    Episodes =
+                    {
+                        new TmdbEpisodeGroupEpisode { Id = 62086, Name = "Cat's in the Bag...", Order = 1, SeasonNumber = 1, EpisodeNumber = 2, AirDate = "2008-01-27" },
+                        new TmdbEpisodeGroupEpisode { Id = 62085, Name = "Pilot", Order = 2, SeasonNumber = 1, EpisodeNumber = 1, AirDate = "2008-01-20" }
+                    }
+                }
             }
         };
     }

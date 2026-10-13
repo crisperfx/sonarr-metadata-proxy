@@ -17,7 +17,7 @@ public interface ISkyHookPassthrough
 {
     Task<ProxyResponse> SearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken);
 
-    Task<ProxyResponse> ShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken);
+    Task<ProxyResponse> ShowAsync(int tvdbId, string seasonType, SkyHookApiVersion version, CancellationToken cancellationToken);
 }
 
 public sealed class SkyHookPassthrough : ISkyHookPassthrough
@@ -62,10 +62,11 @@ public sealed class SkyHookPassthrough : ISkyHookPassthrough
         return await GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<ProxyResponse> ShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
+    public async Task<ProxyResponse> ShowAsync(int tvdbId, string seasonType, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
+        var type = string.IsNullOrWhiteSpace(seasonType) ? "official" : seasonType;
         var requestUri = version == SkyHookApiVersion.V2
-            ? $"v2/tvdb/shows/eng/{tvdbId}/official"
+            ? $"v2/tvdb/shows/eng/{tvdbId}/{Uri.EscapeDataString(type)}"
             : $"v1/tvdb/shows/en/{tvdbId}";
         return await GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
     }

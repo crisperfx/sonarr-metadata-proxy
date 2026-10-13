@@ -94,9 +94,12 @@ public sealed class FakeTmdbApi : ITmdbApi
     public TmdbTvDetails Details { get; set; } = new();
     public Dictionary<int, TmdbTvDetails> DetailsById { get; set; } = new();
     public Dictionary<int, List<TmdbEpisode>> Seasons { get; set; } = new();
+    public Dictionary<int, List<TmdbEpisodeGroupSummary>> EpisodeGroups { get; set; } = new();
+    public Dictionary<string, TmdbEpisodeGroup> EpisodeGroupById { get; set; } = new();
     public Exception? Exception { get; set; }
     public int DetailsCallCount { get; private set; }
     public int SearchCallCount { get; private set; }
+    public int EpisodeGroupsCallCount { get; private set; }
 
     public Task<List<TmdbTvSearchResult>> SearchTvAsync(string query, CancellationToken cancellationToken)
     {
@@ -128,6 +131,19 @@ public sealed class FakeTmdbApi : ITmdbApi
     {
         ThrowIf();
         return Task.FromResult(Seasons.TryGetValue(seasonNumber, out var episodes) ? episodes : new List<TmdbEpisode>());
+    }
+
+    public Task<List<TmdbEpisodeGroupSummary>> GetEpisodeGroupsAsync(int tmdbId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        EpisodeGroupsCallCount++;
+        return Task.FromResult(EpisodeGroups.TryGetValue(tmdbId, out var groups) ? groups : new List<TmdbEpisodeGroupSummary>());
+    }
+
+    public Task<TmdbEpisodeGroup> GetEpisodeGroupAsync(string episodeGroupId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(EpisodeGroupById.TryGetValue(episodeGroupId, out var group) ? group : new TmdbEpisodeGroup());
     }
 
     private void ThrowIf()
@@ -252,6 +268,7 @@ public sealed class FakeSkyHookPassthrough : ISkyHookPassthrough
     public string? LastSearchTerm { get; private set; }
     public SkyHookApiVersion? LastSearchVersion { get; private set; }
     public SkyHookApiVersion? LastShowVersion { get; private set; }
+    public string? LastShowSeasonType { get; private set; }
     public int ShowCallCount { get; private set; }
 
     public Task<ProxyResponse> SearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
@@ -261,9 +278,10 @@ public sealed class FakeSkyHookPassthrough : ISkyHookPassthrough
         return Task.FromResult(SearchResponse);
     }
 
-    public Task<ProxyResponse> ShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
+    public Task<ProxyResponse> ShowAsync(int tvdbId, string seasonType, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         LastShowVersion = version;
+        LastShowSeasonType = seasonType;
         ShowCallCount++;
         return Task.FromResult(ShowResponse);
     }

@@ -4,7 +4,7 @@ using Sonarr.MetadataProxy.Options;
 
 namespace Sonarr.MetadataProxy.Providers;
 
-public sealed class TmdbMetadataProvider : IMetadataProvider
+public sealed class TmdbMetadataProvider : IMetadataProvider, IEpisodeOrderProvider
 {
     private readonly ITmdbApi _api;
     private readonly ProxyOptions _options;
@@ -42,14 +42,21 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
             return Array.Empty<SeriesMetadata>();
         }
 
-        return new[] { MapSeries(details) };
+        var seasonTypes = await BuildSeasonTypesAsync(details.Id, cancellationToken).ConfigureAwait(false);
+        return new[] { MapSeries(details, seasonTypes) };
     }
 
     public async Task<SeriesMetadata> GetSeries(string providerId, CancellationToken cancellationToken)
     {
         EnsureTmdbCredentials();
         var details = await FetchDetails(providerId, cancellationToken).ConfigureAwait(false);
-        return details is null ? throw new InvalidOperationException($"TMDB series {providerId} not found.") : MapSeries(details);
+        if (details is null)
+        {
+            throw new InvalidOperationException($"TMDB series {providerId} not found.");
+        }
+
+        var seasonTypes = await BuildSeasonTypesAsync(details.Id, cancellationToken).ConfigureAwait(false);
+        return MapSeries(details, seasonTypes);
     }
 
     public async Task<IReadOnlyList<SeasonMetadata>> GetSeasons(string providerId, CancellationToken cancellationToken)
@@ -93,6 +100,65 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
         return seasons;
     }
 
+    public async Task<IReadOnlyList<SeasonMetadata>?> GetSeasonsForOrder(string providerId, string seasonType, CancellationToken cancellationToken)
+    {
+        EnsureTmdbCredentials();
+        if (!int.TryParse(providerId, out _) || string.IsNullOrWhiteSpace(seasonType) || seasonType == "official")
+        {
+            return null;
+        }
+
+        TmdbEpisodeGroup group;
+        try
+        {
+            group = await _api.GetEpisodeGroupAsync(seasonType, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TmdbApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not fetch TMDB episode group {GroupId}; serving the official order instead.", seasonType);
+            return null;
+        }
+
+        var sections = group.Groups
+            .OrderBy(section => section.Order)
+            .ToList();
+
+        if (sections.Count == 0)
+        {
+            return null;
+        }
+
+        var seasons = new List<SeasonMetadata>();
+        for (var i = 0; i < sections.Count; i++)
+        {
+            var episodes = sections[i].Episodes
+                .OrderBy(episode => episode.Order)
+                .ThenBy(episode => episode.EpisodeNumber)
+                .Select((episode, index) => new EpisodeMetadata
+                {
+                    EpisodeNumber = index + 1,
+                    AbsoluteEpisodeNumber = null,
+                    SourceEpisodeId = episode.Id,
+                    Title = episode.Name,
+                    Overview = episode.Overview,
+                    AirDate = NormalizeDate(episode.AirDate),
+                    RuntimeMinutes = episode.Runtime,
+                    ImageUrl = BuildStillImageUrl(episode.StillPath),
+                    VoteAverage = episode.VoteAverage,
+                    VoteCount = episode.VoteCount
+                })
+                .ToList();
+
+            seasons.Add(new SeasonMetadata
+            {
+                SeasonNumber = i + 1,
+                Episodes = episodes
+            });
+        }
+
+        return seasons;
+    }
+
     private async Task<IReadOnlyList<SeriesMetadata>> BuildSearchResults(
         IReadOnlyList<TmdbTvSearchResult> results,
         CancellationToken cancellationToken)
@@ -109,13 +175,53 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
                 chunk.Select(async result =>
                 {
                     var details = await FetchDetails(result.Id.ToString(), cancellationToken).ConfigureAwait(false);
-                    return details is not null ? MapSeries(details) : MapSeries(result);
+                    if (details is null)
+                    {
+                        return MapSeries(result, Array.Empty<SeasonTypeMetadata>());
+                    }
+
+                    var seasonTypes = await BuildSeasonTypesAsync(details.Id, cancellationToken).ConfigureAwait(false);
+                    return MapSeries(details, seasonTypes);
                 })).ConfigureAwait(false);
 
             series.AddRange(fetched);
         }
 
         return series;
+    }
+
+    private async Task<IReadOnlyList<SeasonTypeMetadata>> BuildSeasonTypesAsync(int tmdbId, CancellationToken cancellationToken)
+    {
+        List<TmdbEpisodeGroupSummary> groups;
+        try
+        {
+            groups = await _api.GetEpisodeGroupsAsync(tmdbId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TmdbApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not fetch TMDB episode groups for {TmdbId}.", tmdbId);
+            return Array.Empty<SeasonTypeMetadata>();
+        }
+
+        var result = new List<SeasonTypeMetadata>();
+        foreach (var group in groups)
+        {
+            if (group.Type == TmdbEpisodeGroupTypes.OriginalAirDate || string.IsNullOrWhiteSpace(group.Id))
+            {
+                continue;
+            }
+
+            var groupCount = Math.Max(1, group.GroupCount);
+            result.Add(new SeasonTypeMetadata
+            {
+                Type = group.Id!,
+                Name = string.IsNullOrWhiteSpace(group.Name) ? "Alternate Order" : group.Name!,
+                SeasonNumbers = Enumerable.Range(1, groupCount).ToList(),
+                EpisodeCount = group.EpisodeCount
+            });
+        }
+
+        return result;
     }
 
     private async Task<TmdbTvDetails?> FetchDetails(string providerId, CancellationToken cancellationToken)
@@ -128,7 +234,7 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
         return await _api.GetTvDetailsAsync(tmdbId, cancellationToken).ConfigureAwait(false);
     }
 
-    private static SeriesMetadata MapSeries(TmdbTvSearchResult result)
+    private static SeriesMetadata MapSeries(TmdbTvSearchResult result, IReadOnlyList<SeasonTypeMetadata> seasonTypes)
     {
         return new SeriesMetadata
         {
@@ -144,11 +250,12 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
             VoteCount = result.VoteCount,
             PosterPath = result.PosterPath,
             BackdropPath = result.BackdropPath,
-            ExternalIds = new ExternalIdSet(null, null, result.Id)
+            ExternalIds = new ExternalIdSet(null, null, result.Id),
+            SeasonTypes = seasonTypes.ToList()
         };
     }
 
-    private static SeriesMetadata MapSeries(TmdbTvDetails details)
+    private static SeriesMetadata MapSeries(TmdbTvDetails details, IReadOnlyList<SeasonTypeMetadata> seasonTypes)
     {
         var rating = PickContentRating(details);
 
@@ -187,6 +294,7 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
                     PosterPath = season.PosterPath
                 })
                 .ToList(),
+            SeasonTypes = seasonTypes.ToList(),
             Actors = details.Credits?.Cast
                 .Where(cast => cast.Order < 20)
                 .Select(cast => new ActorMetadata
@@ -205,6 +313,7 @@ public sealed class TmdbMetadataProvider : IMetadataProvider
         {
             EpisodeNumber = episode.EpisodeNumber,
             AbsoluteEpisodeNumber = episode.AbsoluteNumber,
+            SourceEpisodeId = episode.Id,
             Title = episode.Name,
             Overview = episode.Overview,
             AirDate = NormalizeDate(episode.AirDate),

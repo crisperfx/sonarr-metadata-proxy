@@ -116,6 +116,62 @@ public class TmdbMetadataProviderTests
         await Assert.ThrowsAsync<TmdbApiException>(() => _provider.Search("breaking bad", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GetSeries_AdvertisesEpisodeGroupSeasonTypes()
+    {
+        _api.Details = TestData.BreakingBadDetails();
+        _api.EpisodeGroups[TestData.BreakingBadTmdbId] = TestData.BreakingBadEpisodeGroups();
+
+        var series = await _provider.GetSeries("1396", CancellationToken.None);
+
+        var dvd = Assert.Single(series.SeasonTypes);
+        Assert.Equal(TestData.BreakingBadDvdGroupId, dvd.Type);
+        Assert.Equal("DVD Order", dvd.Name);
+        Assert.Equal(new[] { 1, 2 }, dvd.SeasonNumbers);
+        Assert.Equal(3, dvd.EpisodeCount);
+    }
+
+    [Fact]
+    public async Task Search_AdvertisesEpisodeGroupSeasonTypes()
+    {
+        _api.SearchResults = new List<TmdbTvSearchResult> { TestData.BreakingBadSearchResult() };
+        _api.Details = TestData.BreakingBadDetails();
+        _api.EpisodeGroups[TestData.BreakingBadTmdbId] = TestData.BreakingBadEpisodeGroups();
+
+        var results = await _provider.Search("breaking bad", CancellationToken.None);
+
+        var series = Assert.Single(results);
+        Assert.Single(series.SeasonTypes);
+        Assert.Equal(TestData.BreakingBadDvdGroupId, series.SeasonTypes[0].Type);
+    }
+
+    [Fact]
+    public async Task GetSeasonsForOrder_RenumbersByGroupOrder()
+    {
+        _api.EpisodeGroupById[TestData.BreakingBadDvdGroupId] = TestData.BreakingBadDvdGroup();
+
+        var seasons = await _provider.GetSeasonsForOrder("1396", TestData.BreakingBadDvdGroupId, CancellationToken.None);
+
+        Assert.NotNull(seasons);
+        Assert.Equal(2, seasons!.Count);
+        Assert.Equal(1, seasons[0].SeasonNumber);
+        Assert.Equal("Cat's in the Bag...", seasons[0].Episodes[0].Title);
+        Assert.Equal(1, seasons[0].Episodes[0].EpisodeNumber);
+        Assert.Null(seasons[0].Episodes[0].AbsoluteEpisodeNumber);
+        Assert.Equal("Pilot", seasons[0].Episodes[1].Title);
+        Assert.Equal(2, seasons[0].Episodes[1].EpisodeNumber);
+        Assert.Equal(2, seasons[1].SeasonNumber);
+        Assert.Equal(1, seasons[1].Episodes[0].EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task GetSeasonsForOrder_Official_ReturnsNull()
+    {
+        var seasons = await _provider.GetSeasonsForOrder("1396", "official", CancellationToken.None);
+
+        Assert.Null(seasons);
+    }
+
     private static TmdbTvSearchResult CreateSearchResult(int id, string name, int votes)
     {
         return new TmdbTvSearchResult { Id = id, Name = name, VoteCount = votes };

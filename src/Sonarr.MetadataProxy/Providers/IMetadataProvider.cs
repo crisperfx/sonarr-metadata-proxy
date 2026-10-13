@@ -16,3 +16,8 @@ public interface IMetadataProvider
 
     Task<IReadOnlyList<SeasonMetadata>> GetSeasons(string providerId, CancellationToken cancellationToken);
 }
+
+public interface IEpisodeOrderProvider
+{
+    Task<IReadOnlyList<SeasonMetadata>?> GetSeasonsForOrder(string providerId, string seasonType, CancellationToken cancellationToken);
+}

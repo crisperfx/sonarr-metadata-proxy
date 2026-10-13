@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
@@ -114,7 +114,7 @@ public sealed class MetadataRequestHandler
 
         if (term.Kind == TermKind.TvdbId)
         {
-            var resolution = await ResolveShowAsync(int.Parse(term.Value), version, cancellationToken).ConfigureAwait(false);
+            var resolution = await ResolveShowAsync(int.Parse(term.Value), version, "official", cancellationToken).ConfigureAwait(false);
             return resolution switch
             {
                 ShowResolution.Mapped mapped => Results.Ok(new[] { mapped.Show }),
@@ -419,10 +419,11 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         return Results.Ok(translated);
     }
 
-    public async Task<IResult> ShowAsync(int tvdbId, CancellationToken cancellationToken, SkyHookApiVersion version = SkyHookApiVersion.V1)
+    public async Task<IResult> ShowAsync(int tvdbId, CancellationToken cancellationToken, SkyHookApiVersion version = SkyHookApiVersion.V1, string seasonType = "official")
     {
-        _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
-        var resolution = await ResolveShowAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+        seasonType = string.IsNullOrWhiteSpace(seasonType) ? "official" : seasonType;
+        _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId} (season type '{SeasonType}').", tvdbId, seasonType);
+        var resolution = await ResolveShowAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Serving TVDB id {TvdbId} as {Outcome}.",
@@ -434,7 +435,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
                 _ => "mapping unavailable"
             });
 
-        resolution = FlattenIfNoMultiSeason(resolution);
+        resolution = FlattenIfNoMultiSeason(resolution, seasonType);
 
         // Enrich with MAL pictures only when the series is not served by the AniList or TVMaze
         // providers, which supply their own artwork.
@@ -618,8 +619,13 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         return new ShowResolution.Passthrough(enrichedResponse);
     }
 
-    private ShowResolution FlattenIfNoMultiSeason(ShowResolution resolution)
+    private ShowResolution FlattenIfNoMultiSeason(ShowResolution resolution, string seasonType)
     {
+        if (seasonType != "official")
+        {
+            return resolution;
+        }
+
         return resolution switch
         {
             ShowResolution.Mapped mapped => SingleSeasonTransformer.HasMultipleSeasons(mapped.Show)
@@ -651,7 +657,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         return new ShowResolution.Passthrough(flattened);
     }
 
-    private async Task<ShowResolution> ResolveShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
+    private async Task<ShowResolution> ResolveShowAsync(int tvdbId, SkyHookApiVersion version, string seasonType, CancellationToken cancellationToken)
     {
         var sourceOverride = _mapping.GetOverride(tvdbId);
         _logger.LogInformation(
@@ -667,7 +673,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
                 "Source override {Source} active for TVDB id {TvdbId}; passing through to TVDB backend.",
                 sourceOverride,
                 tvdbId);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
 
         if (sourceOverride == MappingStore.SourceMal)
@@ -803,7 +809,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             }
 
             _logger.LogWarning("TVMaze lookup for TVDB id {TvdbId} failed or provider unavailable. Falling back.", tvdbId);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
 
         int? tmdbId = null;
@@ -811,7 +817,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         if (SyntheticIds.IsTvmazeSyntheticSeries(tvdbId))
         {
             _logger.LogWarning("TVDB id {TvdbId} is a TVMaze-synthetic id but no TVMaze source is active; falling back.", tvdbId);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
 
         if (SyntheticIds.IsTmdbSyntheticSeries(tvdbId))
@@ -854,7 +860,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
                 _logger.LogInformation("Mapping unavailable for TVDB id {TvdbId} in {Source}.", tvdbId, _options.MetadataSource);
             }
 
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
 
         var provider = sourceOverride is MappingStore.SourceMal or MappingStore.SourceAniList && !SyntheticIds.IsSyntheticSeries(tvdbId)
@@ -862,7 +868,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             : GetProviderForSource(sourceOverride) ?? _activeProvider;
         if (provider is null || provider.Name == "tvdb")
         {
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
 
 try
@@ -880,7 +886,32 @@ try
                 }
 
                 var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
-                var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                var alternateApplied = false;
+                IReadOnlyDictionary<int, (int Season, int Episode)>? episodeIdSource = null;
+                if (seasonType != "official" && provider is IEpisodeOrderProvider orderProvider)
+                {
+                    var ordered = await orderProvider.GetSeasonsForOrder(tmdbId.Value.ToString(), seasonType, cancellationToken).ConfigureAwait(false);
+                    if (ordered is { Count: > 0 })
+                    {
+                        episodeIdSource = BuildEpisodeIdSource(seasons);
+                        seasons = ordered;
+                        alternateApplied = true;
+                        _logger.LogInformation(
+                            "Serving alternate episode order '{SeasonType}' for TVDB id {TvdbId}.",
+                            seasonType,
+                            tvdbId);
+                    }
+                }
+
+                var show = _translator.ToFullSeries(metadata, seasons, tvdbId, episodeIdSource);
+                if (alternateApplied)
+                {
+                    show.Seasons = seasons
+                        .Select(season => new SeasonResource { SeasonNumber = season.SeasonNumber })
+                        .ToList();
+                }
+
                 _logger.LogInformation(
                     "TVDB mapping: {TvdbId}. Returning Sonarr-compatible metadata via {Provider}.",
                     show.TvdbId,
@@ -890,38 +921,55 @@ try
         catch (NotSupportedException)
         {
             _logger.LogInformation("Provider {Source} cannot resolve this series. Falling through to TVDB.", _options.MetadataSource);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
         catch (TmdbApiException ex)
         {
             _logger.LogError(ex, "Could not map TMDB ID {TmdbId} to TVDB ID.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
         catch (MalApiException ex)
         {
             _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
         catch (AniListApiException ex)
         {
             _logger.LogError(ex, "AniList API error for AniList ID {AniListId}.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
         catch (TvmazeApiException ex)
         {
             _logger.LogError(ex, "TVMaze API error for TVMaze ID {TvmazeId}.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task<ShowResolution> ReduceFallbackAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
+    private static IReadOnlyDictionary<int, (int Season, int Episode)> BuildEpisodeIdSource(IReadOnlyList<SeasonMetadata> seasons)
+    {
+        var map = new Dictionary<int, (int Season, int Episode)>();
+        foreach (var season in seasons)
+        {
+            foreach (var episode in season.Episodes)
+            {
+                if (episode.SourceEpisodeId.HasValue)
+                {
+                    map[episode.SourceEpisodeId.Value] = (season.SeasonNumber, episode.EpisodeNumber);
+                }
+            }
+        }
+
+        return map;
+    }
+
+    private async Task<ShowResolution> ReduceFallbackAsync(int tvdbId, SkyHookApiVersion version, string seasonType, CancellationToken cancellationToken)
     {
         if (!_options.EnableTvdbFallback)
         {
             return new ShowResolution.NotFound();
         }
 
-        var response = await _passthrough.ShowAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
+        var response = await _passthrough.ShowAsync(tvdbId, seasonType, version, cancellationToken).ConfigureAwait(false);
         return new ShowResolution.Passthrough(NormalizePassthroughSlug(response));
     }
 
