@@ -65,7 +65,7 @@ public sealed class TvmazeTranslator
             TvdbId = tvdbId,
             Title = title,
             Overview = StripHtml(show.Summary),
-            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(firstAired)),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId),
             OriginalCountry = show.Network?.Country?.Code ?? show.WebChannel?.Country?.Code,
             OriginalLanguage = MapLanguage(show.Language),
             FirstAired = firstAired,

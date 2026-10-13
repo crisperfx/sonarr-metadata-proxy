@@ -15,7 +15,7 @@ public sealed class AniListTranslator
             TvdbId = tvdbId,
             Title = title,
             Overview = media.Description,
-            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(media.FirstAirDate)),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId),
             OriginalCountry = NormalizeCountry(media.CountryOfOrigin),
             OriginalLanguage = NormalizeLanguage(media.CountryOfOrigin),
             FirstAired = media.FirstAirDate,

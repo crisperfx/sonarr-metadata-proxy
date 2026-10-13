@@ -104,7 +104,7 @@ public class SkyHookTranslatorTests : IDisposable
         var first = _translator.ToSearchResult(SeriesWithExternalIds(81189, "tt0903747", "Breaking Bad"));
         var renamed = _translator.ToSearchResult(SeriesWithExternalIds(81189, "tt0903747", "Breaking Bad (2024)"));
 
-        Assert.Equal("breaking-bad-2008", first.Slug);
+        Assert.Equal("breaking-bad", first.Slug);
         Assert.Equal(first.Slug, renamed.Slug);
     }
 

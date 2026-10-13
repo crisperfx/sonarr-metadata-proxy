@@ -1049,7 +1049,7 @@ try
 
         var desired = !IsSyntheticSlug(existing, tvdbId)
             ? existing!
-            : SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0, ReadYear(show));
+            : SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0);
 
         show["slug"] = tvdbId is > 0
             ? _mapping.GetOrAddSeriesSlug(tvdbId.Value, () => desired)

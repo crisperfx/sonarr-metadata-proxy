@@ -15,7 +15,7 @@ public sealed class MalTranslator
             TvdbId = tvdbId,
             Title = title,
             Overview = anime.Synopsis,
-            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(anime.FirstAirDate)),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId),
             OriginalCountry = "JP",
             OriginalLanguage = "ja",
             FirstAired = anime.FirstAirDate,

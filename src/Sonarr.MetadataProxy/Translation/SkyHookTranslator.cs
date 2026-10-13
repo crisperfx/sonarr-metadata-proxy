@@ -150,7 +150,7 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
             TvdbId = finalTvdbId,
             Title = metadata.Title,
             Overview = metadata.Overview,
-            Slug = _mapping.GetOrAddSeriesSlug(finalTvdbId, () => Slugify(metadata.Title, finalTvdbId, ParseYear(metadata.FirstAirDate))),
+            Slug = _mapping.GetOrAddSeriesSlug(finalTvdbId, () => Slugify(metadata.Title, finalTvdbId)),
             OriginalCountry = metadata.OriginalCountryCode,
             OriginalLanguage = metadata.OriginalLanguageCode,
             FirstAired = metadata.FirstAirDate,

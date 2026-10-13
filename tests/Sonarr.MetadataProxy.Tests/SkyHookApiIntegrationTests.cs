@@ -54,7 +54,7 @@ public class SkyHookApiIntegrationTests
         Assert.Equal(TestData.BreakingBadTvdbId, first.GetProperty("tvdbId").GetInt32());
         Assert.Equal(TestData.BreakingBadTmdbId, first.GetProperty("tmdbId").GetInt32());
         Assert.Equal("Breaking Bad", first.GetProperty("title").GetString());
-        Assert.Equal("breaking-bad-2008", first.GetProperty("slug").GetString());
+        Assert.Equal("breaking-bad", first.GetProperty("slug").GetString());
         Assert.Equal("ended", first.GetProperty("status").GetString());
         Assert.Equal("2008-01-20", first.GetProperty("firstAired").GetString());
         Assert.Equal("tt0903747", first.GetProperty("imdbId").GetString());
@@ -259,7 +259,7 @@ public class SkyHookApiIntegrationTests
         var body = await client.GetStringAsync("/v1/tvdb/shows/en/130521");
 
         using var document = JsonDocument.Parse(body);
-        Assert.Equal("undercover-in-nederland-2015", document.RootElement.GetProperty("slug").GetString());
+        Assert.Equal("undercover-in-nederland", document.RootElement.GetProperty("slug").GetString());
     }
 
     [Fact]

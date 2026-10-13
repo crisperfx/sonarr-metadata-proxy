@@ -73,7 +73,7 @@ public sealed class AnidbTranslator
             TvdbId = tvdbId,
             Title = title,
             Overview = anime.Description,
-            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(firstAired)),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId),
             FirstAired = firstAired,
             LastAired = NormalizeDate(anime.EndDate),
             AnidbId = anime.AnidbId,
