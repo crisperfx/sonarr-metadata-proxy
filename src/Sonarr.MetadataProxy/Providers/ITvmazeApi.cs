@@ -10,6 +10,10 @@ public interface ITvmazeApi
 
     Task<IReadOnlyList<TvmazeEpisode>> GetEpisodesAsync(int tvmazeId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<TvmazeAlternateList>> GetAlternateListsAsync(int tvmazeId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TvmazeAlternateEpisode>> GetAlternateEpisodesAsync(int alternateListId, CancellationToken cancellationToken);
+
     Task<TvmazeShow?> FindByImdbAsync(string imdbId, CancellationToken cancellationToken);
 
     Task<TvmazeShow?> FindByThetvdbAsync(int tvdbId, CancellationToken cancellationToken);

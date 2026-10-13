@@ -218,6 +218,8 @@ public sealed class FakeTvmazeApi : ITvmazeApi
     public List<TvmazeShow> SearchResults { get; set; } = new();
     public Dictionary<int, TvmazeShow> ById { get; set; } = new();
     public Dictionary<int, List<TvmazeEpisode>> EpisodesById { get; set; } = new();
+    public Dictionary<int, List<TvmazeAlternateList>> AlternateListsByShow { get; set; } = new();
+    public Dictionary<int, List<TvmazeAlternateEpisode>> AlternateEpisodesByList { get; set; } = new();
     public Exception? Exception { get; set; }
     public int SearchCallCount { get; private set; }
 
@@ -238,6 +240,18 @@ public sealed class FakeTvmazeApi : ITvmazeApi
     {
         ThrowIf();
         return Task.FromResult(EpisodesById.TryGetValue(tvmazeId, out var episodes) ? (IReadOnlyList<TvmazeEpisode>)episodes : Array.Empty<TvmazeEpisode>());
+    }
+
+    public Task<IReadOnlyList<TvmazeAlternateList>> GetAlternateListsAsync(int tvmazeId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(AlternateListsByShow.TryGetValue(tvmazeId, out var lists) ? (IReadOnlyList<TvmazeAlternateList>)lists : Array.Empty<TvmazeAlternateList>());
+    }
+
+    public Task<IReadOnlyList<TvmazeAlternateEpisode>> GetAlternateEpisodesAsync(int alternateListId, CancellationToken cancellationToken)
+    {
+        ThrowIf();
+        return Task.FromResult(AlternateEpisodesByList.TryGetValue(alternateListId, out var episodes) ? (IReadOnlyList<TvmazeAlternateEpisode>)episodes : Array.Empty<TvmazeAlternateEpisode>());
     }
 
     public Task<TvmazeShow?> FindByImdbAsync(string imdbId, CancellationToken cancellationToken)

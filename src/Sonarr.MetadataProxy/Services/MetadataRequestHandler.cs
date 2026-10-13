@@ -795,7 +795,15 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
                 {
                     var metadata = await _tvmazeProvider.GetSeries(tvmazeId.Value.ToString(), cancellationToken).ConfigureAwait(false);
                     var seasons = await _tvmazeProvider.GetSeasons(tvmazeId.Value.ToString(), cancellationToken).ConfigureAwait(false);
-                    var show = _translator.ToFullSeries(metadata, seasons, tvdbId);
+
+                    var (orderedSeasons, episodeIdSource, alternateApplied) = await ApplyAlternateOrderAsync(
+                        _tvmazeProvider, tvmazeId.Value.ToString(), seasons, seasonType, tvdbId, cancellationToken).ConfigureAwait(false);
+
+                    var show = _translator.ToFullSeries(metadata, orderedSeasons, tvdbId, episodeIdSource);
+                    if (alternateApplied)
+                    {
+                        RebuildSeasonSummaries(show, orderedSeasons);
+                    }
 
                     _mapping.RegisterTvmazeId(tvdbId, tvmazeId.Value);
 
@@ -887,29 +895,13 @@ try
 
                 var seasons = await provider.GetSeasons(tmdbId.Value.ToString(), cancellationToken).ConfigureAwait(false);
 
-                var alternateApplied = false;
-                IReadOnlyDictionary<int, (int Season, int Episode)>? episodeIdSource = null;
-                if (seasonType != "official" && provider is IEpisodeOrderProvider orderProvider)
-                {
-                    var ordered = await orderProvider.GetSeasonsForOrder(tmdbId.Value.ToString(), seasonType, cancellationToken).ConfigureAwait(false);
-                    if (ordered is { Count: > 0 })
-                    {
-                        episodeIdSource = BuildEpisodeIdSource(seasons);
-                        seasons = ordered;
-                        alternateApplied = true;
-                        _logger.LogInformation(
-                            "Serving alternate episode order '{SeasonType}' for TVDB id {TvdbId}.",
-                            seasonType,
-                            tvdbId);
-                    }
-                }
+                var (orderedSeasons, episodeIdSource, alternateApplied) = await ApplyAlternateOrderAsync(
+                    provider, tmdbId.Value.ToString(), seasons, seasonType, tvdbId, cancellationToken).ConfigureAwait(false);
 
-                var show = _translator.ToFullSeries(metadata, seasons, tvdbId, episodeIdSource);
+                var show = _translator.ToFullSeries(metadata, orderedSeasons, tvdbId, episodeIdSource);
                 if (alternateApplied)
                 {
-                    show.Seasons = seasons
-                        .Select(season => new SeasonResource { SeasonNumber = season.SeasonNumber })
-                        .ToList();
+                    RebuildSeasonSummaries(show, orderedSeasons);
                 }
 
                 _logger.LogInformation(
@@ -943,6 +935,36 @@ try
             _logger.LogError(ex, "TVMaze API error for TVMaze ID {TvmazeId}.", tmdbId.Value);
             return await ReduceFallbackAsync(tvdbId, version, seasonType, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private async Task<(IReadOnlyList<SeasonMetadata> Seasons, IReadOnlyDictionary<int, (int Season, int Episode)>? EpisodeIdSource, bool AlternateApplied)> ApplyAlternateOrderAsync(
+        IMetadataProvider provider,
+        string providerId,
+        IReadOnlyList<SeasonMetadata> officialSeasons,
+        string seasonType,
+        int tvdbId,
+        CancellationToken cancellationToken)
+    {
+        if (seasonType == "official" || provider is not IEpisodeOrderProvider orderProvider)
+        {
+            return (officialSeasons, null, false);
+        }
+
+        var ordered = await orderProvider.GetSeasonsForOrder(providerId, seasonType, cancellationToken).ConfigureAwait(false);
+        if (ordered is not { Count: > 0 })
+        {
+            return (officialSeasons, null, false);
+        }
+
+        _logger.LogInformation("Serving alternate episode order '{SeasonType}' for TVDB id {TvdbId}.", seasonType, tvdbId);
+        return (ordered, BuildEpisodeIdSource(officialSeasons), true);
+    }
+
+    private static void RebuildSeasonSummaries(ShowResource show, IReadOnlyList<SeasonMetadata> seasons)
+    {
+        show.Seasons = seasons
+            .Select(season => new SeasonResource { SeasonNumber = season.SeasonNumber })
+            .ToList();
     }
 
     private static IReadOnlyDictionary<int, (int Season, int Episode)> BuildEpisodeIdSource(IReadOnlyList<SeasonMetadata> seasons)

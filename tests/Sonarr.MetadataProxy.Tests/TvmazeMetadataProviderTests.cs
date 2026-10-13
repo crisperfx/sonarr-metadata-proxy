@@ -117,6 +117,54 @@ public class TvmazeMetadataProviderTests
     }
 
     [Fact]
+    public async Task GetSeries_AdvertisesAlternateSeasonTypes()
+    {
+        _api.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _api.AlternateListsByShow[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeAlternateLists();
+        _api.AlternateEpisodesByList[TestData.TvmazeAlternateListId] = TestData.BreakingBadTvmazeDvdAlternateEpisodes();
+
+        var series = await _provider.GetSeries("169", CancellationToken.None);
+
+        var seasonType = Assert.Single(series.SeasonTypes);
+        Assert.Equal("alt-1", seasonType.Type);
+        Assert.Equal("DVD Order", seasonType.Name);
+        Assert.Equal(new List<int> { 1 }, seasonType.SeasonNumbers);
+        Assert.Equal(2, seasonType.EpisodeCount);
+    }
+
+    [Fact]
+    public async Task GetSeasonsForOrder_RenumbersByAlternateOrder()
+    {
+        _api.AlternateEpisodesByList[TestData.TvmazeAlternateListId] = TestData.BreakingBadTvmazeDvdAlternateEpisodes();
+
+        var seasons = await ((IEpisodeOrderProvider)_provider).GetSeasonsForOrder("169", "alt-1", CancellationToken.None);
+
+        var season = Assert.Single(seasons!);
+        Assert.Equal(1, season.SeasonNumber);
+        Assert.Equal(new[] { "Cat's in the Bag...", "Pilot" }, season.Episodes.Select(episode => episode.Title).ToArray());
+        Assert.Equal(new int?[] { 11337, 11336 }, season.Episodes.Select(episode => episode.SourceEpisodeId).ToArray());
+        Assert.All(season.Episodes, episode => Assert.Null(episode.AbsoluteEpisodeNumber));
+    }
+
+    [Fact]
+    public async Task GetSeasonsForOrder_ReturnsNullForUnknownToken()
+    {
+        Assert.Null(await ((IEpisodeOrderProvider)_provider).GetSeasonsForOrder("169", "official", CancellationToken.None));
+        Assert.Null(await ((IEpisodeOrderProvider)_provider).GetSeasonsForOrder("169", "dvd", CancellationToken.None));
+        Assert.Null(await ((IEpisodeOrderProvider)_provider).GetSeasonsForOrder("169", "alt-999", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetSeasons_IncludesSourceEpisodeId()
+    {
+        _api.EpisodesById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeEpisodes();
+
+        var seasons = await _provider.GetSeasons("169", CancellationToken.None);
+
+        Assert.Equal(11336, seasons[0].Episodes[0].SourceEpisodeId);
+    }
+
+    [Fact]
     public async Task Search_ThrowsOnApiFailure()
     {
         _api.Exception = new TvmazeApiException("TVMaze is down");

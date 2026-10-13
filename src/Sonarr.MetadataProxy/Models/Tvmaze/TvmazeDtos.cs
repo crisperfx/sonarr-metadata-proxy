@@ -164,6 +164,81 @@ public sealed class TvmazePerson
     public TvmazeImage? Image { get; set; }
 }
 
+public sealed class TvmazeAlternateList
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    [JsonPropertyName("dvd_release")]
+    public bool DvdRelease { get; set; }
+
+    [JsonPropertyName("verbatim_order")]
+    public bool VerbatimOrder { get; set; }
+
+    [JsonPropertyName("country_premiere")]
+    public bool CountryPremiere { get; set; }
+
+    [JsonPropertyName("streaming_premiere")]
+    public bool StreamingPremiere { get; set; }
+
+    [JsonPropertyName("broadcast_premiere")]
+    public bool BroadcastPremiere { get; set; }
+
+    [JsonPropertyName("language_premiere")]
+    public bool LanguagePremiere { get; set; }
+
+    [JsonPropertyName("language")]
+    public string? Language { get; set; }
+
+    [JsonPropertyName("network")]
+    public TvmazeNetwork? Network { get; set; }
+
+    [JsonPropertyName("webChannel")]
+    public TvmazeNetwork? WebChannel { get; set; }
+}
+
+public sealed class TvmazeAlternateEpisode
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("season")]
+    public int Season { get; set; }
+
+    [JsonPropertyName("number")]
+    public int? Number { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("airdate")]
+    public string? AirDate { get; set; }
+
+    [JsonPropertyName("runtime")]
+    public int? Runtime { get; set; }
+
+    [JsonPropertyName("_links")]
+    public TvmazeAlternateEpisodeLinks? Links { get; set; }
+}
+
+public sealed class TvmazeAlternateEpisodeLinks
+{
+    [JsonPropertyName("episodes")]
+    public List<TvmazeLink> Episodes { get; set; } = new();
+}
+
+public sealed class TvmazeLink
+{
+    [JsonPropertyName("href")]
+    public string? Href { get; set; }
+}
+
 public sealed class TvmazeEpisode
 {
     [JsonPropertyName("id")]

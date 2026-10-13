@@ -16,6 +16,7 @@ public static class TestData
     public const int DeathNoteAnidbId = 2993;
     public const int DeathNoteTvdbId = 81356;
     public const string BreakingBadDvdGroupId = "dvd-group-1396";
+    public const int TvmazeAlternateListId = 1;
 
     public static TmdbTvSearchResult BreakingBadSearchResult()
     {
@@ -349,6 +350,54 @@ public static class TestData
                 Image = new TvmazeImage { Medium = "/cats_medium.jpg", Original = "/cats_original.jpg" },
                 Summary = "<p>Walt and Jesse try to dispose of a body.</p>",
                 Rating = new TvmazeRating { Average = 8.4 }
+            }
+        };
+    }
+
+    public static List<TvmazeAlternateList> BreakingBadTvmazeAlternateLists()
+    {
+        return new List<TvmazeAlternateList>
+        {
+            new()
+            {
+                Id = TvmazeAlternateListId,
+                Url = "https://www.tvmaze.com/alternatelists/1/breaking-bad-dvd-release",
+                DvdRelease = true
+            }
+        };
+    }
+
+    public static List<TvmazeAlternateEpisode> BreakingBadTvmazeDvdAlternateEpisodes()
+    {
+        return new List<TvmazeAlternateEpisode>
+        {
+            new()
+            {
+                Id = 900001,
+                Name = "Cat's in the Bag...",
+                Season = 1,
+                Number = 1,
+                Type = "regular",
+                AirDate = "",
+                Runtime = 60,
+                Links = new TvmazeAlternateEpisodeLinks
+                {
+                    Episodes = new List<TvmazeLink> { new() { Href = "https://api.tvmaze.com/episodes/11337" } }
+                }
+            },
+            new()
+            {
+                Id = 900002,
+                Name = "Pilot",
+                Season = 1,
+                Number = 2,
+                Type = "regular",
+                AirDate = "",
+                Runtime = 60,
+                Links = new TvmazeAlternateEpisodeLinks
+                {
+                    Episodes = new List<TvmazeLink> { new() { Href = "https://api.tvmaze.com/episodes/11336" } }
+                }
             }
         };
     }

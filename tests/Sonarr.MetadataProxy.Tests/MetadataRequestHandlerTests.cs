@@ -700,6 +700,31 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
+    public async Task Show_TvmazeAlternateOrder_KeepsEpisodeIdsStable()
+    {
+        var handler = CreateHandler(fallbackEnabled: true, source: "tvmaze");
+        _tvmazeResolver.Map[TestData.BreakingBadTvdbId] = TestData.BreakingBadTvmazeId;
+        _tvmaze.ById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmaze();
+        _tvmaze.EpisodesById[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeEpisodes();
+        _tvmaze.AlternateListsByShow[TestData.BreakingBadTvmazeId] = TestData.BreakingBadTvmazeAlternateLists();
+        _tvmaze.AlternateEpisodesByList[TestData.TvmazeAlternateListId] = TestData.BreakingBadTvmazeDvdAlternateEpisodes();
+
+        var official = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None);
+        var alternate = await handler.ShowAsync(TestData.BreakingBadTvdbId, CancellationToken.None, SkyHookApiVersion.V2, "alt-1");
+
+        var officialBody = (await ExecuteAsync(official)).Body;
+        var alternateBody = (await ExecuteAsync(alternate)).Body;
+
+        Assert.Equal(
+            EpisodeTvdbIdByTitle(officialBody, "Pilot"),
+            EpisodeTvdbIdByTitle(alternateBody, "Pilot"));
+        Assert.Equal(
+            EpisodeTvdbIdByTitle(officialBody, "Cat's in the Bag..."),
+            EpisodeTvdbIdByTitle(alternateBody, "Cat's in the Bag..."));
+        Assert.Contains("\"type\":\"alt-1\"", alternateBody);
+    }
+
+    [Fact]
     public async Task Show_MetadataSourceTvmaze_ReverseMapsRealTvdbViaTvmaze()
     {
         var handler = CreateHandler(fallbackEnabled: true, source: "tvmaze");

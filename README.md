@@ -76,6 +76,19 @@ That's it.
 - AniList uses its own artwork (poster + banner). MAL pulls backgrounds from Tenrai. AniDB provides poster + synopsis; one API call returns series + all episodes.
 - No MyAnimeList art is mixed into AniList results.
 
+### Episode order / season type (Sonarr v5)
+
+Sonarr v5 lets you choose how a series' episodes are numbered (e.g. *Aired Order* vs *DVD Order*).
+The options offered per series depend on the metadata source:
+
+- **TVDB** (default): the TVDB orders (official, DVD, absolute, alternate, ...).
+- **TMDB**: TMDB *episode groups* (DVD, digital, story arc, ...) when the series has any.
+- **TVMaze**: TVMaze *alternate episode lists* (e.g. DVD release order) when the series has any.
+- **AniList / MAL / AniDB**: only *Aired Order*.
+
+Switching order keeps each episode's proxy-local TVDB id stable, so Sonarr just renumbers
+in place instead of creating duplicate episodes.
+
 ### Reset series to TVDB (per-series reset)
 
 Below the metadata dropdown a **Reset series to TVDB** button wipes the stored state for a

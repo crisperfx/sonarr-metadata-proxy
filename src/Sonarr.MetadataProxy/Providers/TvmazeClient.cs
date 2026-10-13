@@ -53,6 +53,20 @@ public sealed class TvmazeClient : ITvmazeApi
         return episodes ?? new List<TvmazeEpisode>();
     }
 
+    public async Task<IReadOnlyList<TvmazeAlternateList>> GetAlternateListsAsync(int tvmazeId, CancellationToken cancellationToken)
+    {
+        var url = $"{Endpoint}/shows/{tvmazeId}/alternatelists";
+        var lists = await GetAsync<List<TvmazeAlternateList>>(url, cancellationToken, allowNotFound: true).ConfigureAwait(false);
+        return lists ?? new List<TvmazeAlternateList>();
+    }
+
+    public async Task<IReadOnlyList<TvmazeAlternateEpisode>> GetAlternateEpisodesAsync(int alternateListId, CancellationToken cancellationToken)
+    {
+        var url = $"{Endpoint}/alternatelists/{alternateListId}/alternateepisodes";
+        var episodes = await GetAsync<List<TvmazeAlternateEpisode>>(url, cancellationToken, allowNotFound: true).ConfigureAwait(false);
+        return episodes ?? new List<TvmazeAlternateEpisode>();
+    }
+
     public async Task<TvmazeShow?> FindByImdbAsync(string imdbId, CancellationToken cancellationToken)
     {
         var url = $"{Endpoint}/lookup/shows?imdb={Uri.EscapeDataString(imdbId)}";

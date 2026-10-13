@@ -39,6 +39,7 @@ public sealed class TvmazeTranslator
         return new EpisodeMetadata
         {
             EpisodeNumber = episode.Number ?? 0,
+            SourceEpisodeId = episode.Id,
             Title = episode.Name,
             Overview = StripHtml(episode.Summary),
             AirDate = NormalizeDate(episode.AirDate),
