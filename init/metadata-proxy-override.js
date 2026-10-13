@@ -52,9 +52,9 @@
 
   function baseCss() {
     return (
-      positionCss() + 'background:#2a2a2a;color:#e1e2e3;' +
-      'border-right:1px solid #393f45;padding:16px 14px;' +
-      'font:13px/1.5 "Open Sans","Segoe UI",sans-serif;box-shadow:4px 0 28px rgba(0,0,0,.55);' +
+      positionCss() + 'background:var(--paperCard,#2a2a2a);color:var(--ink,#e1e2e3);' +
+      'border-right:1px solid var(--hairline,#393f45);padding:16px 14px;' +
+      'font:13px/1.5 var(--defaultFontFamily,"Open Sans","Segoe UI",sans-serif);box-shadow:var(--shadowSidebar,4px 0 28px rgba(0,0,0,.55));' +
       'width:280px;max-width:88vw;overflow:auto;' +
       'transform:translateX(0);transition:transform .2s ease;' +
       'display:flex;flex-direction:column;'
@@ -64,9 +64,9 @@
   function pillCss() {
     return (
       'position:fixed;left:0;top:38%;z-index:99999;' +
-      'background:#2a2a2a;color:#e1e2e3;border:1px solid #393f45;border-left:none;' +
+      'background:var(--paperCard,#2a2a2a);color:var(--ink,#e1e2e3);border:1px solid var(--hairline,#393f45);border-left:none;' +
       'border-radius:0 10px 10px 0;padding:14px 8px;' +
-      'font:13px/1.4 "Open Sans",sans-serif;box-shadow:4px 0 18px rgba(0,0,0,.5);' +
+      'font:13px/1.4 var(--defaultFontFamily,"Open Sans",sans-serif);box-shadow:var(--shadowSidebar,4px 0 18px rgba(0,0,0,.5));' +
       'cursor:pointer;writing-mode:vertical-rl;text-orientation:mixed;' +
       'letter-spacing:.14em;text-transform:uppercase;'
     );
@@ -79,40 +79,40 @@
     var style = document.createElement('style');
     style.id = 'mpo-styles';
     style.textContent = [
-      '.mpo-pill:hover{background:#333;color:#fff;}',
-      '.mpo-toggle:hover{background:rgba(255,255,255,.12);color:#fff;border-color:#5d9cec;}',
+      '.mpo-pill:hover{background:var(--defaultHoverBackgroundColor,#333);color:var(--ink,#fff);}',
+      '.mpo-toggle:hover{background:var(--defaultHoverBackgroundColor,rgba(255,255,255,.12));color:var(--ink,#fff);border-color:var(--defaultHoverBorderColor,#5d9cec);}',
       '.mpo-toggle:active{transform:scale(.95);}',
-      '.mpo-select{font:13px/1.5 "Open Sans",sans-serif;color:#ccc;background:#333;border:1px solid #393f45;border-radius:4px;padding:6px 8px;}',
-      '.mpo-select:hover{border-color:#5a6265;}',
-      '.mpo-select:focus{outline:none;border-color:#5d9cec;box-shadow:0 0 0 2px rgba(93,156,236,.25);}',
-      '.mpo-status{font-size:11px;line-height:1.5;color:#909293;}',
-      '.mpo-warn{font-size:11px;line-height:1.5;color:#ffa500;}',
-      '.mpo-alert-warning{display:none;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);border-left:3px solid #f87171;box-shadow:0 1px 3px rgba(0,0,0,.15);word-wrap:break-word;}',
-      '.mpo-alert-icon{flex-shrink:0;font-size:14px;line-height:1.3;color:#f87171;}',
+      '.mpo-select{font:13px/1.5 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--textColor,#ccc);background:var(--inputBackgroundColor,#333);border:1px solid var(--inputBorderColor,#393f45);border-radius:4px;padding:6px 8px;}',
+      '.mpo-select:hover{border-color:var(--defaultHoverBorderColor,#5a6265);}',
+      '.mpo-select:focus{outline:none;border-color:var(--inputFocusBorderColor,#5d9cec);box-shadow:0 0 0 2px var(--inputFocusBoxShadowColor,rgba(93,156,236,.25));}',
+      '.mpo-status{font-size:11px;line-height:1.5;color:var(--inkMuted,#909293);}',
+      '.mpo-warn{font-size:11px;line-height:1.5;color:var(--warningColor,#ffa500);}',
+      '.mpo-alert-warning{display:none;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:8px;background:var(--alertWarningBackgroundColor,rgba(248,113,113,.12));border:1px solid var(--alertWarningBorderColor,rgba(248,113,113,.35));border-left:3px solid var(--warningColor,#f87171);box-shadow:0 1px 3px rgba(0,0,0,.15);word-wrap:break-word;}',
+      '.mpo-alert-icon{flex-shrink:0;font-size:14px;line-height:1.3;color:var(--warningColor,#f87171);}',
       '.mpo-alert-body{flex:1;min-width:0;}',
-      '.mpo-alert-title{font:600 12px/1.4 "Open Sans",sans-serif;color:#fca5a5;margin-bottom:2px;}',
-      '.mpo-alert-text{font-size:11px;line-height:1.5;color:#fecaca;}',
-      '.mpo-btn-primary{font:600 12px/1.5 "Open Sans",sans-serif;color:#fff;background:#5d9cec;border:1px solid #5899eb;border-radius:4px;padding:6px 12px;cursor:pointer;}',
-      '.mpo-btn-primary:hover{background:#4b91ea;}',
-      '.mpo-title{font:600 15px/1.3 "Open Sans","Segoe UI",sans-serif;color:#fff;}',
-      '.mpo-subtitle{font-size:11px;line-height:1.5;color:#909293;}',
-      '.mpo-poster{width:100%;border-radius:8px;border:1px solid #393f45;margin:8px 0 4px;display:block;}',
-      '.mpo-badge{margin-top: 5px;margin-bottom: 5px;display:inline-block;font:600 11px/1 "Open Sans",sans-serif;padding:4px 8px;border-radius:10px;background:#333;border:1px solid #393f45;color:#e1e2e3;letter-spacing:.04em;white-space:nowrap;}',
-      '.mpo-badge-active{background:#173a24;border-color:#2f7a44;color:#7ddf9b;}',
+      '.mpo-alert-title{font:600 12px/1.4 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--alertWarningColor,#fca5a5);margin-bottom:2px;}',
+      '.mpo-alert-text{font-size:11px;line-height:1.5;color:var(--textColor,#fecaca);}',
+      '.mpo-btn-primary{font:600 12px/1.5 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--primaryButtonColor,#fff);background:var(--primaryBackgroundColor,#5d9cec);border:1px solid var(--primaryBorderColor,#5899eb);border-radius:4px;padding:6px 12px;cursor:pointer;}',
+      '.mpo-btn-primary:hover{background:var(--primaryHoverBackgroundColor,#4b91ea);border-color:var(--primaryHoverBorderColor,#5899eb);}',
+      '.mpo-title{font:600 15px/1.3 var(--defaultFontFamily,"Open Sans","Segoe UI",sans-serif);color:var(--ink,#fff);}',
+      '.mpo-subtitle{font-size:11px;line-height:1.5;color:var(--inkMuted,#909293);}',
+      '.mpo-poster{width:100%;border-radius:8px;border:1px solid var(--hairline,#393f45);margin:8px 0 4px;display:block;}',
+      '.mpo-badge{margin-top: 5px;margin-bottom: 5px;display:inline-block;font:600 11px/1 var(--defaultFontFamily,"Open Sans",sans-serif);padding:4px 8px;border-radius:10px;background:var(--defaultBackgroundColor,#333);border:1px solid var(--hairline,#393f45);color:var(--textColor,#e1e2e3);letter-spacing:.04em;white-space:nowrap;}',
+      '.mpo-badge-active{background:var(--alertSuccessBackgroundColor,#173a24);border-color:var(--alertSuccessBorderColor,#2f7a44);color:var(--successColor,#7ddf9b);}',
       '.mpo-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 6px 0 2px;vertical-align:middle;}',
-      '.mpo-dot-on{background:#4ade80;}',
-      '.mpo-dot-off{background:#f87171;}',
-      '.mpo-bullets{margin:0;padding:0 0 0 16px;font-size:11px;line-height:1.7;color:#909293;}',
-      '.mpo-divider{border:none;border-top:1px solid #393f45;margin:10px 0 4px;}',
-      '.mpo-provider{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#222;border-radius:6px;border:1px solid #333;}',
+      '.mpo-dot-on{background:var(--successColor,#4ade80);}',
+      '.mpo-dot-off{background:var(--dangerColor,#f87171);}',
+      '.mpo-bullets{margin:0;padding:0 0 0 16px;font-size:11px;line-height:1.7;color:var(--inkMuted,#909293);}',
+      '.mpo-divider{border:none;border-top:1px solid var(--hairline,#393f45);margin:10px 0 4px;}',
+      '.mpo-provider{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--cardAlternateBackgroundColor,#222);border-radius:6px;border:1px solid var(--hairline,#333);}',
       '.mpo-provider-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}',
-      '.mpo-provider-dot-on{background:#4ade80;box-shadow:0 0 8px #4ade80;}',
-      '.mpo-provider-dot-off{background:#f87171;box-shadow:0 0 8px #f87171;}',
-      '.mpo-provider-label{font:500 12px/1 "Open Sans",sans-serif;color:#e1e2e3;}',
-      '.mpo-provider-latency{font:11px/1 "Open Sans",sans-serif;color:#909293;margin-left:auto;}',
-      '.mpo-provider-error{font:11px/1 "Open Sans",sans-serif;color:#f87171;margin-left:8px;}',
+      '.mpo-provider-dot-on{background:var(--successColor,#4ade80);box-shadow:0 0 8px var(--successColor,#4ade80);}',
+      '.mpo-provider-dot-off{background:var(--dangerColor,#f87171);box-shadow:0 0 8px var(--dangerColor,#f87171);}',
+      '.mpo-provider-label{font:500 12px/1 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--textColor,#e1e2e3);}',
+      '.mpo-provider-latency{font:11px/1 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--inkMuted,#909293);margin-left:auto;}',
+      '.mpo-provider-error{font:11px/1 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--dangerColor,#f87171);margin-left:8px;}',
       '.mpo-providers-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}',
-      '.mpo-section-title{font:600 11px/1 "Open Sans",sans-serif;color:#909293;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px;}'
+      '.mpo-section-title{font:600 11px/1 var(--defaultFontFamily,"Open Sans",sans-serif);color:var(--inkMuted,#909293);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px;}'
     ].join('\n');
     (document.head || document.documentElement).appendChild(style);
   }
@@ -124,7 +124,7 @@
 
     var pill = document.createElement('div');
     pill.className = 'mpo-pill';
-    pill.style.cssText = 'display:none;font:600 12px/1.4 "Open Sans",sans-serif;';
+    pill.style.cssText = 'display:none;font:600 12px/1.4 var(--defaultFontFamily,"Open Sans",sans-serif);';
     pill.textContent = pillText || 'Metadata \u25B8';
 
     var header = document.createElement('div');
@@ -133,15 +133,15 @@
     var title = document.createElement('span');
     title.className = 'mpo-panel-title';
     title.style.cssText =
-      'font:600 12px/1.4 "Open Sans",sans-serif;text-transform:uppercase;letter-spacing:.12em;color:#e1e2e3;' +
+      'font:600 12px/1.4 var(--defaultFontFamily,"Open Sans",sans-serif);text-transform:uppercase;letter-spacing:.12em;color:var(--ink,#e1e2e3);' +
       'margin-right:auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     title.textContent = titleText;
     var toggle = document.createElement('button');
     toggle.className = 'mpo-toggle';
     toggle.textContent = '\u2013';
     toggle.style.cssText =
-      'width:22px;height:22px;padding:0;background:transparent;color:#909293;' +
-      'border:1px solid #393f45;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;';
+      'width:22px;height:22px;padding:0;background:transparent;color:var(--inkMuted,#909293);' +
+      'border:1px solid var(--hairline,#393f45);border-radius:50%;cursor:pointer;font-size:13px;line-height:1;';
     toggle.setAttribute('aria-label', 'Collapse');
     header.appendChild(title);
     header.appendChild(toggle);
@@ -182,7 +182,7 @@
     var status = el.querySelector('.mpo-status');
     if (status) {
       status.textContent = text;
-      status.style.color = color || '#909293';
+      status.style.color = color || 'var(--inkMuted,#909293)';
       status.style.display = text ? 'block' : 'none';
     }
   }
@@ -305,14 +305,14 @@
 
     var refreshBtn = document.createElement('button');
     refreshBtn.className = 'mpo-btn-primary';
-    refreshBtn.style.cssText = 'margin-top:8px;width:100%;display:none;background:#2f7a44;border-color:#389a52;';
+    refreshBtn.style.cssText = 'margin-top:8px;width:100%;display:none;background:var(--successBackgroundColor,#2f7a44);border-color:var(--successBorderColor,#389a52);';
     refreshBtn.textContent = 'Refresh & Scan';
     refreshBtn.addEventListener('click', function () {
       refreshBtn.disabled = true;
       refreshBtn.textContent = 'Refreshing...';
       triggerRefreshScan()
         .then(function () {
-          setStatus('Refresh & Scan started. Reloading this page\u2026', '#4ade80');
+          setStatus('Refresh & Scan started. Reloading this page\u2026', 'var(--successColor,#4ade80)');
           window.setTimeout(function () {
             window.location.reload();
           }, 2000);
@@ -320,7 +320,7 @@
         .catch(function (err) {
           refreshBtn.disabled = false;
           refreshBtn.textContent = 'Refresh & Scan';
-          setStatus('Refresh & Scan failed: ' + err.message, '#f87171');
+          setStatus('Refresh & Scan failed: ' + err.message, 'var(--dangerColor,#f87171)');
         });
     });
     shell._mpoBody.appendChild(refreshBtn);
@@ -362,7 +362,7 @@
 
     var resetBtn = document.createElement('button');
     resetBtn.className = 'mpo-btn-primary';
-    resetBtn.style.cssText = 'margin-top:10px;width:100%;background:#9c4d2e;border-color:#a0542f;';
+    resetBtn.style.cssText = 'margin-top:10px;width:100%;background:var(--dangerBackgroundColor,#9c4d2e);border-color:var(--dangerBorderColor,#a0542f);';
     resetBtn.textContent = 'Reset series to TVDB';
     resetBtn.addEventListener('click', function () {
       resetSeries(select);
@@ -374,7 +374,7 @@
     select.addEventListener('change', function () {
       var selectedSource = select.value;
       if (selectedSource === 'tvdb' && isSynthetic) {
-        setStatus('Warning: TVDB passthrough does not work for this series (no real TVDB ID). Falling back to the default source.', '#fbbf24');
+        setStatus('Warning: TVDB passthrough does not work for this series (no real TVDB ID). Falling back to the default source.', 'var(--warningColor,#fbbf24)');
       }
       updateSeriesBadge(selectedSource);
       refreshBtn.style.display = 'block';
@@ -403,25 +403,25 @@
               clearSeriesWarn();
               if (dto && dto.source === 'tmdb') {
                 if (dto.tmdbId) {
-                  setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', '#4ade80');
+                  setStatus('Saved: TMDB (id ' + dto.tmdbId + '). Now run Refresh & Scan.', 'var(--successColor,#4ade80)');
                 } else {
-                  setStatus('Saved, but no TMDB id found — falling back to TVDB.', '#fbbf24');
+                  setStatus('Saved, but no TMDB id found — falling back to TVDB.', 'var(--warningColor,#fbbf24)');
                 }
               } else if (dto && dto.source === 'tvmaze') {
                 if (dto.tvmazeId) {
-                  setStatus('Saved: TVMaze (id ' + dto.tvmazeId + '). Now run Refresh & Scan.', '#4ade80');
+                  setStatus('Saved: TVMaze (id ' + dto.tvmazeId + '). Now run Refresh & Scan.', 'var(--successColor,#4ade80)');
                 } else {
-                  setStatus('Saved, but no TVMaze id found — falling back to TVDB.', '#fbbf24');
+                  setStatus('Saved, but no TVMaze id found — falling back to TVDB.', 'var(--warningColor,#fbbf24)');
                 }
               } else {
-                setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', '#fbbf24');
+                setStatus('Saved (' + (select.value || 'automatic') + '). Now run Refresh & Scan.', 'var(--warningColor,#fbbf24)');
               }
             }
           }
           loadOverrides(true);
         })
         .catch(function (err) {
-          setStatus('Error: ' + err.message, '#f87171');
+          setStatus('Error: ' + err.message, 'var(--dangerColor,#f87171)');
         });
     });
 
@@ -489,7 +489,7 @@
     if (!url) {
       setStatus(
         'HTTPS page: set OVERRIDES_API_URL on the Sonarr container to reach the overrides API.',
-        '#f87171'
+        'var(--dangerColor,#f87171)'
       );
       return Promise.resolve();
     }
@@ -553,12 +553,12 @@
     if (!url) {
       setStatus(
         'HTTPS page: set OVERRIDES_API_URL on the Sonarr container.',
-        '#f87171'
+        'var(--dangerColor,#f87171)'
       );
       return;
     }
     var fail = function (err) {
-      setStatus('Reset failed: ' + err.message, '#f87171');
+      setStatus('Reset failed: ' + err.message, 'var(--dangerColor,#f87171)');
     };
     fetch(url + '/reset/' + tvdbId, { method: 'POST' })
       .then(function (response) {
@@ -574,18 +574,21 @@
         updateSeriesBadge(dto.source);
         updateSeriesIdBadges(dto);
         loadOverrides(true);
-        setStatus('Reset done: back to TVDB. Refresh & Scan is starting...', '#4ade80');
+        setStatus('Reset done: back to TVDB. Refresh & Scan is starting\u2026', 'var(--successColor,#4ade80)');
         return triggerRefreshScan();
       })
       .then(function () {
-        setStatus('Reset done and Refresh & Scan started.', '#4ade80');
+        setStatus('Reset done. Refresh & Scan started. Reloading this page\u2026', 'var(--successColor,#4ade80)');
+        window.setTimeout(function () {
+          window.location.reload();
+        }, 2000);
       })
       .catch(fail);
   }
 
   function triggerRefreshScan() {
     if (!series || !series.id) {
-      setStatus('No Sonarr series id found; run Refresh & Scan manually.', '#fbbf24');
+      setStatus('No Sonarr series id found; run Refresh & Scan manually.', 'var(--warningColor,#fbbf24)');
       return Promise.resolve();
     }
     return waitForSonarrKey(6000).then(function (apiKey) {
@@ -750,7 +753,7 @@
         if (!url) {
           setStatus(
             'HTTPS page: set OVERRIDES_API_URL on the Sonarr container to reach the overrides API.',
-            '#fbbf24'
+            'var(--warningColor,#fbbf24)'
           );
           return;
         }
@@ -778,7 +781,7 @@
             console.error('[metadata-proxy-override] overrides fetch failed:', err);
             setStatus(
               'overrides API unreachable: ' + proxyUrl() + ' (' + err.message + ')',
-              '#f87171'
+              'var(--dangerColor,#f87171)'
             );
           });
       })
