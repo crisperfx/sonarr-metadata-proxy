@@ -2,8 +2,6 @@ using Sonarr.MetadataProxy.Contracts.SkyHook;
 using Sonarr.MetadataProxy.Mapping;
 using Sonarr.MetadataProxy.Models.Metadata;
 using Sonarr.MetadataProxy.Models.Tvmaze;
-using System.Net;
-using System.Text;
 
 namespace Sonarr.MetadataProxy.Translation;
 
@@ -33,10 +31,7 @@ public sealed class TvmazeTranslator
             VoteCount = 0,
             Genres = show.Genres.Where(genre => !string.IsNullOrWhiteSpace(genre)).ToList(),
             PosterPath = PosterOf(show),
-            // Route TVMaze backdrop URLs through the image proxy so Cache-Control headers apply
-            BackdropPath = backdropPath != null && backdropPath.StartsWith("static.tvmaze.com", StringComparison.OrdinalIgnoreCase)
-                ? $"/api/images/tvmaze?url={WebUtility.UrlEncode(backdropPath)}"
-                : backdropPath,
+            BackdropPath = backdropPath,
             ExternalIds = new ExternalIdSet(EffectiveTvdbId(show), show.Externals?.Imdb, null),
             Seasons = MapSeasons(show),
             Actors = MapActors(show)
@@ -139,10 +134,7 @@ public sealed class TvmazeTranslator
 
 private static string? PosterOf(TvmazeShow show)
 {
-    var original = show.Image?.Original ?? show.Image?.Medium;
-    if (string.IsNullOrWhiteSpace(original)) return null;
-    var encoded = WebUtility.UrlEncode(original);
-    return $"/api/images/tvmaze?url={encoded}";
+    return show.Image?.Original ?? show.Image?.Medium;
 }
 
     public static string? MapStatus(string? status)

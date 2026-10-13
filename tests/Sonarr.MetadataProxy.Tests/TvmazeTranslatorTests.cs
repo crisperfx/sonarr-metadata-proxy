@@ -102,7 +102,7 @@ public class TvmazeTranslatorTests
 
         var poster = Assert.Single(resource.Images);
         Assert.Equal("poster", poster.CoverType);
-        Assert.Equal("/api/images/tvmaze?url=https%3A%2F%2Fstatic.tvmaze.com%2Fuploads%2Fimages%2Foriginal_untouched%2F0%2F2400.jpg", poster.Url);
+        Assert.Equal("https://static.tvmaze.com/uploads/images/original_untouched/0/2400.jpg", poster.Url);
     }
 
     [Fact]
