@@ -59,13 +59,18 @@ cat > "$V4/ui/index.html" <<'EOF4'
 <script src="/index-abc123.js" data-no-hash></script>
 </head><body><div id="root"></div></body></html>
 EOF4
+mkdir -p "$V4/ui/Content/Fonts"
+: > "$V4/ui/Content/styles.css"
+: > "$V4/ui/Content/Fonts/fonts.css"
 run_rebuild "$V4"
 OUT="$(cat "$V4/ui/index.html")"
 
 grep -qF '<script src="/index-abc123.js" data-no-hash></script>' <<<"$OUT"; report $? "v4 keeps classic bundle (data-no-hash)"
-grep -qF "__URL_BASE__" <<<"$OUT"; report $? "v4 keeps __URL_BASE__ placeholder"
+grep -qF '__URL_BASE__' <<<"$OUT"; report $? "v4 keeps __URL_BASE__ placeholder"
 grep -qF '<div id="root"></div>' <<<"$OUT"; report $? "v4 keeps #root mount point"
 grep -qF 'metadata-proxy-override.js?v=' <<<"$OUT"; report $? "v4 loads our picker script"
+grep -qF 'href="/Content/styles.css"' <<<"$OUT"; report $? "v4 links Content/styles.css when present"
+grep -qF 'href="/Content/Fonts/fonts.css"' <<<"$OUT"; report $? "v4 links Content/Fonts/fonts.css when present"
 if grep -qF 'type="module"' <<<"$OUT"; then
   report 1 "v4 does not get an ESM tag"
 else
@@ -84,11 +89,19 @@ cat > "$V5/ui/index.html" <<'EOF5'
 <script type="module" crossorigin src="/assets/index-cf02e6f1e5a4c0f40ef2.js"></script>
 </head><body><div id="portal-root"></div><div id="root" class="root"></div></body></html>
 EOF5
+mkdir -p "$V5/ui/Content/Fonts"
+: > "$V5/ui/Content/Fonts/fonts.css"
 run_rebuild "$V5"
 OUT="$(cat "$V5/ui/index.html")"
 
 grep -qF '<script type="module" crossorigin src="/assets/index-cf02e6f1e5a4c0f40ef2.js"></script>' <<<"$OUT"; report $? "v5 loads Vite ESM bundle"
 grep -qF 'href="/assets/index-cf02e6f1e5a4c0f40ef2.css"' <<<"$OUT"; report $? "v5 links the Vite stylesheet"
+grep -qF 'href="/Content/Fonts/fonts.css"' <<<"$OUT"; report $? "v5 links Content/Fonts/fonts.css when present"
+if grep -qF 'href="/Content/styles.css"' <<<"$OUT"; then
+  report 1 "v5 output has no Content/styles.css"
+else
+  report 0 "v5 output has no Content/styles.css"
+fi
 grep -qF '_THEME_' <<<"$OUT"; report $? "v5 keeps _THEME_ placeholder (theme injection)"
 grep -qF '__MINI_PROFILER__' <<<"$OUT"; report $? "v5 keeps __MINI_PROFILER__ placeholder"
 grep -qF '__URL_BASE__' <<<"$OUT"; report $? "v5 keeps __URL_BASE__ placeholder"
@@ -100,6 +113,27 @@ else
   report 0 "v5 output has no data-no-hash tags"
 fi
 rm -rf "$V5"
+
+# ---------------------------------------------------------------------------
+echo "==> Unknown layout (no detectable bundle)"
+UNK="$(mktemp -d)"
+prepare "$UNK"
+cat > "$UNK/ui/index.html" <<'EOFU'
+<!DOCTYPE html><html><head></head><body><div id="root"></div></body></html>
+EOFU
+run_rebuild "$UNK"
+OUT="$(cat "$UNK/ui/index.html")"
+if grep -qF 'href="/Content/styles.css"' <<<"$OUT"; then
+  report 1 "unknown layout emits no styles.css"
+else
+  report 0 "unknown layout emits no styles.css"
+fi
+if grep -qF 'href="/Content/Fonts/' <<<"$OUT"; then
+  report 1 "unknown layout emits no fonts.css"
+else
+  report 0 "unknown layout emits no fonts.css"
+fi
+rm -rf "$UNK"
 
 # ---------------------------------------------------------------------------
 echo "==> Syntax"

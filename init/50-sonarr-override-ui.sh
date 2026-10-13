@@ -96,6 +96,10 @@ js_version() {
 rebuild_index() {
   # Detect the frontend build: Sonarr v5 ships a Vite build (ESM bundle + own
   # stylesheet under /assets/), older v4 a single classic script in the UI root.
+  # Only emit <link rel=stylesheet> lines for CSS files that actually exist on
+  # disk: referencing a file the image dropped (v5 no longer ships
+  # UI/Content/styles.css) makes Sonarr's CacheBreakerProvider hash a missing
+  # file and crash every page load.
   local js is_vite css
   js="$(grep -o '"/assets/index-[a-f0-9]*\.js"' "${INDEX}" 2>/dev/null | head -1)"
   if [ -n "${js}" ]; then
@@ -115,7 +119,9 @@ rebuild_index() {
     printf '<meta http-equiv="Pragma" content="no-cache">\n'
     printf '<meta http-equiv="Expires" content="0">\n'
     printf '<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'
-    printf '<link rel="stylesheet" href="/Content/Fonts/fonts.css">\n'
+    if [ -f "${UI_DIR}/Content/Fonts/fonts.css" ]; then
+      printf '<link rel="stylesheet" href="/Content/Fonts/fonts.css">\n'
+    fi
     if [ "${is_vite}" -eq 1 ]; then
       css="$(grep -o '"/assets/index-[a-f0-9]*\.css"' "${INDEX}" 2>/dev/null | head -1 | tr -d '"')"
       [ -n "${css}" ] && printf '<link rel="stylesheet" crossorigin href="%s">\n' "${css}"
@@ -126,7 +132,9 @@ rebuild_index() {
       printf '<div id="root" class="root"></div>\n'
       printf '<script type="module" crossorigin src="%s"></script>\n' "${js}"
     else
-      printf '<link rel="stylesheet" href="/Content/styles.css">\n'
+      if [ -f "${UI_DIR}/Content/styles.css" ]; then
+        printf '<link rel="stylesheet" href="/Content/styles.css">\n'
+      fi
       printf '<style>html,body,#root{height:100%%;margin:0;}</style>\n'
       printf "<script>window.Sonarr = { urlBase: '__URL_BASE__' };</script>\n"
       printf '<script src="%s" data-no-hash></script>\n' "${js}"
