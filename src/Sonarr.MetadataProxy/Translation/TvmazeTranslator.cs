@@ -54,16 +54,17 @@ public sealed class TvmazeTranslator
     public ShowResource ToSearchResult(TvmazeShow show, int tvdbId)
     {
         var title = !string.IsNullOrWhiteSpace(show.Name) ? show.Name : "Unknown";
+        var firstAired = NormalizeDate(show.Premiered);
 
         return new ShowResource
         {
             TvdbId = tvdbId,
             Title = title,
             Overview = StripHtml(show.Summary),
-            Slug = Slugify(title, tvdbId),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(firstAired)),
             OriginalCountry = show.Network?.Country?.Code ?? show.WebChannel?.Country?.Code,
             OriginalLanguage = MapLanguage(show.Language),
-            FirstAired = NormalizeDate(show.Premiered),
+            FirstAired = firstAired,
             LastAired = NormalizeDate(show.Ended),
             TvRageId = show.Externals?.TvRage,
             TvMazeId = show.Id,
@@ -217,15 +218,6 @@ public sealed class TvmazeTranslator
 
         var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
         return System.Net.WebUtility.HtmlDecode(stripped).Trim();
-    }
-
-    private static string Slugify(string title, int tvdbId)
-    {
-        var slug = System.Text.RegularExpressions.Regex
-            .Replace((title ?? string.Empty).ToLowerInvariant().Trim(), "[^a-z0-9]+", "-")
-            .Trim('-');
-
-        return string.IsNullOrWhiteSpace(slug) ? tvdbId.ToString() : slug;
     }
 
     private static decimal ToDecimal(double value)

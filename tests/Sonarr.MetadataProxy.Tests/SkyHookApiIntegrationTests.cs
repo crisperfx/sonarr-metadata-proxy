@@ -54,6 +54,7 @@ public class SkyHookApiIntegrationTests
         Assert.Equal(TestData.BreakingBadTvdbId, first.GetProperty("tvdbId").GetInt32());
         Assert.Equal(TestData.BreakingBadTmdbId, first.GetProperty("tmdbId").GetInt32());
         Assert.Equal("Breaking Bad", first.GetProperty("title").GetString());
+        Assert.Equal("breaking-bad-2008", first.GetProperty("slug").GetString());
         Assert.Equal("ended", first.GetProperty("status").GetString());
         Assert.Equal("2008-01-20", first.GetProperty("firstAired").GetString());
         Assert.Equal("tt0903747", first.GetProperty("imdbId").GetString());
@@ -219,6 +220,46 @@ public class SkyHookApiIntegrationTests
 
         using var document = JsonDocument.Parse(body);
         Assert.Equal("undercover-in-nederland", document.RootElement.GetProperty("slug").GetString());
+    }
+
+    [Fact]
+    public async Task Show_Passthrough_KeepsRealTvdbSlugWhenPresent()
+    {
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new ProxyResponse(
+                200,
+                "application/json",
+                "{\"tvdbId\":392276,\"title\":\"ONE PIECE\",\"slug\":\"one-piece-2023\",\"firstAired\":\"2023-08-31\",\"seasons\":[],\"episodes\":[]}")
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/392276");
+
+        using var document = JsonDocument.Parse(body);
+        Assert.Equal("one-piece-2023", document.RootElement.GetProperty("slug").GetString());
+    }
+
+    [Fact]
+    public async Task Show_Passthrough_SynthesizesSlugWithYearForSyntheticSlug()
+    {
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new ProxyResponse(
+                200,
+                "application/json",
+                "{\"tvdbId\":130521,\"title\":\"Undercover in Nederland\",\"slug\":\"130521-show\",\"firstAired\":\"2015-01-02\",\"seasons\":[],\"episodes\":[]}")
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/130521");
+
+        using var document = JsonDocument.Parse(body);
+        Assert.Equal("undercover-in-nederland-2015", document.RootElement.GetProperty("slug").GetString());
     }
 
     [Fact]

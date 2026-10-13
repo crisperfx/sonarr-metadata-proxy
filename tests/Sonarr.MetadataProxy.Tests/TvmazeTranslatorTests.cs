@@ -87,7 +87,7 @@ public class TvmazeTranslatorTests
 
         Assert.Equal(TestData.BreakingBadTvdbId, resource.TvdbId);
         Assert.Equal("Breaking Bad", resource.Title);
-        Assert.Equal("breaking-bad", resource.Slug);
+        Assert.Equal("breaking-bad-2008", resource.Slug);
         Assert.Equal("US", resource.OriginalCountry);
         Assert.Equal("en", resource.OriginalLanguage);
         Assert.Equal("2008-01-20", resource.FirstAired);

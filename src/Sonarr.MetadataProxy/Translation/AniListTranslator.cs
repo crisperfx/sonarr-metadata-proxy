@@ -15,7 +15,7 @@ public sealed class AniListTranslator
             TvdbId = tvdbId,
             Title = title,
             Overview = media.Description,
-            Slug = Slugify(title, tvdbId),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(media.FirstAirDate)),
             OriginalCountry = NormalizeCountry(media.CountryOfOrigin),
             OriginalLanguage = NormalizeLanguage(media.CountryOfOrigin),
             FirstAired = media.FirstAirDate,
@@ -104,12 +104,5 @@ public sealed class AniListTranslator
         };
     }
 
-    private static string Slugify(string title, int tvdbId)
-    {
-        var slug = System.Text.RegularExpressions.Regex
-            .Replace((title ?? string.Empty).ToLowerInvariant().Trim(), "[^a-z0-9]+", "-")
-            .Trim('-');
 
-        return string.IsNullOrWhiteSpace(slug) ? tvdbId.ToString() : slug;
-    }
 }

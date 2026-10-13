@@ -150,7 +150,7 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
             TvdbId = finalTvdbId,
             Title = metadata.Title,
             Overview = metadata.Overview,
-            Slug = Slugify(metadata.Title, finalTvdbId),
+            Slug = Slugify(metadata.Title, finalTvdbId, ParseYear(metadata.FirstAirDate)),
             OriginalCountry = metadata.OriginalCountryCode,
             OriginalLanguage = metadata.OriginalLanguageCode,
             FirstAired = metadata.FirstAirDate,
@@ -274,12 +274,27 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
         }
     }
 
-    public static string Slugify(string title, int tvdbId)
+    public static string Slugify(string title, int tvdbId, int? year = null)
     {
         var slug = System.Text.RegularExpressions.Regex
             .Replace((title ?? string.Empty).ToLowerInvariant().Trim(), "[^a-z0-9]+", "-")
             .Trim('-');
 
-        return string.IsNullOrWhiteSpace(slug) ? tvdbId.ToString() : slug;
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            return tvdbId.ToString();
+        }
+
+        return year is > 0 ? $"{slug}-{year.Value}" : slug;
+    }
+
+    public static int? ParseYear(string? date)
+    {
+        if (string.IsNullOrWhiteSpace(date) || date.Length < 4)
+        {
+            return null;
+        }
+
+        return int.TryParse(date.AsSpan(0, 4), out var year) ? year : null;
     }
 }

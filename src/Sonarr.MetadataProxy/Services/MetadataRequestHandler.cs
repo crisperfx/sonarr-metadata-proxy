@@ -1043,7 +1043,49 @@ try
             return;
         }
 
-        show["slug"] = SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0);
+        var existing = show["slug"] is JsonValue slugValue && slugValue.TryGetValue<string>(out var parsedSlug)
+            ? parsedSlug
+            : null;
+
+        if (!IsSyntheticSlug(existing, tvdbId))
+        {
+            return;
+        }
+
+        show["slug"] = SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0, ReadYear(show));
+    }
+
+    private static bool IsSyntheticSlug(string? slug, int? tvdbId)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            return true;
+        }
+
+        if (tvdbId is > 0)
+        {
+            var id = tvdbId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (slug.Equals(id, StringComparison.Ordinal) ||
+                slug.StartsWith(id + "-", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return System.Text.RegularExpressions.Regex.IsMatch(slug, "^\\d+-show$");
+    }
+
+    private static int? ReadYear(JsonObject show)
+    {
+        if (show["firstAired"] is JsonValue firstAired && firstAired.TryGetValue<string>(out var date) &&
+            SkyHookTranslator.ParseYear(date) is { } year)
+        {
+            return year;
+        }
+
+        return show["year"] is JsonValue yearValue && yearValue.TryGetValue<int>(out var parsedYear)
+            ? parsedYear
+            : null;
     }
 
     private async Task<IResult> ForwardToTvdbSearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)

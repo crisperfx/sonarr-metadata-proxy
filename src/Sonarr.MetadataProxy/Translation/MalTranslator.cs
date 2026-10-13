@@ -15,7 +15,7 @@ public sealed class MalTranslator
             TvdbId = tvdbId,
             Title = title,
             Overview = anime.Synopsis,
-            Slug = Slugify(title, tvdbId),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(anime.FirstAirDate)),
             OriginalCountry = "JP",
             OriginalLanguage = "ja",
             FirstAired = anime.FirstAirDate,
@@ -75,12 +75,4 @@ public sealed class MalTranslator
         };
     }
 
-    private static string Slugify(string title, int tvdbId)
-    {
-        var slug = System.Text.RegularExpressions.Regex
-            .Replace((title ?? string.Empty).ToLowerInvariant().Trim(), "[^a-z0-9]+", "-")
-            .Trim('-');
-
-        return string.IsNullOrWhiteSpace(slug) ? tvdbId.ToString() : slug;
-    }
 }

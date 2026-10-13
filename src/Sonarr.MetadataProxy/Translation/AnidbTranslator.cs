@@ -66,14 +66,15 @@ public sealed class AnidbTranslator
     public ShowResource ToSearchResult(AnidbAnime anime, int tvdbId)
     {
         var title = !string.IsNullOrWhiteSpace(anime.Title) ? anime.Title : "Unknown";
+        var firstAired = NormalizeDate(anime.StartDate);
 
         return new ShowResource
         {
             TvdbId = tvdbId,
             Title = title,
             Overview = anime.Description,
-            Slug = Slugify(title, tvdbId),
-            FirstAired = NormalizeDate(anime.StartDate),
+            Slug = SkyHookTranslator.Slugify(title, tvdbId, SkyHookTranslator.ParseYear(firstAired)),
+            FirstAired = firstAired,
             LastAired = NormalizeDate(anime.EndDate),
             AnidbId = anime.AnidbId,
             Status = MapStatus(anime),
@@ -97,7 +98,7 @@ public sealed class AnidbTranslator
         {
             TvdbId = tvdbId,
             Title = hit.Title,
-            Slug = Slugify(hit.Title, tvdbId),
+            Slug = SkyHookTranslator.Slugify(hit.Title, tvdbId),
             AnidbId = hit.Aid,
             LastUpdated = DateTime.UtcNow,
             Images = new List<ImageResource>(),
@@ -184,15 +185,6 @@ public sealed class AnidbTranslator
             out _)
             ? date
             : null;
-    }
-
-    private static string Slugify(string title, int tvdbId)
-    {
-        var slug = System.Text.RegularExpressions.Regex
-            .Replace((title ?? string.Empty).ToLowerInvariant().Trim(), "[^a-z0-9]+", "-")
-            .Trim('-');
-
-        return string.IsNullOrWhiteSpace(slug) ? tvdbId.ToString() : slug;
     }
 
     private static decimal ToDecimal(double value)
