@@ -94,9 +94,18 @@ js_version() {
 }
 
 rebuild_index() {
-  local js
-  js="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
-  [ -n "${js}" ] || js="/index-cf02e6f1e5a4c0f40ef2.js"
+  # Detect the frontend build: Sonarr v5 ships a Vite build (ESM bundle + own
+  # stylesheet under /assets/), older v4 a single classic script in the UI root.
+  local js is_vite css
+  js="$(grep -o '"/assets/index-[a-f0-9]*\.js"' "${INDEX}" 2>/dev/null | head -1)"
+  if [ -n "${js}" ]; then
+    is_vite=1
+    js="$(printf '%s' "${js}" | tr -d '"')"
+  else
+    is_vite=0
+    js="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
+    [ -n "${js}" ] || js="/index-cf02e6f1e5a4c0f40ef2.js"
+  fi
   local v
   v="$(js_version)"
   local tmp="${INDEX}.mpo.tmp"
@@ -107,12 +116,23 @@ rebuild_index() {
     printf '<meta http-equiv="Expires" content="0">\n'
     printf '<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'
     printf '<link rel="stylesheet" href="/Content/Fonts/fonts.css">\n'
-    printf '<link rel="stylesheet" href="/Content/styles.css">\n'
-    printf '<style>html,body,#root{height:100%%;margin:0;}</style>\n'
-    printf "<script>window.Sonarr = { urlBase: '__URL_BASE__' };</script>\n"
-    printf '<script src="%s" data-no-hash></script>\n' "${js}"
-    printf '<title>Sonarr</title>\n</head>\n<body><div id="root"></div>\n'
-    printf '<div id="portal-root"></div>\n'
+    if [ "${is_vite}" -eq 1 ]; then
+      css="$(grep -o '"/assets/index-[a-f0-9]*\.css"' "${INDEX}" 2>/dev/null | head -1 | tr -d '"')"
+      [ -n "${css}" ] && printf '<link rel="stylesheet" crossorigin href="%s">\n' "${css}"
+      printf '<script>window.Sonarr = { urlBase: '\''__URL_BASE__'\'' };var theme = '\''_THEME_'\'';var defaultDark = window.matchMedia('\''(prefers-color-scheme: dark)'\'').matches;var finalTheme = theme === '\''dark'\'' || (theme === '\''auto'\'' && defaultDark) ? '\''dark'\'' : '\''light'\'';document.documentElement.style.setProperty('\''--pageBackground'\'', finalTheme === '\''dark'\'' ? '\''oklch(24%% 0.014 260)'\'' : '\''oklch(92%% 0.012 260)'\'');</script>\n'
+      printf '__MINI_PROFILER__\n'
+      printf '<style>html{background-color:var(--pageBackground);}.root{overflow:hidden;height:100%%;}</style>\n'
+      printf '<title>Sonarr</title>\n</head>\n<body><div id="portal-root"></div>\n'
+      printf '<div id="root" class="root"></div>\n'
+      printf '<script type="module" crossorigin src="%s"></script>\n' "${js}"
+    else
+      printf '<link rel="stylesheet" href="/Content/styles.css">\n'
+      printf '<style>html,body,#root{height:100%%;margin:0;}</style>\n'
+      printf "<script>window.Sonarr = { urlBase: '__URL_BASE__' };</script>\n"
+      printf '<script src="%s" data-no-hash></script>\n' "${js}"
+      printf '<title>Sonarr</title>\n</head>\n<body><div id="root"></div>\n'
+      printf '<div id="portal-root"></div>\n'
+    fi
     printf '<script src="/metadata-proxy-override.js?v=%s"></script>\n' "${v}"
     printf '</body></html>\n'
   } > "${tmp}"

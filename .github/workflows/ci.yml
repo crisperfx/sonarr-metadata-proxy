@@ -19,6 +19,9 @@ jobs:
       - name: dotnet test
         run: dotnet test tests/Sonarr.MetadataProxy.Tests/Sonarr.MetadataProxy.Tests.csproj -c Release
 
+      - name: init scripts (Sonarr v4 + v5 compatibility)
+        run: bash scripts/test-init.sh
+
   docker:
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
