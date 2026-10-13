@@ -7,7 +7,7 @@ A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, 
 [![CI latest](https://img.shields.io/github/actions/workflow/status/crisperfx/sonarr-metadata-proxy/ci.yml?branch=main&label=CI%20latest)](https://github.com/crisperfx/sonarr-metadata-proxy/actions)
 [![Latest tag](https://img.shields.io/docker/v/crisperfx/sonarr-metadata-proxy?sort=semver&label=latest)](https://hub.docker.com/r/crisperfx/sonarr-metadata-proxy/tags)
 
-# Screenshots interface
+# Screenshots interface V4
 
 | **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Overview**<br>Single and add/new search |
 |:---:|:---:|:---:|
@@ -16,6 +16,12 @@ A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, 
 | **Choice of source TVDB**<br>23 seasons, different ep. listing | **Choice of source ANILIST**<br>1 season, different ep. listing |
 |:---:|:---:|
 | <img width="100%" src="https://github.com/user-attachments/assets/280bc099-1f28-409a-ad0d-1afcbcc80ae6" /> | <img width="100%" src="https://github.com/user-attachments/assets/698fbe7b-b4e8-4a8a-88ea-efb69c7d22c8" /> |
+
+# Screenshots interface V5
+
+| **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Overview providers**<br>Add new search |
+|:---:|:---:|:---:|
+| <img width="100%" src="https://github.com/user-attachments/assets/02354e98-6ebd-4c83-a02b-693b34d64aed" /> | <img width="100%" src="https://github.com/user-attachments/assets/ba2b356d-0cf1-458e-b0b7-0f3a67019d70" /> | <img width="100%" src="https://github.com/user-attachments/assets/8dfbe407-9d5b-43c6-b478-02cee41a349f" /> |
 
 ## What you need
 
