@@ -134,6 +134,48 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Search_Passthrough_NormalizesSlugFromTitle()
+    {
+        var tmdb = new FakeTmdbApi { Exception = new TmdbApiException("TMDB is down", 503) };
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            SearchResponse = new ProxyResponse(
+                200,
+                "application/json",
+                "[{\"tvdbId\":130521,\"title\":\"Undercover in Nederland\",\"slug\":\"130521-show\"}]")
+        };
+
+        using var factory = CreateFactory(tmdb, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/v1/tvdb/search/en/?term=undercover");
+
+        using var document = JsonDocument.Parse(body);
+        var first = Assert.Single(document.RootElement.EnumerateArray().ToList());
+        Assert.Equal("undercover-in-nederland", first.GetProperty("slug").GetString());
+    }
+
+    [Fact]
+    public async Task Show_Passthrough_NormalizesSlugFromTitle()
+    {
+        var passthrough = new FakeSkyHookPassthrough
+        {
+            ShowResponse = new ProxyResponse(
+                200,
+                "application/json",
+                "{\"tvdbId\":130521,\"title\":\"Undercover in Nederland\",\"slug\":\"130521-show\",\"seasons\":[],\"episodes\":[]}")
+        };
+
+        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/v1/tvdb/shows/en/130521");
+
+        using var document = JsonDocument.Parse(body);
+        Assert.Equal("undercover-in-nederland", document.RootElement.GetProperty("slug").GetString());
+    }
+
+    [Fact]
     public async Task Show_BySyntheticTvdbId_ReturnsFullSeriesWithEpisodes()
     {
         var tmdb = new FakeTmdbApi

@@ -922,7 +922,58 @@ try
         }
 
         var response = await _passthrough.ShowAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
-        return new ShowResolution.Passthrough(response);
+        return new ShowResolution.Passthrough(NormalizePassthroughSlug(response));
+    }
+
+    private static ProxyResponse NormalizePassthroughSlug(ProxyResponse response)
+    {
+        JsonNode? root;
+        try
+        {
+            root = JsonNode.Parse(response.Body);
+        }
+        catch (Exception)
+        {
+            return response;
+        }
+
+        if (root is JsonObject show)
+        {
+            ApplySlug(show);
+        }
+        else if (root is JsonArray shows)
+        {
+            foreach (var item in shows)
+            {
+                if (item is JsonObject showItem)
+                {
+                    ApplySlug(showItem);
+                }
+            }
+        }
+        else
+        {
+            return response;
+        }
+
+        return new ProxyResponse(response.StatusCode, response.ContentType, root.ToJsonString());
+    }
+
+    private static void ApplySlug(JsonObject show)
+    {
+        var title = show["title"] is JsonValue titleValue && titleValue.TryGetValue<string>(out var parsedTitle)
+            ? parsedTitle
+            : null;
+        var tvdbId = show["tvdbId"] is JsonValue idValue && idValue.TryGetValue<int>(out var parsedId)
+            ? parsedId
+            : (int?)null;
+
+        if (string.IsNullOrWhiteSpace(title) && (tvdbId is null || tvdbId == 0))
+        {
+            return;
+        }
+
+        show["slug"] = SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0);
     }
 
     private async Task<IResult> ForwardToTvdbSearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
@@ -934,7 +985,8 @@ try
         }
 
         var response = await _passthrough.SearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
-        return Results.Content(response.Body, response.ContentType, null, response.StatusCode);
+        var normalized = NormalizePassthroughSlug(response);
+        return Results.Content(normalized.Body, normalized.ContentType, null, normalized.StatusCode);
     }
 
     private static string SanitizeForLog(string input) => Infrastructure.LogSanitizer.Sanitize(input);

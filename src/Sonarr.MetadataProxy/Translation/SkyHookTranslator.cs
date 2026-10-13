@@ -211,7 +211,7 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
         }
     }
 
-    private static string Slugify(string title, int tvdbId)
+    public static string Slugify(string title, int tvdbId)
     {
         var slug = System.Text.RegularExpressions.Regex
             .Replace((title ?? string.Empty).ToLowerInvariant().Trim(), "[^a-z0-9]+", "-")
