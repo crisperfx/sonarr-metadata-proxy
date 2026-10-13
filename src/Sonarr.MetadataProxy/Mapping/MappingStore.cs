@@ -10,6 +10,7 @@ public sealed class MappingStore
     private readonly object _sync = new();
 
     private readonly Dictionary<int, int> _seriesReal = new();
+    private readonly Dictionary<int, string> _seriesSlugs = new();
     private readonly Dictionary<string, int> _episodes = new();
     private readonly Dictionary<int, int> _nextEpisodeSequence = new();
     private readonly Dictionary<int, string> _overrides = new();
@@ -81,6 +82,27 @@ public sealed class MappingStore
                 _seriesReal[tvdbId] = tmdbId;
                 Save();
             }
+        }
+    }
+
+    public string GetOrAddSeriesSlug(int tvdbId, Func<string> factory)
+    {
+        if (tvdbId == 0)
+        {
+            return factory();
+        }
+
+        lock (_sync)
+        {
+            if (_seriesSlugs.TryGetValue(tvdbId, out var existing))
+            {
+                return existing;
+            }
+
+            var slug = factory();
+            _seriesSlugs[tvdbId] = slug;
+            Save();
+            return slug;
         }
     }
 
@@ -531,6 +553,7 @@ public sealed class MappingStore
                 lock (_sync)
                 {
                     _seriesReal.Clear();
+                    _seriesSlugs.Clear();
                     _episodes.Clear();
                     _nextEpisodeSequence.Clear();
                     _overrides.Clear();
@@ -547,6 +570,11 @@ public sealed class MappingStore
                     foreach (var (key, value) in persisted.SeriesReal)
                     {
                         _seriesReal[key] = value;
+                    }
+
+                    foreach (var (key, value) in persisted.SeriesSlugs)
+                    {
+                        _seriesSlugs[key] = value;
                     }
 
                     foreach (var (key, value) in persisted.Episodes)
@@ -630,6 +658,7 @@ public sealed class MappingStore
             var persisted = new PersistedState
             {
                 SeriesReal = new Dictionary<int, int>(_seriesReal),
+                SeriesSlugs = new Dictionary<int, string>(_seriesSlugs),
                 Episodes = new Dictionary<string, int>(_episodes),
                 EpisodeSequences = new Dictionary<int, int>(_nextEpisodeSequence),
                 Overrides = new Dictionary<int, string>(_overrides),
@@ -660,6 +689,7 @@ public sealed class MappingStore
     private sealed class PersistedState
     {
         public Dictionary<int, int> SeriesReal { get; set; } = new();
+        public Dictionary<int, string> SeriesSlugs { get; set; } = new();
         public Dictionary<string, int> Episodes { get; set; } = new();
         public Dictionary<int, int> EpisodeSequences { get; set; } = new();
         public Dictionary<int, string> Overrides { get; set; } = new();

@@ -322,6 +322,38 @@ public class MappingStoreTests : IDisposable
     }
 
     [Fact]
+    public void GetOrAddSeriesSlug_FirstValueWins()
+    {
+        var store = CreateStore();
+
+        var first = store.GetOrAddSeriesSlug(81189, () => "breaking-bad-2008");
+        var second = store.GetOrAddSeriesSlug(81189, () => "breaking-bad");
+
+        Assert.Equal("breaking-bad-2008", first);
+        Assert.Equal("breaking-bad-2008", second);
+    }
+
+    [Fact]
+    public void GetOrAddSeriesSlug_PersistsAcrossStoreInstances()
+    {
+        var dir = _dataDir;
+        CreateStore(dir).GetOrAddSeriesSlug(81189, () => "breaking-bad-2008");
+
+        var reloaded = CreateStore(dir);
+
+        Assert.Equal("breaking-bad-2008", reloaded.GetOrAddSeriesSlug(81189, () => "something-else"));
+    }
+
+    [Fact]
+    public void GetOrAddSeriesSlug_ZeroIdIsNotCached()
+    {
+        var store = CreateStore();
+
+        Assert.Equal("first", store.GetOrAddSeriesSlug(0, () => "first"));
+        Assert.Equal("second", store.GetOrAddSeriesSlug(0, () => "second"));
+    }
+
+    [Fact]
     public void SearchSource_EmptyByDefault()
     {
         var store = CreateStore();

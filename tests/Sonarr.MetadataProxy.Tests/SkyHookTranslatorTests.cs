@@ -99,6 +99,16 @@ public class SkyHookTranslatorTests : IDisposable
     }
 
     [Fact]
+    public void ToSearchResult_SlugIsStableForSameTvdbId()
+    {
+        var first = _translator.ToSearchResult(SeriesWithExternalIds(81189, "tt0903747", "Breaking Bad"));
+        var renamed = _translator.ToSearchResult(SeriesWithExternalIds(81189, "tt0903747", "Breaking Bad (2024)"));
+
+        Assert.Equal("breaking-bad-2008", first.Slug);
+        Assert.Equal(first.Slug, renamed.Slug);
+    }
+
+    [Fact]
     public void ToSearchResult_IncludesOfficialSeasonType()
     {
         var metadata = SeriesWithExternalIds(81189, "tt0903747");
@@ -155,11 +165,14 @@ public class SkyHookTranslatorTests : IDisposable
     }
 
     private static SeriesMetadata SeriesWithExternalIds(int? tvdbId, string? imdbId, params SeasonTypeMetadata[] seasonTypes)
+        => SeriesWithExternalIds(tvdbId, imdbId, "Breaking Bad", seasonTypes);
+
+    private static SeriesMetadata SeriesWithExternalIds(int? tvdbId, string? imdbId, string title, params SeasonTypeMetadata[] seasonTypes)
     {
         var metadata = new SeriesMetadata
         {
             ProviderId = "1396",
-            Title = "Breaking Bad",
+            Title = title,
             Overview = "A chemistry teacher diagnosed with cancer turns to crime.",
             OriginalTitle = "Breaking Bad",
             FirstAirDate = "2008-01-20",

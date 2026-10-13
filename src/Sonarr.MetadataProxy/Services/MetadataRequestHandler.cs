@@ -995,7 +995,7 @@ try
         return new ShowResolution.Passthrough(NormalizePassthroughSlug(response));
     }
 
-    private static ProxyResponse NormalizePassthroughSlug(ProxyResponse response)
+    private ProxyResponse NormalizePassthroughSlug(ProxyResponse response)
     {
         JsonNode? root;
         try
@@ -1029,7 +1029,7 @@ try
         return new ProxyResponse(response.StatusCode, response.ContentType, root.ToJsonString());
     }
 
-    private static void ApplySlug(JsonObject show)
+    private void ApplySlug(JsonObject show)
     {
         var title = show["title"] is JsonValue titleValue && titleValue.TryGetValue<string>(out var parsedTitle)
             ? parsedTitle
@@ -1047,12 +1047,13 @@ try
             ? parsedSlug
             : null;
 
-        if (!IsSyntheticSlug(existing, tvdbId))
-        {
-            return;
-        }
+        var desired = !IsSyntheticSlug(existing, tvdbId)
+            ? existing!
+            : SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0, ReadYear(show));
 
-        show["slug"] = SkyHookTranslator.Slugify(title ?? string.Empty, tvdbId ?? 0, ReadYear(show));
+        show["slug"] = tvdbId is > 0
+            ? _mapping.GetOrAddSeriesSlug(tvdbId.Value, () => desired)
+            : desired;
     }
 
     private static bool IsSyntheticSlug(string? slug, int? tvdbId)
