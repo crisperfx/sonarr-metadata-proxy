@@ -250,16 +250,20 @@ public sealed class FakeSkyHookPassthrough : ISkyHookPassthrough
     public ProxyResponse SearchResponse { get; set; } = new(200, "application/json", "[]");
     public ProxyResponse ShowResponse { get; set; } = new(200, "application/json", "{\"tvdbId\":81189,\"title\":\"fallback\"}");
     public string? LastSearchTerm { get; private set; }
+    public SkyHookApiVersion? LastSearchVersion { get; private set; }
+    public SkyHookApiVersion? LastShowVersion { get; private set; }
     public int ShowCallCount { get; private set; }
 
-    public Task<ProxyResponse> SearchAsync(string rawTerm, CancellationToken cancellationToken)
+    public Task<ProxyResponse> SearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         LastSearchTerm = rawTerm;
+        LastSearchVersion = version;
         return Task.FromResult(SearchResponse);
     }
 
-    public Task<ProxyResponse> ShowAsync(int tvdbId, CancellationToken cancellationToken)
+    public Task<ProxyResponse> ShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
+        LastShowVersion = version;
         ShowCallCount++;
         return Task.FromResult(ShowResponse);
     }

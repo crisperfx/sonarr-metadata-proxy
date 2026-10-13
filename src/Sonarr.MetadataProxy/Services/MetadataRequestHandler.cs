@@ -107,14 +107,14 @@ public sealed class MetadataRequestHandler
         };
     }
 
-    public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken)
+    public async Task<IResult> SearchAsync(string rawTerm, CancellationToken cancellationToken, SkyHookApiVersion version = SkyHookApiVersion.V1)
     {
         _logger.LogInformation("Incoming Sonarr metadata request: series search, term '{Term}'.", SanitizeForLog(rawTerm));
         var term = TermClassifier.Classify(rawTerm);
 
         if (term.Kind == TermKind.TvdbId)
         {
-            var resolution = await ResolveShowAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false);
+            var resolution = await ResolveShowAsync(int.Parse(term.Value), version, cancellationToken).ConfigureAwait(false);
             return resolution switch
             {
                 ShowResolution.Mapped mapped => Results.Ok(new[] { mapped.Show }),
@@ -131,12 +131,12 @@ public sealed class MetadataRequestHandler
                 var shows = await _tmdbProvider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
                 if (shows is null || shows.Count == 0)
                 {
-                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                    return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
                 }
                 var translated = shows.Select(_translator.ToSearchResult).ToList();
-                return await ForwardWithFallbackAsync(translated, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(translated, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (term.Kind == TermKind.TmdbId)
@@ -144,10 +144,10 @@ public sealed class MetadataRequestHandler
             var shows = await _tmdbProvider.Search(rawTerm, cancellationToken).ConfigureAwait(false);
             if (shows is null || shows.Count == 0)
             {
-                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
             var translated = shows.Select(_translator.ToSearchResult).ToList();
-            return await ForwardWithFallbackAsync(translated, rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardWithFallbackAsync(translated, rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (term.Kind is TermKind.AniListId or TermKind.MalId)
@@ -156,7 +156,7 @@ public sealed class MetadataRequestHandler
             {
                 _logger.LogInformation("MAL search source preferred for MAL id '{Term}' via Jikan.", SanitizeForLog(term.Value));
                 var malShows = await _mal.SearchByMalIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false);
-                return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(malShows, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             if (_aniList is { IsConfigured: true })
@@ -167,14 +167,14 @@ public sealed class MetadataRequestHandler
                     _ => await _aniList.SearchByMalIdAsync(int.Parse(term.Value), cancellationToken).ConfigureAwait(false)
                 };
 
-                return await ForwardAniListResultAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardAniListResultAsync(shows, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             _logger.LogInformation(
                 "Provider {Source} does not support '{Prefix}' lookups yet. Falling through to TVDB.",
                 _options.MetadataSource,
                 term.Value);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (term.Kind == TermKind.Title)
@@ -191,7 +191,7 @@ public sealed class MetadataRequestHandler
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
                     SanitizeForLog(rawTerm));
-                return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceAniList)
@@ -201,7 +201,7 @@ public sealed class MetadataRequestHandler
                     _logger.LogInformation(
                         "Search source preference '{SearchSource}' is set but AniList mapping data is unavailable; falling through to TVDB.",
                         searchSource);
-                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                    return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(
@@ -209,7 +209,7 @@ public sealed class MetadataRequestHandler
                     searchSource,
                     SanitizeForLog(rawTerm));
                 var shows = await _aniList.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-                return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(shows, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceMal)
@@ -219,7 +219,7 @@ public sealed class MetadataRequestHandler
                     _logger.LogInformation(
                         "Search source preference '{SearchSource}' is set but MAL mapping data is unavailable; falling through to TVDB.",
                         searchSource);
-                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                    return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(
@@ -227,7 +227,7 @@ public sealed class MetadataRequestHandler
                     searchSource,
                     SanitizeForLog(rawTerm));
                 var malShows = await _mal.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-                return await ForwardWithFallbackAsync(malShows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(malShows, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceTmdb)
@@ -236,14 +236,14 @@ public sealed class MetadataRequestHandler
                 if (provider is null || provider.Name == "tvdb")
                 {
                     _logger.LogInformation("TMDB search requested but no TMDB provider configured; falling through to TVDB.");
-                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                    return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(
                     "Search source preference '{SearchSource}' applies to series search '{Term}'.",
                     searchSource,
                     SanitizeForLog(rawTerm));
-                return await SearchTmdbWithFallbackAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                return await SearchTmdbWithFallbackAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceTvmaze)
@@ -253,7 +253,7 @@ public sealed class MetadataRequestHandler
                     _logger.LogInformation(
                         "Search source preference '{SearchSource}' is set but TVMaze is unavailable; falling through to TVDB.",
                         searchSource);
-                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                    return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(
@@ -261,7 +261,7 @@ public sealed class MetadataRequestHandler
                     searchSource,
                     SanitizeForLog(rawTerm));
                 var tvmazeShows = await _tvmaze.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-                return await ForwardWithFallbackAsync(tvmazeShows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(tvmazeShows, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
 
             if (searchSource == MappingStore.SourceAnidb)
@@ -271,7 +271,7 @@ public sealed class MetadataRequestHandler
                     _logger.LogInformation(
                         "Search source preference '{SearchSource}' is set but AniDB is unavailable; falling through to TVDB.",
                         searchSource);
-                    return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+                    return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
                 }
 
                 _logger.LogInformation(
@@ -279,40 +279,41 @@ public sealed class MetadataRequestHandler
                     searchSource,
                     SanitizeForLog(rawTerm));
                 var anidbShows = await _anidb.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
-                return await ForwardWithFallbackAsync(anidbShows, rawTerm, cancellationToken).ConfigureAwait(false);
+                return await ForwardWithFallbackAsync(anidbShows, rawTerm, version, cancellationToken).ConfigureAwait(false);
             }
         }
 
         // All search source preferences are handled above; fallback to TVDB
-        return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IResult> ForwardWithFallbackAsync(
         IReadOnlyList<Contracts.SkyHook.ShowResource>? shows,
         string rawTerm,
+        SkyHookApiVersion version,
         CancellationToken cancellationToken)
     {
         if (shows is null)
         {
 _logger.LogInformation("Search source failed or is misconfigured for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (shows.Count == 0)
         {
 _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through to TVDB.", SanitizeForLog(rawTerm));
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         return Results.Ok(shows);
     }
 
-    private async Task<IResult> SearchTmdbWithFallbackAsync(string rawTerm, CancellationToken cancellationToken)
+    private async Task<IResult> SearchTmdbWithFallbackAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         var provider = TmdbOrActive;
         if (provider is null || provider.Name == "tvdb")
         {
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         IReadOnlyList<SeriesMetadata> results;
@@ -323,33 +324,33 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         catch (NotSupportedException)
         {
             _logger.LogInformation("Provider {Source} does not support this search. Falling through to TVDB.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
         catch (TmdbApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
         catch (MalApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
         catch (AniListApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
         catch (TvmazeApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (results.Count == 0)
         {
             _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(rawTerm));
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         _logger.LogInformation(
@@ -364,16 +365,17 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
     private async Task<IResult> ForwardAniListResultAsync(
         IReadOnlyList<Contracts.SkyHook.ShowResource>? shows,
         string rawTerm,
+        SkyHookApiVersion version,
         CancellationToken cancellationToken)
     {
-        return await ForwardWithFallbackAsync(shows, rawTerm, cancellationToken).ConfigureAwait(false);
+        return await ForwardWithFallbackAsync(shows, rawTerm, version, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<IResult> SearchAutomaticAsync(SearchTerm term, string rawTerm, CancellationToken cancellationToken)
+    private async Task<IResult> SearchAutomaticAsync(SearchTerm term, string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         if (_activeProvider is null || _activeProvider.Name == "tvdb")
         {
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         IReadOnlyList<SeriesMetadata> results;
@@ -389,23 +391,23 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         catch (NotSupportedException)
         {
             _logger.LogInformation("Provider {Source} does not support this search. Falling through to TVDB.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
         catch (TmdbApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
         catch (TvmazeApiException ex)
         {
             _logger.LogError(ex, "Could not query metadata source {Source}. Falling back.", _options.MetadataSource);
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (results.Count == 0)
         {
             _logger.LogInformation("No results from {Source} for '{Term}'. Falling through to TVDB.", _options.MetadataSource, SanitizeForLog(rawTerm));
-            return await ForwardToTvdbSearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+            return await ForwardToTvdbSearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         }
 
         _logger.LogInformation(
@@ -417,10 +419,10 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         return Results.Ok(translated);
     }
 
-    public async Task<IResult> ShowAsync(int tvdbId, CancellationToken cancellationToken)
+    public async Task<IResult> ShowAsync(int tvdbId, CancellationToken cancellationToken, SkyHookApiVersion version = SkyHookApiVersion.V1)
     {
         _logger.LogInformation("Incoming Sonarr metadata request: series lookup, TVDB id {TvdbId}.", tvdbId);
-        var resolution = await ResolveShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        var resolution = await ResolveShowAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Serving TVDB id {TvdbId} as {Outcome}.",
@@ -649,7 +651,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         return new ShowResolution.Passthrough(flattened);
     }
 
-    private async Task<ShowResolution> ResolveShowAsync(int tvdbId, CancellationToken cancellationToken)
+    private async Task<ShowResolution> ResolveShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         var sourceOverride = _mapping.GetOverride(tvdbId);
         _logger.LogInformation(
@@ -665,7 +667,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
                 "Source override {Source} active for TVDB id {TvdbId}; passing through to TVDB backend.",
                 sourceOverride,
                 tvdbId);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (sourceOverride == MappingStore.SourceMal)
@@ -801,7 +803,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             }
 
             _logger.LogWarning("TVMaze lookup for TVDB id {TvdbId} failed or provider unavailable. Falling back.", tvdbId);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
 
         int? tmdbId = null;
@@ -809,7 +811,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
         if (SyntheticIds.IsTvmazeSyntheticSeries(tvdbId))
         {
             _logger.LogWarning("TVDB id {TvdbId} is a TVMaze-synthetic id but no TVMaze source is active; falling back.", tvdbId);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
 
         if (SyntheticIds.IsTmdbSyntheticSeries(tvdbId))
@@ -852,7 +854,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
                 _logger.LogInformation("Mapping unavailable for TVDB id {TvdbId} in {Source}.", tvdbId, _options.MetadataSource);
             }
 
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
 
         var provider = sourceOverride is MappingStore.SourceMal or MappingStore.SourceAniList && !SyntheticIds.IsSyntheticSeries(tvdbId)
@@ -860,7 +862,7 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             : GetProviderForSource(sourceOverride) ?? _activeProvider;
         if (provider is null || provider.Name == "tvdb")
         {
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
 
 try
@@ -888,42 +890,42 @@ try
         catch (NotSupportedException)
         {
             _logger.LogInformation("Provider {Source} cannot resolve this series. Falling through to TVDB.", _options.MetadataSource);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
         catch (TmdbApiException ex)
         {
             _logger.LogError(ex, "Could not map TMDB ID {TmdbId} to TVDB ID.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
         catch (MalApiException ex)
         {
             _logger.LogError(ex, "MAL API error for MAL ID {MalId}.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
         catch (AniListApiException ex)
         {
             _logger.LogError(ex, "AniList API error for AniList ID {AniListId}.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
         catch (TvmazeApiException ex)
         {
             _logger.LogError(ex, "TVMaze API error for TVMaze ID {TvmazeId}.", tmdbId.Value);
-            return await ReduceFallbackAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+            return await ReduceFallbackAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task<ShowResolution> ReduceFallbackAsync(int tvdbId, CancellationToken cancellationToken)
+    private async Task<ShowResolution> ReduceFallbackAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         if (!_options.EnableTvdbFallback)
         {
             return new ShowResolution.NotFound();
         }
 
-        var response = await _passthrough.ShowAsync(tvdbId, cancellationToken).ConfigureAwait(false);
+        var response = await _passthrough.ShowAsync(tvdbId, version, cancellationToken).ConfigureAwait(false);
         return new ShowResolution.Passthrough(response);
     }
 
-    private async Task<IResult> ForwardToTvdbSearchAsync(string rawTerm, CancellationToken cancellationToken)
+    private async Task<IResult> ForwardToTvdbSearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         if (!_options.EnableTvdbFallback)
         {
@@ -931,7 +933,7 @@ try
             return Results.Ok(Array.Empty<ShowResource>());
         }
 
-        var response = await _passthrough.SearchAsync(rawTerm, cancellationToken).ConfigureAwait(false);
+        var response = await _passthrough.SearchAsync(rawTerm, version, cancellationToken).ConfigureAwait(false);
         return Results.Content(response.Body, response.ContentType, null, response.StatusCode);
     }
 

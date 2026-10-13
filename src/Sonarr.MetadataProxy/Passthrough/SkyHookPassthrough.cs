@@ -7,11 +7,17 @@ namespace Sonarr.MetadataProxy.Passthrough;
 
 public sealed record ProxyResponse(int StatusCode, string ContentType, string Body);
 
+public enum SkyHookApiVersion
+{
+    V1,
+    V2
+}
+
 public interface ISkyHookPassthrough
 {
-    Task<ProxyResponse> SearchAsync(string rawTerm, CancellationToken cancellationToken);
+    Task<ProxyResponse> SearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken);
 
-    Task<ProxyResponse> ShowAsync(int tvdbId, CancellationToken cancellationToken);
+    Task<ProxyResponse> ShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken);
 }
 
 public sealed class SkyHookPassthrough : ISkyHookPassthrough
@@ -47,15 +53,21 @@ public sealed class SkyHookPassthrough : ISkyHookPassthrough
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Sonarr.MetadataProxy/0.1 (TVDB fallback)");
     }
 
-    public async Task<ProxyResponse> SearchAsync(string rawTerm, CancellationToken cancellationToken)
+    public async Task<ProxyResponse> SearchAsync(string rawTerm, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
         var term = Uri.EscapeDataString(rawTerm);
-        return await GetAsync($"v1/tvdb/search/en/?term={term}", cancellationToken).ConfigureAwait(false);
+        var requestUri = version == SkyHookApiVersion.V2
+            ? $"v2/tvdb/search/?language=eng&term={term}"
+            : $"v1/tvdb/search/en/?term={term}";
+        return await GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<ProxyResponse> ShowAsync(int tvdbId, CancellationToken cancellationToken)
+    public async Task<ProxyResponse> ShowAsync(int tvdbId, SkyHookApiVersion version, CancellationToken cancellationToken)
     {
-        return await GetAsync($"v1/tvdb/shows/en/{tvdbId}", cancellationToken).ConfigureAwait(false);
+        var requestUri = version == SkyHookApiVersion.V2
+            ? $"v2/tvdb/shows/eng/{tvdbId}/official"
+            : $"v1/tvdb/shows/en/{tvdbId}";
+        return await GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<ProxyResponse> GetAsync(string requestUri, CancellationToken cancellationToken)

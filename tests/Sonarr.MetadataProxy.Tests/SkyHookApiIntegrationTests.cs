@@ -63,6 +63,77 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
+    public async Task V2_Search_RoutesToV2Passthrough()
+    {
+        var tmdb = new FakeTmdbApi { Exception = new TmdbApiException("TMDB is down", 503) };
+        var passthrough = new FakeSkyHookPassthrough();
+
+        using var factory = CreateFactory(tmdb, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v2/tvdb/search/?language=eng&term=breaking+bad");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("breaking bad", passthrough.LastSearchTerm);
+        Assert.Equal(SkyHookApiVersion.V2, passthrough.LastSearchVersion);
+    }
+
+    [Fact]
+    public async Task V1_Search_RoutesToV1Passthrough()
+    {
+        var tmdb = new FakeTmdbApi { Exception = new TmdbApiException("TMDB is down", 503) };
+        var passthrough = new FakeSkyHookPassthrough();
+
+        using var factory = CreateFactory(tmdb, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v1/tvdb/search/en/?term=breaking+bad");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SkyHookApiVersion.V1, passthrough.LastSearchVersion);
+    }
+
+    [Fact]
+    public async Task V2_Show_RoutesToV2Passthrough()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            Details = TestData.BreakingBadDetails(),
+            Exception = new TmdbApiException("TMDB is down", 503)
+        };
+        var resolver = new FakeTvdbResolver { Map = { [81189] = 1396 } };
+        var passthrough = new FakeSkyHookPassthrough();
+
+        using var factory = CreateFactory(tmdb, resolver: resolver, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v2/tvdb/shows/eng/81189/official");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SkyHookApiVersion.V2, passthrough.LastShowVersion);
+    }
+
+    [Fact]
+    public async Task V1_Show_RoutesToV1Passthrough()
+    {
+        var tmdb = new FakeTmdbApi
+        {
+            Details = TestData.BreakingBadDetails(),
+            Exception = new TmdbApiException("TMDB is down", 503)
+        };
+        var resolver = new FakeTvdbResolver { Map = { [81189] = 1396 } };
+        var passthrough = new FakeSkyHookPassthrough();
+
+        using var factory = CreateFactory(tmdb, resolver: resolver, passthrough: passthrough);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/v1/tvdb/shows/en/81189");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SkyHookApiVersion.V1, passthrough.LastShowVersion);
+    }
+
+    [Fact]
     public async Task Show_BySyntheticTvdbId_ReturnsFullSeriesWithEpisodes()
     {
         var tmdb = new FakeTmdbApi
