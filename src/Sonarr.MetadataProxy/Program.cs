@@ -59,6 +59,7 @@ builder.Services.AddHttpClient<ITvmazeApi, TvmazeClient>(http =>
     http.Timeout = TimeSpan.FromSeconds(20);
     http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
 });
+builder.Services.AddSingleton<TvmazeImageProxy>();
 
 builder.Services.AddHttpClient<IAnidbApi, AnidbClient>(http =>
 {
@@ -183,6 +184,10 @@ app.MapGet("/info", () => Results.Ok(new
     tvdbFallback = options.EnableTvdbFallback,
 version
 }));
+
+app.MapGet("/api/images/tvmaze", async (string url, TvmazeImageProxy proxy, CancellationToken ct) =>
+    await proxy.GetImageAsync(url, ct));
+
 app.MapGet("/", () => Results.Text(
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sonarr Metadata Proxy</title></head>" +
     "<body style=\"font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#0f172a\">" +
