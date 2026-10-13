@@ -62,6 +62,7 @@ EOF4
 mkdir -p "$V4/ui/Content/Fonts"
 : > "$V4/ui/Content/styles.css"
 : > "$V4/ui/Content/Fonts/fonts.css"
+: > "$V4/ui/index-abc123.js"
 run_rebuild "$V4"
 OUT="$(cat "$V4/ui/index.html")"
 
@@ -85,17 +86,19 @@ prepare "$V5"
 cat > "$V5/ui/index.html" <<'EOF5'
 <!DOCTYPE html><html lang="en"><head>
 <link rel="stylesheet" type="text/css" href="/Content/Fonts/fonts.css">
-<link rel="stylesheet" crossorigin href="/assets/index-cf02e6f1e5a4c0f40ef2.css">
-<script type="module" crossorigin src="/assets/index-cf02e6f1e5a4c0f40ef2.js"></script>
+<link rel="stylesheet" crossorigin href="/assets/index-BLMiYaDq.css">
+<script type="module" crossorigin src="/assets/index-D4liBTHR.js"></script>
 </head><body><div id="portal-root"></div><div id="root" class="root"></div></body></html>
 EOF5
-mkdir -p "$V5/ui/Content/Fonts"
+mkdir -p "$V5/ui/Content/Fonts" "$V5/ui/assets"
 : > "$V5/ui/Content/Fonts/fonts.css"
+: > "$V5/ui/assets/index-D4liBTHR.js"
+: > "$V5/ui/assets/index-BLMiYaDq.css"
 run_rebuild "$V5"
 OUT="$(cat "$V5/ui/index.html")"
 
-grep -qF '<script type="module" crossorigin src="/assets/index-cf02e6f1e5a4c0f40ef2.js"></script>' <<<"$OUT"; report $? "v5 loads Vite ESM bundle"
-grep -qF 'href="/assets/index-cf02e6f1e5a4c0f40ef2.css"' <<<"$OUT"; report $? "v5 links the Vite stylesheet"
+grep -qF '<script type="module" crossorigin src="/assets/index-D4liBTHR.js"></script>' <<<"$OUT"; report $? "v5 loads Vite ESM bundle (mixed-case hash)"
+grep -qF 'href="/assets/index-BLMiYaDq.css"' <<<"$OUT"; report $? "v5 links the Vite stylesheet"
 grep -qF 'href="/Content/Fonts/fonts.css"' <<<"$OUT"; report $? "v5 links Content/Fonts/fonts.css when present"
 if grep -qF 'href="/Content/styles.css"' <<<"$OUT"; then
   report 1 "v5 output has no Content/styles.css"

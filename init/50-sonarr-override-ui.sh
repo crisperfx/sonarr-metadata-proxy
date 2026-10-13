@@ -94,21 +94,33 @@ js_version() {
 }
 
 rebuild_index() {
-  # Detect the frontend build: Sonarr v5 ships a Vite build (ESM bundle + own
-  # stylesheet under /assets/), older v4 a single classic script in the UI root.
-  # Only emit <link rel=stylesheet> lines for CSS files that actually exist on
-  # disk: referencing a file the image dropped (v5 no longer ships
-  # UI/Content/styles.css) makes Sonarr's CacheBreakerProvider hash a missing
-  # file and crash every page load.
-  local js is_vite css
-  js="$(grep -o '"/assets/index-[a-f0-9]*\.js"' "${INDEX}" 2>/dev/null | head -1)"
-  if [ -n "${js}" ]; then
-    is_vite=1
-    js="$(printf '%s' "${js}" | tr -d '"')"
+  # Detect the frontend build and bundle path from the page Sonarr ships:
+  # v5 = Vite build (ESM <script type="module"> + own stylesheet under /assets/),
+  # v4 = a single classic <script src="/index-*.js"> in the UI root.
+  # The chosen path must exist on disk: Sonarr's CacheBreakerProvider hashes every
+  # asset in the served HTML and crashes on a missing one (v5 dropped
+  # UI/Content/styles.css, so any stale hardcoded link 500s every page load). We
+  # never guess filenames - we copy whichever script src the shipped page uses.
+  local js is_vite css p
+  js=""
+  for p in $(grep -oE 'src="[^"]+\.js"' "${INDEX}" 2>/dev/null | sed 's/^src="\(.*\)"$/\1/'); do
+    case "${p}" in
+      /assets/*) [ -f "${UI_DIR}${p}" ] && { js="${p}"; break; } ;;
+    esac
+  done
+  if [ -z "${js}" ]; then
+    for p in $(grep -oE 'src="[^"]+\.js"' "${INDEX}" 2>/dev/null | sed 's/^src="\(.*\)"$/\1/'); do
+      [ -f "${UI_DIR}${p}" ] && { js="${p}"; break; }
+    done
+  fi
+  if [ -z "${js}" ]; then
+    p="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
+    [ -f "${UI_DIR}${p}" ] && js="${p}"
+  fi
+  if [ -f "${UI_DIR}${js}" ]; then
+    case "${js}" in /assets/*) is_vite=1 ;; *) is_vite=0 ;; esac
   else
     is_vite=0
-    js="$(grep -o '/index-[a-f0-9]*\.js' "${INDEX}" 2>/dev/null | head -1)"
-    [ -n "${js}" ] || js="/index-cf02e6f1e5a4c0f40ef2.js"
   fi
   local v
   v="$(js_version)"
@@ -123,21 +135,21 @@ rebuild_index() {
       printf '<link rel="stylesheet" href="/Content/Fonts/fonts.css">\n'
     fi
     if [ "${is_vite}" -eq 1 ]; then
-      css="$(grep -o '"/assets/index-[a-f0-9]*\.css"' "${INDEX}" 2>/dev/null | head -1 | tr -d '"')"
+      css="$(grep -oE 'href="[^"]+\.css"' "${INDEX}" 2>/dev/null | sed 's/^href="\(.*\)"$/\1/' | while IFS= read -r c; do case "${c}" in /assets/*) [ -f "${UI_DIR}${c}" ] && { printf '%s\n' "${c}"; break; } ;; esac; done)"
       [ -n "${css}" ] && printf '<link rel="stylesheet" crossorigin href="%s">\n' "${css}"
       printf '<script>window.Sonarr = { urlBase: '\''__URL_BASE__'\'' };var theme = '\''_THEME_'\'';var defaultDark = window.matchMedia('\''(prefers-color-scheme: dark)'\'').matches;var finalTheme = theme === '\''dark'\'' || (theme === '\''auto'\'' && defaultDark) ? '\''dark'\'' : '\''light'\'';document.documentElement.style.setProperty('\''--pageBackground'\'', finalTheme === '\''dark'\'' ? '\''oklch(24%% 0.014 260)'\'' : '\''oklch(92%% 0.012 260)'\'');</script>\n'
       printf '__MINI_PROFILER__\n'
       printf '<style>html{background-color:var(--pageBackground);}.root{overflow:hidden;height:100%%;}</style>\n'
       printf '<title>Sonarr</title>\n</head>\n<body><div id="portal-root"></div>\n'
       printf '<div id="root" class="root"></div>\n'
-      printf '<script type="module" crossorigin src="%s"></script>\n' "${js}"
+      [ -n "${js}" ] && printf '<script type="module" crossorigin src="%s"></script>\n' "${js}"
     else
       if [ -f "${UI_DIR}/Content/styles.css" ]; then
         printf '<link rel="stylesheet" href="/Content/styles.css">\n'
       fi
       printf '<style>html,body,#root{height:100%%;margin:0;}</style>\n'
       printf "<script>window.Sonarr = { urlBase: '__URL_BASE__' };</script>\n"
-      printf '<script src="%s" data-no-hash></script>\n' "${js}"
+      [ -n "${js}" ] && printf '<script src="%s" data-no-hash></script>\n' "${js}"
       printf '<title>Sonarr</title>\n</head>\n<body><div id="root"></div>\n'
       printf '<div id="portal-root"></div>\n'
     fi
