@@ -309,3 +309,10 @@ Test and info: `dotnet test` or `docker compose build sonarr-metadata-proxy`., O
 - MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
 - Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
 - TMDB has no air time, so `timeOfDay` is missing.
+
+## Disclaimer
+
+This is an independent community project and is not affiliated with or endorsed by Sonarr, TVDB, TMDB, AniList, MAL, TVMaze, or AniDB.
+
+- docs: add Docker pulls, CI develop/latest and latest-tag badges to README
+- docs: document v1.6.4 - provider credits, Refresh & Scan after source change, warning box
