@@ -2,6 +2,11 @@
 
 A sidecar that gives your **unmodified Sonarr** access to metadata from **TMDB, AniList, MAL, TVMaze, AniDB, and TVDB** — no fork, no patched Sonarr, just a Docker container.
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/crisperfx/sonarr-metadata-proxy)](https://hub.docker.com/r/crisperfx/sonarr-metadata-proxy)
+[![CI develop](https://img.shields.io/github/actions/workflow/status/crisperfx/sonarr-metadata-proxy/ci.yml?branch=develop&label=CI%20develop)](https://github.com/crisperfx/sonarr-metadata-proxy/actions)
+[![CI latest](https://img.shields.io/github/actions/workflow/status/crisperfx/sonarr-metadata-proxy/ci.yml?branch=main&label=CI%20latest)](https://github.com/crisperfx/sonarr-metadata-proxy/actions)
+[![Latest tag](https://img.shields.io/docker/v/crisperfx/sonarr-metadata-proxy?sort=semver&label=latest)](https://hub.docker.com/r/crisperfx/sonarr-metadata-proxy/tags)
+
 # Screenshots interface
 
 | **Sidenav left**<br>Menu | **Menu**<br>Poster, choice of source | **Overview**<br>Single and add/new search |
@@ -80,6 +85,21 @@ series and puts it back on the default TVDB source:
 A confirmation dialog runs first. This is the quick fix when a series shows the wrong show or
 wrong provider metadata — it clears any poisoned/stale mappings and re-fetches cleanly.
 Internally it calls `POST /api/overrides/reset/{tvdbId}` (see [Management API](#management-api)).
+
+### After changing the source
+
+Picking a different provider in the **Metadata source** dropdown:
+
+- A green **Refresh & Scan** button appears below the dropdown — click it to re-fetch the series from the new provider; the page reloads automatically when the command is started.
+- If the chosen provider has **no ID** for the series yet, a warning box explains that switching may serve wrong metadata until a mapping is recorded.
+- The panel shows the selected source as a **Source** badge together with **all stored provider IDs** (TVDB, TMDB, TVMaze, AniDB, MAL, AniList), so you always see exactly where a series' metadata comes from.
+
+### Provider credits
+
+The Sonarr UI credits the provider that actually supplies a series' metadata: the line
+`Metadata is provided by …` shows the per-series source, or the global default when a series
+has no override. We give credit to the provider from which the metadata comes — no provider's
+data is presented as if it originated elsewhere.
 
 ---
 
