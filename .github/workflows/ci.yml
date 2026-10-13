@@ -37,7 +37,13 @@ jobs:
       - name: Check if code changes exist (skip docs-only)
         id: changes
         run: |
-          CHANGED=$(git diff --name-only HEAD~1..HEAD)
+          # Diff against the SHA before this push (not just HEAD~1), so a push
+          # whose tip commit is a docs merge still sees the code commits below it.
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="$(git rev-list --max-parents=0 HEAD)"
+          fi
+          CHANGED=$(git diff --name-only "${BEFORE}..HEAD")
           if echo "$CHANGED" | grep -qEv '^(README\.md|\.env\.example|DOCKER_HUB_DESCRIPTION\.txt|docs/|\.github/workflows/(release|dockerhub-description)\.yml)$'; then
             echo "has_code_changes=true" >> "$GITHUB_OUTPUT"
           else
