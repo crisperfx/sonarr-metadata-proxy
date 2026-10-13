@@ -109,6 +109,21 @@ public class SkyHookTranslatorTests : IDisposable
     }
 
     [Fact]
+    public void ToSearchResult_RoundsRatingToAvoidFloatArtifacts()
+    {
+        var metadata = new SeriesMetadata
+        {
+            Title = "Breaking Bad",
+            VoteAverage = 8.023,
+            ExternalIds = new ExternalIdSet(81189, "tt0903747", 1396)
+        };
+
+        var show = _translator.ToSearchResult(metadata);
+
+        Assert.Equal(8.023m, show.Rating!.Value);
+    }
+
+    [Fact]
     public void ToSearchResult_IncludesOfficialSeasonType()
     {
         var metadata = SeriesWithExternalIds(81189, "tt0903747");

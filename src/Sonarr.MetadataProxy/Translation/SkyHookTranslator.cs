@@ -266,7 +266,7 @@ private ShowResource BuildBase(SeriesMetadata metadata, int? overrideTvdbId)
     {
         try
         {
-            return (decimal)value;
+            return decimal.Round((decimal)value, 3, MidpointRounding.AwayFromZero);
         }
         catch (OverflowException)
         {
