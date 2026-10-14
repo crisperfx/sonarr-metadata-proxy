@@ -49,11 +49,18 @@ services:
     container_name: sonarr-metadata-proxy
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # When a pulled image refreshes the Sonarr-side init scripts, the proxy
+      # restarts this container so /custom-cont-init.d runs again (entrypoint.sh).
+      # Set it to your Sonarr container name; leave it unset to disable.
+      - RESTART_CONTAINER_NAME=sonarr
     env_file:
       - .env
     volumes:
       - proxy-data:/app/data
       - certs:/app/data/certs
+      # Needed so the proxy can restart the Sonarr container. NOTE: the raw
+      # Docker socket is equivalent to full (root) control over the Docker host.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     cap_add:
       - CHOWN
       - DAC_OVERRIDE

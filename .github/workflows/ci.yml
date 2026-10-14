@@ -22,6 +22,9 @@ jobs:
       - name: init scripts (Sonarr v4 + v5 compatibility)
         run: bash scripts/test-init.sh
 
+      - name: entrypoint syntax
+        run: sh -n entrypoint.sh
+
   docker:
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
