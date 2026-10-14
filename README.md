@@ -50,6 +50,7 @@ The compose file already includes **everything needed**:
 - Sonarr (stock image)
 - Shared volumes for CA certs, mappings, and UI injection scripts
 - Docker network with `skyhook.sonarr.tv` alias
+- Optional auto-restart of Sonarr when a refreshed proxy image changes the injected scripts (see [Auto-restart Sonarr](#auto-restart-sonarr))
 
 ```bash
 docker compose up -d
@@ -141,10 +142,37 @@ data is presented as if it originated elsewhere.
 | `SKIP_TLS` | `false` | `true` = disable TLS/443 (dev only, won't work with Sonarr). |
 | `CORS_ALLOWED_ORIGINS` | — | Browser origins allowed to call the overrides API (needed for the dropdown). Multiple with commas, `*` = all (e.g. `https://sonarr.example.com,http://192.168.0.143`). |
 | `OVERRIDES_API_URL` | — | Set on **Sonarr** container when behind a reverse proxy (e.g. `https://proxy.example.com`). |
+| `RESTART_CONTAINER_NAME` | — | When set to your Sonarr container name, the proxy restarts that container automatically whenever a pulled proxy image refreshes the Sonarr-side init scripts in `DATA_DIR/init` (CA hook / UI override) — needed because Sonarr only runs `/custom-cont-init.d` at container start. Requires the Docker socket mount (see [Auto-restart Sonarr](#auto-restart-sonarr)). Leave unset to disable. |
+| `DOCKER_PROXY_URL` | — | Optional. Route the auto-restart through a locked-down Docker socket proxy (e.g. `http://socket-proxy:2375`) instead of the mounted socket. |
 | `DATA_DIR` | `/app/data` | Persistent data: `mappings/` (series map + overrides), `certs/` (CA), `init/` (seed files). |
 | `ANILIST_DATAMAP_DIR` | `/app/datamaps` | Folder with AniList↔AniDB↔TVDB datasets (baked into the image). |
 
 Set these in `.env`, or as environment variables on the container / in your own compose.
+
+---
+
+## Auto-restart Sonarr
+
+Sonarr only runs `/custom-cont-init.d` (the CA hook + UI override) **when its container starts**. The proxy keeps its injected scripts in sync in `DATA_DIR/init` on every start, but a refreshed script (e.g. after pulling a newer proxy image) only takes effect after Sonarr restarts.
+
+Set `RESTART_CONTAINER_NAME` to your Sonarr **container name** and mount the Docker socket, and the proxy restarts it for you whenever a seed actually changed on start:
+
+```yaml
+services:
+  sonarr-metadata-proxy:
+    environment:
+      - RESTART_CONTAINER_NAME=sonarr
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+- The Docker socket mount is required for this feature; the `:ro` flag is conventional and does **not** restrict the Docker API (see the security note below).
+- Set `DOCKER_PROXY_URL` instead to route the restart through a locked-down socket proxy — the raw socket mount is then not needed.
+- Leave `RESTART_CONTAINER_NAME` unset to skip auto-restart entirely (the stock behaviour).
+- Confirm it worked in the proxy log:
+  `Refreshed .../init/<file> from image (content changed)` → `Init files changed; restarting container '<name>'` → `Restart signal sent via /var/run/docker.sock.`
+
+> ⚠️ Mounting the raw `/var/run/docker.sock` is equivalent to **root on the Docker host** (the `:ro` flag does **not** restrict the API). In this image it is only used by the root entrypoint at startup — the long-running proxy runs as the unprivileged `app` user and cannot reach the socket. For least privilege, use `DOCKER_PROXY_URL` with a socket proxy that allows only `POST /containers/<name>/restart`.
 
 ---
 
@@ -170,6 +198,8 @@ Prefer clicking? Same result, no repo needed — defaults are baked into the ima
 | Environment | `CORS_ALLOWED_ORIGINS` = `http://<sonarr-ip>:8989` (for the dropdown) |
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/app/data` |
 | Extra capability | `NET_BIND_SERVICE` — required to bind port 443 |
+| Environment (optional) | `RESTART_CONTAINER_NAME` = `<your Sonarr container name>` — auto-restart Sonarr when the injected scripts change (see [Auto-restart Sonarr](#auto-restart-sonarr)) |
+| Volume (optional) | `/var/run/docker.sock` → `/var/run/docker.sock` (read-only) — only needed for `RESTART_CONTAINER_NAME` |
 
 Restart. The created data folder (step 1)  now contains `01-install-ca.sh`, `50-sonarr-override-ui.sh`, `metadata-proxy-override.js`, `certs/ca.crt`.
 
@@ -182,7 +212,7 @@ New: use `lscr.io/linuxserver/sonarr:latest`. Existing: add these mounts + env:
 | Volume | `/volume3/docker/config/sonarr-metadata-proxy` → `/shared` (read-only) |
 | Volume | `.../sonarr-metadata-proxy/01-install-ca.sh` → `/custom-cont-init.d/01-install-ca.sh` (read-only) |
 | Volume | `.../sonarr-metadata-proxy/50-sonarr-override-ui.sh` → `/custom-cont-init.d/50-sonarr-override-ui.sh` (read-only) |
-| Environment (optional) | `OVERRDS_API_URL` = `https://proxy.example.com` — only behind a reverse proxy |
+| Environment (optional) | `OVERRIDES_API_URL` = `https://proxy.example.com` — only behind a reverse proxy |
 
 **Network & DNS**: Sonarr must resolve `skyhook.sonarr.tv` to the proxy (port 443). Put both on the same Docker network and add a hosts entry in Sonarr: `skyhook.sonarr.tv` → proxy container IP.
 
@@ -190,6 +220,8 @@ New: use `lscr.io/linuxserver/sonarr:latest`. Existing: add these mounts + env:
 1. Proxy → wait until fully UP
 2. Sonarr → installs CA + patches UI (log: `index.html patched...`)
 3. **Restart Sonarr once more** — the patched UI is now active in the browser.
+
+> With `RESTART_CONTAINER_NAME` set (see [Auto-restart Sonarr](#auto-restart-sonarr)), later proxy-image updates restart Sonarr for you; the manual order above only matters for the very first setup.
 
 **Step 6 — Test**
 - Sonarr log: `Installing proxied CA for skyhook.sonarr.tv` and `index.html patched with override UI script`
@@ -235,7 +267,7 @@ docker restart sonarr-metadata-proxy
 docker restart sonarr
 ```
 
-Pull only for **new code** (features/fixes). For config changes (env vars) just restart Sonarr — the hook re-applies on every start.
+Pull only for **new code** (features/fixes); restarting the proxy is what picks up `.env` changes. The Sonarr side re-applies the hook on every Sonarr start — with [Auto-restart Sonarr](#auto-restart-sonarr) enabled the final `docker restart sonarr` is done for you whenever a pulled image changed the injected scripts.
 
 Your data (`mappings/`, `certs/`) is never touched.
 
@@ -249,6 +281,7 @@ Your data (`mappings/`, `certs/`) is never touched.
 - TMDB credentials are never logged.
 - Outbound calls go to fixed hosts only (TMDB, AniList, Tenrai, SkyHook, Cloudflare DoH, Wikidata).
 - CORS is closed by default — `/api/overrides` only answers origins in `CORS_ALLOWED_ORIGINS`.
+- The optional Docker socket mount (for [Auto-restart Sonarr](#auto-restart-sonarr)) is equivalent to **root on the Docker host**. It is only used by the root entrypoint at container start; the unprivileged `app` process cannot reach it. Prefer `DOCKER_PROXY_URL` (a socket proxy that allows only `POST /containers/<name>/restart`) over the raw socket.
 
 > ⚠️ The management API on `9697` is **unauthenticated** (the in-browser picker uses it). Don't expose `9697` to the internet; keep it behind your firewall/reverse proxy.
 
@@ -305,14 +338,8 @@ git tag v1.1.4 && git push origin v1.1.4   # CI: tests + publish :1.1.4 and :lat
 | `main` | `:latest` |
 | `vX.Y.Z` | `:X.Y.Z` (e.g. `v1.1.4` → `1.1.4`) |
 
-Test and info: `dotnet test` or `docker compose build sonarr-metadata-proxy`., OVAs). Anime without a known TVDB mapping get a synthetic TVDB ID and appear in search; details/episodes served via TMDB (synthetic → TMDB). On empty results or API errors, falls back to TVDB.
-- MAL search filters to `type: tv` (excludes movies, OVAs, music, etc.). Series without a known TVDB mapping get a synthetic TVDB ID; on empty results or API errors, falls back to TVDB.
-- Episodes of series without a TVDB mapping get proxy-local (stable) episode ids.
-- TMDB has no air time, so `timeOfDay` is missing.
+Test and info: `dotnet test` or `docker compose build sonarr-metadata-proxy`.
 
 ## Disclaimer
 
 This is an independent community project and is not affiliated with or endorsed by Sonarr, TVDB, TMDB, AniList, MAL, TVMaze, or AniDB.
-
-- docs: add Docker pulls, CI develop/latest and latest-tag badges to README
-- docs: document v1.6.4 - provider credits, Refresh & Scan after source change, warning box
