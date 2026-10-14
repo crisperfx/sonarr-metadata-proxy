@@ -232,6 +232,12 @@ OVERRIDES_API_URL=https://proxy.example.com
 CORS_ALLOWED_ORIGINS=https://sonarr.example.com
 ```
 
+## Features Added (Recent)
+
+- **Auto-restart Sonarr** – when a pulled proxy image refreshes the injected scripts in `DATA_DIR/init`, the proxy can restart your Sonarr container automatically (`RESTART_CONTAINER_NAME` + `/var/run/docker.sock:ro`, or `DOCKER_PROXY_URL` via a locked-down socket proxy). See README for details.
+- **Reliable Refresh & Scan** – the in-Sonarr UI waits for the `RefreshSeries` command to complete before reloading, eliminating the common "poster doesn't update / hash stays the same" race.
+- **Legacy image URL fallback** – the UI unwraps old `skyhook.../api/images/remote?url=` poster URLs so previously stored images still display correctly after switching away from the old proxy behavior.
+
 ## Updating
 
 Pull the latest image and recreate the container:
@@ -243,6 +249,8 @@ docker compose up -d
 
 Persistent data stored in `/app/data` is retained when the container is recreated.
 
+**New in 1.6.6+**: `RESTART_CONTAINER_NAME` and `DOCKER_PROXY_URL` are baked into image defaults and documented in the README.
+
 ## Support
 
 For issues, feature requests and development:
@@ -253,4 +261,3 @@ For issues, feature requests and development:
 
 This is an independent community project and is not affiliated with or endorsed by Sonarr, TVDB, TMDB, AniList, MAL, TVMaze, or AniDB.
 
-<!-- CHANGELOG -->
