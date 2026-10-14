@@ -249,6 +249,28 @@
     return true;
   }
 
+  function normalizeImageUrl(url) {
+    if (!url) {
+      return null;
+    }
+    var marker = '/api/images/remote?url=';
+    var value = String(url);
+    var idx = value.indexOf(marker);
+    if (idx === -1) {
+      return value;
+    }
+    var raw = value.slice(idx + marker.length);
+    var amp = raw.indexOf('&');
+    if (amp !== -1) {
+      raw = raw.slice(0, amp);
+    }
+    try {
+      return decodeURIComponent(raw);
+    } catch (e) {
+      return value;
+    }
+  }
+
   function seriesPoster() {
     if (!series || !series.images) {
       return null;
@@ -256,7 +278,7 @@
     for (var i = 0; i < series.images.length; i++) {
       var im = series.images[i];
       if (im && im.coverType === 'poster') {
-        return im.remoteUrl || im.url || null;
+        return normalizeImageUrl(im.remoteUrl || im.url || null);
       }
     }
     return null;
@@ -312,10 +334,10 @@
       refreshBtn.textContent = 'Refreshing...';
       triggerRefreshScan()
         .then(function () {
-          setStatus('Refresh & Scan started. Reloading this page\u2026', 'var(--successColor,#4ade80)');
+          setStatus('Refresh & Scan done. Reloading this page\u2026', 'var(--successColor,#4ade80)');
           window.setTimeout(function () {
             window.location.reload();
-          }, 2000);
+          }, 1200);
         })
         .catch(function (err) {
           refreshBtn.disabled = false;
@@ -578,10 +600,10 @@
         return triggerRefreshScan();
       })
       .then(function () {
-        setStatus('Reset done. Refresh & Scan started. Reloading this page\u2026', 'var(--successColor,#4ade80)');
+        setStatus('Reset done. Refresh & Scan finished. Reloading this page\u2026', 'var(--successColor,#4ade80)');
         window.setTimeout(function () {
           window.location.reload();
-        }, 2000);
+        }, 1200);
       })
       .catch(fail);
   }
@@ -589,7 +611,7 @@
   function triggerRefreshScan() {
     if (!series || !series.id) {
       setStatus('No Sonarr series id found; run Refresh & Scan manually.', 'var(--warningColor,#fbbf24)');
-      return Promise.resolve();
+      return Promise.resolve(null);
     }
     return waitForSonarrKey(6000).then(function (apiKey) {
       var options = {
@@ -600,12 +622,55 @@
       if (apiKey) {
         options.headers['X-Api-Key'] = apiKey;
       }
-      return fetch(sonarrCommandUrl(), options);
-    }).then(function (response) {
-      if (!response.ok) {
-        throw new Error('Sonarr RefreshSeries: HTTP ' + response.status);
-      }
-      return response;
+      return fetch(sonarrCommandUrl(), options).then(function (response) {
+        if (!response.ok) {
+          throw new Error('Sonarr RefreshSeries: HTTP ' + response.status);
+        }
+        return response.json().catch(function () {
+          return null;
+        });
+      }).then(function (command) {
+        if (!command || typeof command.id === 'undefined' || command.id === null) {
+          return null;
+        }
+        return waitForCommand(command.id, apiKey, 60000);
+      });
+    });
+  }
+
+  function waitForCommand(commandId, apiKey, timeoutMs) {
+    var url = sonarrCommandUrl().replace(/\/+$/, '') + '/' + commandId;
+    var start = Date.now();
+    return new Promise(function (resolve) {
+      (function poll() {
+        var options = { headers: {} };
+        if (apiKey) {
+          options.headers['X-Api-Key'] = apiKey;
+        }
+        fetch(url, options)
+          .then(function (res) {
+            if (!res.ok) {
+              throw new Error('HTTP ' + res.status);
+            }
+            return res.json();
+          })
+          .then(function (cmd) {
+            var status = cmd && cmd.status ? String(cmd.status).toLowerCase() : '';
+            if (status === 'completed' || status === 'failed' || status === 'aborted' || status === 'cancelled') {
+              return resolve(cmd);
+            }
+            if (Date.now() - start >= timeoutMs) {
+              return resolve(cmd);
+            }
+            setTimeout(poll, 500);
+          })
+          .catch(function () {
+            if (Date.now() - start >= timeoutMs) {
+              return resolve(null);
+            }
+            setTimeout(poll, 500);
+          });
+      })();
     });
   }
 
