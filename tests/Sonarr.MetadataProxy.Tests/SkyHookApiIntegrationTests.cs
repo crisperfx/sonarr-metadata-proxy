@@ -223,32 +223,6 @@ public class SkyHookApiIntegrationTests
     }
 
     [Fact]
-    public async Task Show_Passthrough_RewritesImageUrlsToProxy()
-    {
-        var passthrough = new FakeSkyHookPassthrough
-        {
-            ShowResponse = new ProxyResponse(
-                200,
-                "application/json",
-                "{\"tvdbId\":130521,\"title\":\"Undercover in Nederland\",\"slug\":\"undercover-in-nederland\"," +
-                "\"images\":[{\"coverType\":\"poster\",\"url\":\"https://static.tvmaze.com/uploads/images/original_untouched/1/poster.jpg\"}]," +
-                "\"seasons\":[{\"seasonNumber\":1,\"images\":[]}]," +
-                "\"episodes\":[]}")
-        };
-
-        using var factory = CreateFactory(new FakeTmdbApi(), passthrough: passthrough);
-        using var client = factory.CreateClient();
-
-        var body = await client.GetStringAsync("/v1/tvdb/shows/en/130521");
-
-        using var document = JsonDocument.Parse(body);
-        var poster = document.RootElement.GetProperty("images")[0].GetProperty("url").GetString();
-
-        Assert.StartsWith("http://localhost/api/images/remote?url=", poster);
-        Assert.Contains(Uri.EscapeDataString("https://static.tvmaze.com/uploads/images/original_untouched/1/poster.jpg"), poster);
-    }
-
-    [Fact]
     public async Task Show_Passthrough_KeepsRealTvdbSlugWhenPresent()
     {
         var passthrough = new FakeSkyHookPassthrough
@@ -1414,56 +1388,6 @@ public class SkyHookApiIntegrationTests
         Assert.Empty(document.RootElement.EnumerateArray());
     }
 
-    [Fact]
-    public async Task RemoteImage_GetReturnsImage()
-    {
-        using var factory = CreateFactory(new FakeTmdbApi(), imageHandler: new ImageStubHandler());
-        using var client = factory.CreateClient();
-
-        var url = "https://static.tvmaze.com/uploads/images/original_untouched/1/poster.jpg";
-        using var response = await client.GetAsync($"/api/images/remote?url={Uri.EscapeDataString(url)}");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(5, (await response.Content.ReadAsByteArrayAsync()).Length);
-    }
-
-    [Fact]
-    public async Task RemoteImage_HeadRequest_ReturnsContentLength()
-    {
-        using var factory = CreateFactory(new FakeTmdbApi(), imageHandler: new ImageStubHandler());
-        using var client = factory.CreateClient();
-
-        var url = "https://static.tvmaze.com/uploads/images/original_untouched/1/poster.jpg";
-        using var request = new HttpRequestMessage(HttpMethod.Head, $"/api/images/remote?url={Uri.EscapeDataString(url)}");
-        using var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(5, response.Content.Headers.ContentLength);
-    }
-
-    [Fact]
-    public async Task RemoteImage_DisallowedHost_ReturnsNotFound()
-    {
-        using var factory = CreateFactory(new FakeTmdbApi());
-        using var client = factory.CreateClient();
-
-        using var response = await client.GetAsync(
-            $"/api/images/remote?url={Uri.EscapeDataString("https://example.com/poster.jpg")}");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    private sealed class ImageStubHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var content = new ByteArrayContent(new byte[] { 1, 2, 3, 4, 5 });
-            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
-        }
-    }
-
     private void WriteAniListFixtures()
     {
         var dir = Path.Combine(_dataDir, "datamaps");
@@ -1491,7 +1415,6 @@ public class SkyHookApiIntegrationTests
         FakeMalApi? mal = null,
         FakeTvmazeApi? tvmaze = null,
         FakeTvdbTvmazeResolver? tvmazeResolver = null,
-        HttpMessageHandler? imageHandler = null,
         bool fallbackEnabled = true)
     {
         return new WebApplicationFactory<Program>()
@@ -1543,12 +1466,6 @@ public class SkyHookApiIntegrationTests
                     services.AddSingleton<ITvdbToTvmazeResolver>(tvmazeResolver ?? new FakeTvdbTvmazeResolver());
                     services.AddSingleton<ITvdbToAnidbResolver>(new FakeTvdbAnidbResolver());
                     services.AddSingleton<IAnidbApi>(new FakeAnidbApi());
-
-                    if (imageHandler is not null)
-                    {
-                        services.AddHttpClient<RemoteImageProxy>()
-                            .ConfigurePrimaryHttpMessageHandler(() => imageHandler);
-                    }
                 });
             });
     }

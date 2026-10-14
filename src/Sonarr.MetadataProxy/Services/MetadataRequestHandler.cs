@@ -39,7 +39,6 @@ public sealed class MetadataRequestHandler
     private readonly ITvdbToAnidbResolver? _tvdbToAnidb;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MetadataRequestHandler> _logger;
-    private readonly ImageUrlRewriter? _imageRewriter;
 
     public MetadataRequestHandler(
         ProxyOptions options,
@@ -63,8 +62,7 @@ public sealed class MetadataRequestHandler
         AnidbSearchService? anidb,
         ITvdbToAnidbResolver? tvdbToAnidb,
         IServiceProvider serviceProvider,
-        ILogger<MetadataRequestHandler> logger,
-        ImageUrlRewriter? imageRewriter = null)
+        ILogger<MetadataRequestHandler> logger)
     {
         _options = options;
         _mapping = mapping;
@@ -92,7 +90,6 @@ public sealed class MetadataRequestHandler
         _tvdbToAnidb = tvdbToAnidb;
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _imageRewriter = imageRewriter;
     }
 
     private IMetadataProvider? TmdbOrActive => _tmdbProvider ?? _activeProvider;
@@ -448,94 +445,12 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             resolution = await EnrichWithMalPicturesAsync(resolution, malId.Value, cancellationToken).ConfigureAwait(false);
         }
 
-        resolution = RewriteImages(resolution);
-
         return resolution switch
         {
             ShowResolution.Mapped mapped => Results.Ok(mapped.Show),
             ShowResolution.Passthrough passed => Results.Content(passed.Response.Body, passed.Response.ContentType, null, passed.Response.StatusCode),
             _ => Results.NotFound(new { error = "mapping unavailable" })
         };
-    }
-
-    private ShowResolution RewriteImages(ShowResolution resolution)
-    {
-        if (_imageRewriter is null)
-        {
-            return resolution;
-        }
-
-        return resolution switch
-        {
-            ShowResolution.Mapped mapped => new ShowResolution.Mapped(RewriteImages(mapped.Show)),
-            ShowResolution.Passthrough passed => RewriteImages(passed),
-            _ => resolution
-        };
-    }
-
-    private ShowResource RewriteImages(ShowResource show)
-    {
-        foreach (var image in show.Images)
-        {
-            image.Url = _imageRewriter!.Rewrite(image.Url);
-        }
-
-        foreach (var season in show.Seasons)
-        {
-            foreach (var image in season.Images)
-            {
-                image.Url = _imageRewriter!.Rewrite(image.Url);
-            }
-        }
-
-        return show;
-    }
-
-    private ShowResolution.Passthrough RewriteImages(ShowResolution.Passthrough passed)
-    {
-        JsonNode? body;
-        try
-        {
-            body = JsonNode.Parse(passed.Response.Body);
-        }
-        catch (Exception)
-        {
-            return passed;
-        }
-
-        if (body is not JsonObject root)
-        {
-            return passed;
-        }
-
-        RewriteJsonImages(root["images"] as JsonArray);
-
-        if (root["seasons"] is JsonArray seasons)
-        {
-            foreach (var season in seasons.OfType<JsonObject>())
-            {
-                RewriteJsonImages(season["images"] as JsonArray);
-            }
-        }
-
-        var rewritten = new ProxyResponse(passed.Response.StatusCode, passed.Response.ContentType, root.ToJsonString());
-        return new ShowResolution.Passthrough(rewritten);
-    }
-
-    private void RewriteJsonImages(JsonArray? images)
-    {
-        if (images is null || _imageRewriter is null)
-        {
-            return;
-        }
-
-        foreach (var image in images.OfType<JsonObject>())
-        {
-            if (image["url"] is JsonValue value && value.TryGetValue<string>(out var url))
-            {
-                image["url"] = _imageRewriter.Rewrite(url);
-            }
-        }
     }
 
     private int? GetMalId(int tvdbId)

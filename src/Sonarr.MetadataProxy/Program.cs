@@ -38,9 +38,6 @@ Log.Information("TVDB fallback backend: {SkyhookUrl} (resolved via {Resolver})",
 
 builder.Services.AddSingleton(options);
 
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddSingleton<ImageUrlRewriter>();
-
 var loggerFactory = LoggerFactory.Create(logging => logging.AddSerilog(dispose: false));
 var certificateProvider = new CertificateProvider(options, loggerFactory.CreateLogger<CertificateProvider>());
 builder.Services.AddSingleton(certificateProvider);
@@ -61,11 +58,6 @@ builder.Services.AddHttpClient<ITvmazeApi, TvmazeClient>(http =>
 {
     http.Timeout = TimeSpan.FromSeconds(20);
     http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0");
-});
-builder.Services.AddHttpClient<RemoteImageProxy>(http =>
-{
-    http.Timeout = TimeSpan.FromSeconds(30);
-    http.DefaultRequestHeaders.UserAgent.ParseAdd("SonarrMetadataProxy/1.0 (image proxy)");
 });
 
 builder.Services.AddHttpClient<IAnidbApi, AnidbClient>(http =>
@@ -191,10 +183,6 @@ app.MapGet("/info", () => Results.Ok(new
     tvdbFallback = options.EnableTvdbFallback,
 version
 }));
-
-app.MapMethods("/api/images/remote", new[] { HttpMethods.Get, HttpMethods.Head },
-    async (string? url, RemoteImageProxy proxy, CancellationToken ct) =>
-        await proxy.GetImageAsync(url ?? string.Empty, ct));
 
 app.MapGet("/", () => Results.Text(
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sonarr Metadata Proxy</title></head>" +
