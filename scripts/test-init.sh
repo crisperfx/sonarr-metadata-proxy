@@ -109,6 +109,7 @@ grep -qF '_THEME_' <<<"$OUT"; report $? "v5 keeps _THEME_ placeholder (theme inj
 grep -qF '__MINI_PROFILER__' <<<"$OUT"; report $? "v5 keeps __MINI_PROFILER__ placeholder"
 grep -qF '__URL_BASE__' <<<"$OUT"; report $? "v5 keeps __URL_BASE__ placeholder"
 grep -qF '<div id="root" class="root"></div>' <<<"$OUT"; report $? "v5 keeps #root (root class) mount point"
+grep -qF '@media only screen and (max-width: 768px)' <<<"$OUT"; report $? "v5 keeps mobile .root scroll override"
 grep -qF 'metadata-proxy-override.js?v=' <<<"$OUT"; report $? "v5 loads our picker script"
 if grep -q 'data-no-hash' <<<"$OUT"; then
   report 1 "v5 output has no data-no-hash tags"

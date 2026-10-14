@@ -139,7 +139,7 @@ rebuild_index() {
       [ -n "${css}" ] && printf '<link rel="stylesheet" crossorigin href="%s">\n' "${css}"
       printf '<script>window.Sonarr = { urlBase: '\''__URL_BASE__'\'' };var theme = '\''_THEME_'\'';var defaultDark = window.matchMedia('\''(prefers-color-scheme: dark)'\'').matches;var finalTheme = theme === '\''dark'\'' || (theme === '\''auto'\'' && defaultDark) ? '\''dark'\'' : '\''light'\'';document.documentElement.style.setProperty('\''--pageBackground'\'', finalTheme === '\''dark'\'' ? '\''oklch(24%% 0.014 260)'\'' : '\''oklch(92%% 0.012 260)'\'');</script>\n'
       printf '__MINI_PROFILER__\n'
-      printf '<style>html{background-color:var(--pageBackground);}.root{overflow:hidden;height:100%%;}</style>\n'
+      printf '<style>html{background-color:var(--pageBackground);}.root{overflow:hidden;height:100%%;}@media only screen and (max-width: 768px){.root{display:flex;flex-direction:column;min-height:100%%;height:auto;}}</style>\n'
       printf '<title>Sonarr</title>\n</head>\n<body><div id="portal-root"></div>\n'
       printf '<div id="root" class="root"></div>\n'
       [ -n "${js}" ] && printf '<script type="module" crossorigin src="%s"></script>\n' "${js}"
