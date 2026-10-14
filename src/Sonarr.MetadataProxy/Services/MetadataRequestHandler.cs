@@ -488,11 +488,6 @@ _logger.LogInformation("No TVDB-mappable results for '{Term}'. Falling through t
             }
         }
 
-        foreach (var episode in show.Episodes)
-        {
-            episode.Image = _imageRewriter!.Rewrite(episode.Image);
-        }
-
         return show;
     }
 
