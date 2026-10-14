@@ -182,6 +182,48 @@ public class MetadataRequestHandlerTests
     }
 
     [Fact]
+    public async Task Show_WithHttpContext_RewritesImagesToProxy()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Request.Scheme = "https";
+        accessor.HttpContext.Request.Host = new HostString("skyhook.sonarr.tv");
+        var (handler, _) = CreateHandlerWithMapping(fallbackEnabled: true, imageRewriter: new ImageUrlRewriter(accessor));
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+
+        var result = await handler.ShowAsync(1000001396, CancellationToken.None);
+        var (status, body) = await ExecuteAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, status);
+        using var document = JsonDocument.Parse(body);
+        var url = document.RootElement.GetProperty("images")[0].GetProperty("url").GetString();
+        Assert.StartsWith(
+            "https://skyhook.sonarr.tv/api/images/remote?url=",
+            url);
+        Assert.Contains(Uri.EscapeDataString("image.tmdb.org"), url);
+
+        var seasonUrl = document.RootElement.GetProperty("seasons")[0]
+            .GetProperty("images")[0].GetProperty("url").GetString();
+        Assert.StartsWith("https://skyhook.sonarr.tv/api/images/remote?url=", seasonUrl);
+    }
+
+    [Fact]
+    public async Task Show_WithoutHttpContext_KeepsDirectImageUrls()
+    {
+        var handler = CreateHandler(fallbackEnabled: true);
+        _tmdb.Details = TestData.BreakingBadDetails();
+        _tmdb.Seasons[1] = TestData.SeasonOneEpisodes();
+
+        var result = await handler.ShowAsync(1000001396, CancellationToken.None);
+        var (status, body) = await ExecuteAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, status);
+        using var document = JsonDocument.Parse(body);
+        var url = document.RootElement.GetProperty("images")[0].GetProperty("url").GetString();
+        Assert.StartsWith("https://image.tmdb.org/", url);
+    }
+
+    [Fact]
     public async Task Show_RealTvdbWithMapping_UsesTmdbAndRegistersMapping()
     {
         var handler = CreateHandler(fallbackEnabled: true);
@@ -877,7 +919,8 @@ public class MetadataRequestHandlerTests
         TvmazeSearchService? tvmazeSearch = null,
         AnidbSearchService? anidbSearch = null,
         AnidbMetadataProvider? anidbProvider = null,
-        FakeTvdbAnidbResolver? anidbResolver = null)
+        FakeTvdbAnidbResolver? anidbResolver = null,
+        ImageUrlRewriter? imageRewriter = null)
     {
         var options = new ProxyOptions
         {
@@ -923,7 +966,8 @@ public class MetadataRequestHandlerTests
             anidbSearch,
             effectiveAnidbResolver,
             TestServiceProvider,
-            NullLogger<MetadataRequestHandler>.Instance);
+            NullLogger<MetadataRequestHandler>.Instance,
+            imageRewriter);
 
         return (handler, mapping);
     }

@@ -256,7 +256,7 @@
     for (var i = 0; i < series.images.length; i++) {
       var im = series.images[i];
       if (im && im.coverType === 'poster') {
-        return im.remoteUrl || im.url || null;
+        return im.url || im.remoteUrl || null;
       }
     }
     return null;
