@@ -23,17 +23,18 @@ set -e
 
 DATA="${DATA_DIR:-/app/data}"
 INIT_DIR="${DATA}/init"
+INIT_SRC="${INIT_SRC:-/app/init}"
 
 mkdir -p "${DATA}" "${INIT_DIR}"
 
 changed=0
 for f in 01-install-ca.sh 50-sonarr-override-ui.sh metadata-proxy-override.js; do
   if [ ! -f "${INIT_DIR}/$f" ]; then
-    cp -f "/app/init/$f" "${INIT_DIR}/$f"
+    cp -f "${INIT_SRC}/$f" "${INIT_DIR}/$f"
     echo "[sonarr-metadata-proxy] Seeded ${INIT_DIR}/$f from image."
     changed=1
-  elif ! cmp -s "/app/init/$f" "${INIT_DIR}/$f"; then
-    cp -f "/app/init/$f" "${INIT_DIR}/$f"
+  elif ! cmp -s "${INIT_SRC}/$f" "${INIT_DIR}/$f"; then
+    cp -f "${INIT_SRC}/$f" "${INIT_DIR}/$f"
     echo "[sonarr-metadata-proxy] Refreshed ${INIT_DIR}/$f from image (content changed)."
     changed=1
   else

@@ -25,6 +25,9 @@ jobs:
       - name: entrypoint syntax
         run: sh -n entrypoint.sh
 
+      - name: entrypoint auto-restart logic
+        run: bash scripts/test-entrypoint.sh
+
   docker:
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
